@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../providers/auth_provider.dart';
 import '../providers/data_provider.dart';
 import 'grades_screen.dart';
@@ -22,6 +23,83 @@ class _HomeScreenState extends State<HomeScreen> {
     const ProgressScreen(),
   ];
 
+  void _showAboutDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("关于我们", textAlign: TextAlign.center),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: Image.asset(
+                  'assets/images/logo.png',
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) => Container(
+                    color: const Color(0xFF409EFF),
+                    child: const Icon(Icons.school, size: 50, color: Colors.white),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              "教务小助手",
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 4),
+            const Text("v1.0.0", style: TextStyle(color: Colors.grey)),
+            const SizedBox(height: 24),
+            InkWell(
+              onTap: () => launchUrl(Uri.parse("https://github.com/Sdpei-CTCA/JWHelper")),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: const [
+                  Icon(Icons.link, size: 16, color: Colors.blue),
+                  SizedBox(width: 4),
+                  Text(
+                    "GitHub 仓库",
+                    style: TextStyle(color: Colors.blue, decoration: TextDecoration.underline),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              "MIT License",
+              style: TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              "Copyright © 2025",
+              style: TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("关闭"),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -32,7 +110,13 @@ class _HomeScreenState extends State<HomeScreen> {
         elevation: 0,
         actions: [
           IconButton(
+            icon: const Icon(Icons.info_outline, color: Color(0xFF409EFF)),
+            tooltip: "关于我们",
+            onPressed: _showAboutDialog,
+          ),
+          IconButton(
             icon: const Icon(Icons.logout, color: Color(0xFF409EFF)),
+            tooltip: "退出登录",
             onPressed: () {
               Provider.of<AuthProvider>(context, listen: false).logout();
               Provider.of<DataProvider>(context, listen: false).clearAll();

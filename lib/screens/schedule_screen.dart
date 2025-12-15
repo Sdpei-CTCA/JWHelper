@@ -34,6 +34,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
     
     return DefaultTabController(
       length: 7,
+      initialIndex: DateTime.now().weekday - 1,
       child: Column(
         children: [
           Container(

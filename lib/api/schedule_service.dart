@@ -46,8 +46,9 @@ class ScheduleService {
         if (startUnit == null || endUnit == null) continue;
 
         int dayIdx = -1;
-        if (course['OnMonday'] == true) dayIdx = 0;
-        else if (course['OnTuesday'] == true) dayIdx = 1;
+        if (course['OnMonday'] == true) {
+          dayIdx = 0;
+        } else if (course['OnTuesday'] == true) dayIdx = 1;
         else if (course['OnWednesday'] == true) dayIdx = 2;
         else if (course['OnThursday'] == true) dayIdx = 3;
         else if (course['OnFriday'] == true) dayIdx = 4;
@@ -86,7 +87,7 @@ class ScheduleService {
       return items;
     } catch (e) {
       debugPrint("Get schedule failed: $e");
-      return [];
+      rethrow;
     }
   }
 }

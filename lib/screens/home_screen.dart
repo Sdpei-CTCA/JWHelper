@@ -66,9 +66,9 @@ class _HomeScreenState extends State<HomeScreen> {
             const SizedBox(height: 24),
             InkWell(
               onTap: () => launchUrl(Uri.parse("https://github.com/Sdpei-CTCA/JWHelper")),
-              child: Row(
+              child: const Row(
                 mainAxisAlignment: MainAxisAlignment.center,
-                children: const [
+                children: [
                   Icon(Icons.link, size: 16, color: Colors.blue),
                   SizedBox(width: 4),
                   Text(

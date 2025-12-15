@@ -180,10 +180,7 @@ class ProgressService {
       };
     } catch (e) {
       debugPrint("Get progress failed: $e");
-      return {
-        "groups": [],
-        "info": [],
-      };
+      rethrow;
     }
   }
 
@@ -234,7 +231,7 @@ class ProgressService {
         ),
       );
 
-      debugPrint("Group Courses Response [${groupId}]: ${response.data}");
+      debugPrint("Group Courses Response [$groupId]: ${response.data}");
 
       if (response.statusCode == 200) {
         var data = response.data;
@@ -260,6 +257,7 @@ class ProgressService {
       }
     } catch (e) {
       debugPrint("Get group courses failed: $e");
+      rethrow;
     }
     return [];
   }

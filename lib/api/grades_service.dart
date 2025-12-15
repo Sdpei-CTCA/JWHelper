@@ -25,7 +25,7 @@ class GradesService {
       return semesters;
     } catch (e) {
       debugPrint("Get semesters failed: $e");
-      return [];
+      rethrow;
     }
   }
 

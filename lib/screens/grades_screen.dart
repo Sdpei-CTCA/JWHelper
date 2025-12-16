@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import '../providers/data_provider.dart';
 
 class GradesScreen extends StatefulWidget {
@@ -11,7 +10,7 @@ class GradesScreen extends StatefulWidget {
 }
 
 class _GradesScreenState extends State<GradesScreen> {
-  String _selectedSemester = '全部';
+  String? _selectedSemester;
 
   @override
   void initState() {
@@ -48,9 +47,20 @@ class _GradesScreenState extends State<GradesScreen> {
     }
 
     // Get unique semesters
-    final semesters = ['全部', ...grades.map((e) => e.semester).toSet().toList()..sort((a, b) => b.compareTo(a))];
+    // Sort descending to put latest semester first
+    final rawSemesters = grades.map((e) => e.semester).toSet().toList()..sort((a, b) => b.compareTo(a));
+    final allOptions = ['全部', ...rawSemesters];
     
-    if (!semesters.contains(_selectedSemester)) {
+    // Set default selection logic
+    if (_selectedSemester == null) {
+      // Default to the latest semester (first in the sorted list) if available
+      if (rawSemesters.isNotEmpty) {
+        _selectedSemester = rawSemesters.first;
+      } else {
+        _selectedSemester = '全部';
+      }
+    } else if (!allOptions.contains(_selectedSemester)) {
+      // If selected semester is no longer valid, reset to default
       _selectedSemester = '全部';
     }
 
@@ -74,7 +84,7 @@ class _GradesScreenState extends State<GradesScreen> {
                   child: DropdownButton<String>(
                     isExpanded: true,
                     value: _selectedSemester,
-                    items: semesters.map((String value) {
+                    items: allOptions.map((String value) {
                       return DropdownMenuItem<String>(
                         value: value,
                         child: Text(value),
@@ -82,7 +92,7 @@ class _GradesScreenState extends State<GradesScreen> {
                     }).toList(),
                     onChanged: (newValue) {
                       setState(() {
-                        _selectedSemester = newValue!;
+                        _selectedSemester = newValue;
                       });
                     },
                   ),
@@ -166,19 +176,7 @@ class _GradesScreenState extends State<GradesScreen> {
                         ),
                       );
 
-                      // 性能优化：
-                      // 1. 使用 RepaintBoundary 隔离重绘
-                      // 2. 仅对前 10 个元素应用入场动画，后续元素直接显示，避免滚动时的动画计算开销
-                      if (index < 10) {
-                        return RepaintBoundary(
-                          child: card.animate().fadeIn(
-                            delay: (index * 50).ms, 
-                            duration: 300.ms
-                          ).slideX(begin: 0.1, end: 0),
-                        );
-                      } else {
-                        return RepaintBoundary(child: card);
-                      }
+                      return card;
                     },
                   ),
           ),

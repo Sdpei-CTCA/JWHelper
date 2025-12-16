@@ -38,10 +38,11 @@ class ScheduleItem {
   }
 
   String get periodString {
-    int start = _mapStartUnitToPeriod(startUnit);
-    int end = _mapEndUnitToPeriod(endUnit);
-    return "$start-$end节";
+    return "$startPeriod-$endPeriod节";
   }
+
+  int get startPeriod => _mapStartUnitToPeriod(startUnit);
+  int get endPeriod => _mapEndUnitToPeriod(endUnit);
 
   int _mapStartUnitToPeriod(int unit) {
     if (unit >= 96 && unit < 107) return 1;

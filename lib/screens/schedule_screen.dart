@@ -74,72 +74,119 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                   );
                 }
 
+                // Group items
+                final morningItems = dayItems.where((e) => e.startPeriod <= 4).toList();
+                final afternoonItems = dayItems.where((e) => e.startPeriod > 4 && e.startPeriod <= 8).toList();
+                final eveningItems = dayItems.where((e) => e.startPeriod > 8).toList();
+
                 return RefreshIndicator(
                   onRefresh: () => dataProvider.loadSchedule(forceRefresh: true),
-                  child: ListView.builder(
+                  child: ListView(
                     padding: const EdgeInsets.all(16),
-                    itemCount: dayItems.length,
-                    itemBuilder: (context, index) {
-                      final item = dayItems[index];
-                      return Card(
-                        elevation: 0,
-                        color: Colors.white,
-                        margin: const EdgeInsets.only(bottom: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          side: BorderSide(color: Colors.grey.withOpacity(0.1)),
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Row(
-                            children: [
-                              Container(
-                                width: 4,
-                                height: 40,
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF409EFF),
-                                  borderRadius: BorderRadius.circular(2),
-                                ),
-                              ),
-                              const SizedBox(width: 16),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      item.name,
-                                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      "${item.teacher} @ ${item.classroom}",
-                                      style: const TextStyle(color: Colors.grey),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFF0F9EB),
-                                  borderRadius: BorderRadius.circular(20),
-                                ),
-                                child: Text(
-                                  item.periodString,
-                                  style: const TextStyle(color: Color(0xFF67C23A), fontWeight: FontWeight.bold),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
+                    children: [
+                      if (morningItems.isNotEmpty) ...[
+                        _buildSectionHeader("上午"),
+                        ...morningItems.map((item) => _buildCourseCard(item)),
+                        const SizedBox(height: 16),
+                      ],
+                      if (afternoonItems.isNotEmpty) ...[
+                        _buildSectionHeader("下午"),
+                        ...afternoonItems.map((item) => _buildCourseCard(item)),
+                        const SizedBox(height: 16),
+                      ],
+                      if (eveningItems.isNotEmpty) ...[
+                        _buildSectionHeader("晚上"),
+                        ...eveningItems.map((item) => _buildCourseCard(item)),
+                      ],
+                    ],
                   ),
                 );
               }),
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildSectionHeader(String title) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12, top: 4, left: 4),
+      child: Row(
+        children: [
+          Container(
+            width: 4,
+            height: 16,
+            decoration: BoxDecoration(
+              color: const Color(0xFF409EFF),
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF303133),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCourseCard(dynamic item) {
+    return Card(
+      elevation: 0,
+      color: Colors.white,
+      margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: Colors.grey.withOpacity(0.1)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            Container(
+              width: 4,
+              height: 40,
+              decoration: BoxDecoration(
+                color: const Color(0xFF409EFF),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    item.name,
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    "${item.teacher} @ ${item.classroom}",
+                    style: const TextStyle(color: Colors.grey),
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF0F9EB),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                item.periodString,
+                style: const TextStyle(color: Color(0xFF67C23A), fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

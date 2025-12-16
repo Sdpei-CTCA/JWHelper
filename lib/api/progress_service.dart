@@ -159,6 +159,78 @@ class ProgressService {
         }
       }
 
+      // Parse "Out of Program" Courses (方案外课程)
+      debugPrint("Start parsing Out of Program courses...");
+      var outOfProgBoxes = doc.querySelectorAll('div.box.box-primary');
+      debugPrint("Found ${outOfProgBoxes.length} box-primary divs");
+      
+      for (var outOfProgBox in outOfProgBoxes) {
+        var titleEl = outOfProgBox.querySelector('h3.box-title');
+        debugPrint("Box title: ${titleEl?.text}");
+        
+        if (titleEl != null && titleEl.text.contains("方案外课程")) {
+          debugPrint("Found '方案外课程' box");
+          double earned = 0;
+          var earnedEl = outOfProgBox.querySelector('#lblAcquiredCreditsOutOfProg2');
+          if (earnedEl != null) {
+            earned = double.tryParse(earnedEl.text.trim()) ?? 0;
+            debugPrint("Parsed earned credits: $earned");
+          }
+
+          List<ProgressCourse> outCourses = [];
+          var table = outOfProgBox.querySelector('table#tableCourseOutOfProg');
+          if (table != null) {
+            var rows = table.querySelectorAll('tr');
+            debugPrint("Found table with ${rows.length} rows");
+            // Skip header (index 0)
+            for (var i = 1; i < rows.length; i++) {
+              var cols = rows[i].querySelectorAll('td');
+              if (cols.length >= 8) {
+                // Index 2: Course Name
+                // Index 3: Score
+                // Index 5: Earned Credit
+                // Index 6: Course Credit
+                String name = cols[2].text.trim();
+                String score = cols[3].text.trim();
+                String credit = cols[5].text.trim();
+                
+                debugPrint("Parsed course: $name, Score: $score");
+
+                // Determine pass status (simple check: score >= 60 or "合格" or "P")
+                bool isPassed = true;
+                double? scoreNum = double.tryParse(score);
+                if (scoreNum != null) {
+                  isPassed = scoreNum >= 60;
+                } else {
+                  if (score.contains("不合格") || score.contains("F")) {
+                    isPassed = false;
+                  }
+                }
+
+                outCourses.add(ProgressCourse(
+                  name: name,
+                  credit: credit,
+                  score: score,
+                  isPassed: isPassed,
+                ));
+              }
+            }
+          } else {
+            debugPrint("Table tableCourseOutOfProg not found in box");
+          }
+
+          groups.add(ProgressGroup(
+            id: "out_of_program",
+            name: "方案外课程",
+            required: 0, // Not displayed per requirement
+            earned: earned,
+            courses: outCourses, // Pre-populated
+          ));
+          debugPrint("Added '方案外课程' group with ${outCourses.length} courses");
+          break; // Found the box, stop looking
+        }
+      }
+
       // Calculate "Major & Extra Credits" (主修与方案外获得学分)
       // Formula: In-Program Credits (已获得学分) + Out-of-Program Credits (方案外课程已获学分)
       // Since the HTML field might be populated by JS or not returned, we calculate it manually.

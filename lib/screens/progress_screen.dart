@@ -27,6 +27,43 @@ class _ProgressScreenState extends State<ProgressScreen> {
     final dataProvider = Provider.of<DataProvider>(context);
     final groups = dataProvider.progressGroups;
 
+    Widget buildCourseItem(ProgressCourse course) {
+      return Container(
+        decoration: BoxDecoration(
+          border: Border(top: BorderSide(color: Colors.grey.withOpacity(0.1))),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(course.name, style: const TextStyle(fontSize: 14)),
+                  const SizedBox(height: 2),
+                  Text("学分: ${course.credit}", style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                ],
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: course.isPassed ? const Color(0xFFF0F9EB) : const Color(0xFFFEF0F0),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                course.score,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: course.isPassed ? const Color(0xFF67C23A) : const Color(0xFFF56C6C),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     if (dataProvider.progressLoading && groups.isEmpty) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -123,8 +160,14 @@ class _ProgressScreenState extends State<ProgressScreen> {
           ...groups.asMap().entries.map((entry) {
             final index = entry.key;
             final group = entry.value;
+            
             double progress = group.required > 0 ? (group.earned / group.required) : 0;
             if (progress > 1) progress = 1;
+
+            // Special handling for "Out of Program" group progress bar
+            if (group.name == "方案外课程") {
+              progress = 1.0; // Always full for extra credits
+            }
 
             return Card(
               elevation: 0,
@@ -146,18 +189,20 @@ class _ProgressScreenState extends State<ProgressScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const SizedBox(height: 12),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(4),
-                        child: LinearProgressIndicator(
-                          value: progress,
-                          backgroundColor: const Color(0xFFEBEEF5),
-                          valueColor: AlwaysStoppedAnimation<Color>(
-                            progress >= 1 ? const Color(0xFF67C23A) : const Color(0xFF409EFF),
+                      if (group.name != "方案外课程") ...[
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(4),
+                          child: LinearProgressIndicator(
+                            value: progress,
+                            backgroundColor: const Color(0xFFEBEEF5),
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              progress >= 1 ? const Color(0xFF67C23A) : const Color(0xFF409EFF),
+                            ),
+                            minHeight: 8,
                           ),
-                          minHeight: 8,
                         ),
-                      ),
-                      const SizedBox(height: 8),
+                        const SizedBox(height: 8),
+                      ],
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
@@ -165,10 +210,11 @@ class _ProgressScreenState extends State<ProgressScreen> {
                             "已修: ${group.earned}",
                             style: const TextStyle(color: Color(0xFF409EFF), fontWeight: FontWeight.bold),
                           ),
-                          Text(
-                            "要求: ${group.required}",
-                            style: const TextStyle(color: Colors.grey),
-                          ),
+                          if (group.name != "方案外课程")
+                            Text(
+                              "要求: ${group.required}",
+                              style: const TextStyle(color: Colors.grey),
+                            ),
                         ],
                       ),
                     ],
@@ -190,41 +236,12 @@ class _ProgressScreenState extends State<ProgressScreen> {
                         child: Text("该类别下暂无课程", style: TextStyle(color: Colors.grey)),
                       )
                     else ...[
-                      ...group.courses!.take(_showAllMap[group.id] == true ? group.courses!.length : 20).map((course) => Container(
-                        decoration: BoxDecoration(
-                          border: Border(top: BorderSide(color: Colors.grey.withOpacity(0.1))),
-                        ),
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(course.name, style: const TextStyle(fontSize: 14)),
-                                  const SizedBox(height: 2),
-                                  Text("学分: ${course.credit}", style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                                ],
-                              ),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: course.isPassed ? const Color(0xFFF0F9EB) : const Color(0xFFFEF0F0),
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: Text(
-                                course.score,
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: course.isPassed ? const Color(0xFF67C23A) : const Color(0xFFF56C6C),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      )),
-                      if (group.courses!.length > 20 && _showAllMap[group.id] != true)
+                      ...group.courses!.where((c) => c.score != '-').map((course) => buildCourseItem(course)),
+                      
+                      if (group.courses!.any((c) => c.score == '-')) ...[
+                        if (_showAllMap[group.id] == true)
+                          ...group.courses!.where((c) => c.score == '-').map((course) => buildCourseItem(course)),
+                          
                         Container(
                           decoration: BoxDecoration(
                             border: Border(top: BorderSide(color: Colors.grey.withOpacity(0.1))),
@@ -233,12 +250,13 @@ class _ProgressScreenState extends State<ProgressScreen> {
                           child: TextButton(
                             onPressed: () {
                               setState(() {
-                                _showAllMap[group.id] = true;
+                                _showAllMap[group.id] = !(_showAllMap[group.id] ?? false);
                               });
                             },
-                            child: Text("查看剩余 ${group.courses!.length - 20} 门课程"),
+                            child: Text(_showAllMap[group.id] == true ? "收起未修课程" : "查看未修课程 (${group.courses!.where((c) => c.score == '-').length})"),
                           ),
                         ),
+                      ]
                     ],
                   ],
                 ),

@@ -518,6 +518,55 @@ class DataProvider with ChangeNotifier {
       notifyListeners();
     }
   }
+
+  Future<void> loadExamsFallback({
+    required String semId,
+    required String etId,
+    required String semName,
+    required String etName,
+  }) async {
+    if (_username.isEmpty) return;
+    
+    _examsLoading = true;
+    notifyListeners();
+
+    try {
+      _exams = await _examService.getExamsFromExport(
+        semId: semId,
+        etId: etId,
+        semName: semName,
+        etName: etName,
+      );
+      _examsLoaded = true;
+      
+      // Save to cache
+      final prefs = await SharedPreferences.getInstance();
+      final String key = _examsCacheKey(semId, etId);
+      final String encoded = jsonEncode(_exams.map((e) => e.toJson()).toList());
+      await prefs.setString(key, encoded);
+      
+    } catch (e) {
+      debugPrint("Error loading exams fallback: $e");
+      rethrow;
+    } finally {
+      _examsLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<List<int>> exportExamTable({
+    required String semId,
+    required String etId,
+    required String semName,
+    required String etName,
+  }) async {
+    return await _examService.exportExamTable(
+      semId: semId,
+      etId: etId,
+      semName: semName,
+      etName: etName,
+    );
+  }
   
   Future<void> clearCache() async {
     final prefs = await SharedPreferences.getInstance();

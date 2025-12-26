@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:dio/dio.dart';
 import 'package:html/parser.dart' as html_parser;
@@ -15,6 +16,51 @@ List<Semester> _parseExamSemesters(String html) {
     id: e.attributes['value'] ?? "",
     name: e.text.trim(),
   )).toList();
+}
+
+List<Exam> _parseExportedHtml(String html) {
+  final document = html_parser.parse(html);
+  final rows = document.querySelectorAll("tr");
+  final List<Exam> exams = [];
+
+  bool headerFound = false;
+
+  for (var row in rows) {
+    final cells = row.children;
+    if (cells.isEmpty) continue;
+
+    if (cells.any((c) => c.text.contains("课程名"))) {
+      headerFound = true;
+      continue;
+    }
+
+    if (!headerFound) continue;
+
+    if (cells.length < 4) continue;
+
+    final name = cells[0].text.trim();
+    final no = cells[1].text.trim();
+    final type = cells[2].text.trim();
+    final time = cells[3].text.trim();
+    
+    String location = "";
+    if (cells.length >= 6) {
+       location = cells[5].text.trim();
+    } else if (cells.length >= 5) {
+       location = cells[4].text.trim();
+    }
+
+    exams.add(Exam(
+      courseName: name,
+      courseNo: no,
+      time: time,
+      location: location,
+      classNo: "",
+      type: type,
+      applyStatus: "",
+    ));
+  }
+  return exams;
 }
 
 class ExamService {
@@ -113,6 +159,110 @@ class ExamService {
 
     } catch (e) {
       debugPrint("Error fetching exam list: $e");
+      rethrow;
+    }
+  }
+
+  Future<List<Exam>> getExamsFromExport({
+    required String semId,
+    required String etId,
+    required String semName,
+    required String etName,
+  }) async {
+    try {
+      final response = await _client.dio.post(
+        "${Config.baseUrl}/Student/StudentExamArrangeTableHandler.ashx",
+        queryParameters: {
+          "ron": Random().nextDouble(),
+        },
+        data: {
+          "action": "doexport",
+          "semId": semId,
+          "etID": etId,
+          "semName": semName,
+          "etName": etName,
+        },
+        options: Options(
+          contentType: Headers.formUrlEncodedContentType,
+          responseType: ResponseType.plain,
+          receiveTimeout: const Duration(minutes: 3),
+          headers: {
+            "X-Requested-With": "XMLHttpRequest",
+            "Referer": "${Config.baseUrl}/Student/StudentExamArrangeTable.aspx",
+          },
+        ),
+      );
+
+      final String filePath = response.data.toString();
+      if (filePath.isEmpty || !filePath.startsWith("/")) {
+         throw Exception("Invalid file path received: $filePath");
+      }
+
+      final fileResponse = await _client.dio.get(
+        "${Config.baseUrl}$filePath",
+        options: Options(
+          responseType: ResponseType.plain,
+          receiveTimeout: const Duration(minutes: 3),
+        ),
+      );
+
+      return await compute(_parseExportedHtml, fileResponse.data.toString());
+    } catch (e) {
+      debugPrint("Error getting exams from export: $e");
+      rethrow;
+    }
+  }
+
+  Future<List<int>> exportExamTable({
+    required String semId,
+    required String etId,
+    required String semName,
+    required String etName,
+  }) async {
+    try {
+      final response = await _client.dio.post(
+        "${Config.baseUrl}/Student/StudentExamArrangeTableHandler.ashx",
+        queryParameters: {
+          "ron": Random().nextDouble(),
+        },
+        data: {
+          "action": "doexport",
+          "semId": semId,
+          "etID": etId,
+          "semName": semName,
+          "etName": etName,
+        },
+        options: Options(
+          contentType: Headers.formUrlEncodedContentType,
+          responseType: ResponseType.plain,
+          receiveTimeout: const Duration(minutes: 3),
+          headers: {
+            "X-Requested-With": "XMLHttpRequest",
+            "Referer": "${Config.baseUrl}/Student/StudentExamArrangeTable.aspx",
+          },
+        ),
+      );
+
+      final String filePath = response.data.toString();
+      if (filePath.isEmpty || !filePath.startsWith("/")) {
+         throw Exception("Invalid file path received: $filePath");
+      }
+
+      final fileResponse = await _client.dio.get(
+        "${Config.baseUrl}$filePath",
+        options: Options(
+          responseType: ResponseType.bytes,
+          receiveTimeout: const Duration(minutes: 3),
+        ),
+      );
+
+      if (fileResponse.statusCode == 200) {
+        return fileResponse.data;
+      } else {
+        throw Exception("Failed to download file: ${fileResponse.statusCode}");
+      }
+    } catch (e) {
+      debugPrint("Error exporting exam table: $e");
       rethrow;
     }
   }

@@ -377,6 +377,46 @@ class _ExamScreenState extends State<ExamScreen> {
     );
   }
 
+  Future<void> _handleFallbackLoad() async {
+    if (_selectedSemester == null || _selectedRound == null) return;
+
+    try {
+      final provider = Provider.of<DataProvider>(context, listen: false);
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("正在尝试通过导出文件获取，这可能需要1-3分钟，请耐心等待..."),
+          duration: Duration(seconds: 5),
+        ),
+      );
+
+      await provider.loadExamsFallback(
+        semId: _selectedSemester!.id,
+        etId: _selectedRound!.id,
+        semName: _selectedSemester!.name,
+        etName: _selectedRound!.name,
+      );
+
+      if (mounted) {
+        if (provider.exams.isEmpty) {
+           ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("未找到考试信息")),
+          );
+        } else {
+           ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("获取成功")),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("获取失败: $e")),
+        );
+      }
+    }
+  }
+
   Widget _buildContent(DataProvider provider, bool isLoading) {
     if (isLoading) {
       return const Center(child: CircularProgressIndicator());
@@ -441,6 +481,12 @@ class _ExamScreenState extends State<ExamScreen> {
               Icon(Icons.assignment_turned_in_outlined, size: 64, color: Colors.grey[400]),
               const SizedBox(height: 16),
               Text("未找到考试记录", style: TextStyle(color: Colors.grey[600])),
+              const SizedBox(height: 16),
+              TextButton.icon(
+                onPressed: _handleFallbackLoad,
+                icon: const Icon(Icons.download_outlined),
+                label: const Text("尝试另一种获取方式"),
+              ),
             ],
           ),
         ),

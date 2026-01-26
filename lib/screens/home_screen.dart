@@ -6,11 +6,13 @@ import '../providers/auth_provider.dart';
 import '../providers/data_provider.dart';
 import '../providers/theme_provider.dart';
 import '../api/update_service.dart';
-import 'grades_screen.dart';
+import 'evaluation_helper_screen.dart';
 import 'schedule_screen.dart';
-import 'progress_screen.dart';
 import 'exam_screen.dart';
+import 'grades_screen.dart';
+import 'progress_screen.dart';
 import 'login_screen.dart';
+import '../config.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -29,17 +31,118 @@ class _HomeScreenState extends State<HomeScreen> {
   ];
 
   final UpdateService _updateService = UpdateService();
+  bool _isEvaluationDialogShowing = false;
 
   @override
   void initState() {
     super.initState();
     _updateService.init();
+    final data = context.read<DataProvider>();
+    data.addListener(_onDataChanged);
+    
+    // Initial check
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+       _onDataChanged();
+    });
   }
 
   @override
   void dispose() {
+    context.read<DataProvider>().removeListener(_onDataChanged);
     _updateService.dispose();
     super.dispose();
+  }
+  
+  void _onDataChanged() {
+    if (!mounted) return;
+    final data = context.read<DataProvider>();
+    if (data.evaluationRequired && !_isEvaluationDialogShowing) {
+       _showEvaluationDialog();
+    }
+  }
+  
+  Future<void> _showEvaluationDialog() async {
+    _isEvaluationDialogShowing = true;
+    final data = context.read<DataProvider>();
+    
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+                Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                    color: Colors.orange.withOpacity(0.1),
+                    shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.assignment_late_outlined, color: Colors.orange, size: 32),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                "需要进行教学评价",
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                "系统检测到您未完成教学评价，导致数据无法加载。\n请优先完成评价。",
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Theme.of(context).disabledColor, fontSize: 14),
+                ),
+                const SizedBox(height: 24),
+                Row(
+                children: [
+                    Expanded(
+                    child: OutlinedButton(
+                        onPressed: () async {
+                            final Uri url = Uri.parse(Config.evaluationUrl);
+                            if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
+                                if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("无法打开网页")));
+                                }
+                            }
+                        },
+                        style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                        child: const Text("网页评价"),
+                    ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                    child: FilledButton(
+                        onPressed: () {
+                            Navigator.of(context).pop();
+                            Navigator.of(context).push(
+                                MaterialPageRoute(builder: (_) => const EvaluationHelperScreen())
+                            ).then((_) {
+                                // After returning, try to reset state and reload
+                                data.resetEvaluationState();
+                                // Trigger reload of data?
+                                // Maybe user didn't finish, but we reset flag so it checks again next time load fails.
+                            });
+                        },
+                        style: FilledButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                        child: const Text("一键助手"),
+                    ),
+                    ),
+                ],
+                )
+            ],
+            ),
+        ),
+      ),
+    );
+    _isEvaluationDialogShowing = false;
   }
 
   Widget _buildAboutIcon() {

@@ -5,6 +5,8 @@ class Config {
   static const String gradesUrl = "$baseUrl/Student/MyMark.aspx";
   static const String timetableAPI = "$baseUrl/Teacher/TimeTableHandler.ashx";
   static const String progressUrl = "$baseUrl/Student/MyProgramProgress.aspx";
+  static const String evaluationUrl = "$baseUrl/Student/TeachingEvaluation/TeachingEvaluation.aspx";
+  static const String evaluationHandler = "$baseUrl/Student/TeachingEvaluation/EvaluationAnswerHandler.ashx";
   
   static const String userAgent = 
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "

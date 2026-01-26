@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
+import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../api/grades_service.dart';
 import '../api/schedule_service.dart';
 import '../api/progress_service.dart';
 import '../api/exam_service.dart';
+import '../api/exceptions.dart';
 import '../models/grade.dart';
 import '../models/schedule_item.dart';
 import '../models/progress_item.dart';
 import '../models/exam.dart';
+import '../services/widget_service.dart';
 
 class DataProvider with ChangeNotifier {
   final GradesService _gradesService = GradesService();
@@ -78,6 +81,13 @@ class DataProvider with ChangeNotifier {
   bool get examsLoading => _examsLoading;
   bool get examsLoaded => _examsLoaded;
 
+  bool _evaluationRequired = false;
+  bool get evaluationRequired => _evaluationRequired;
+  void resetEvaluationState() {
+    _evaluationRequired = false;
+    notifyListeners();
+  }
+
   String _username = '';
 
   void updateUsername(String username) {
@@ -130,6 +140,13 @@ class DataProvider with ChangeNotifier {
       // Save to cache
       await _saveGradesToCache(_grades);
     } catch (e) {
+      if (e is EvaluationRequiredException || 
+         (e is DioException && e.error is EvaluationRequiredException)) {
+        _evaluationRequired = true;
+        notifyListeners();
+        _gradesLoading = false;
+        return;
+      }
       debugPrint("Error loading grades: $e");
       // Try to load stale cache on error
       try {
@@ -197,6 +214,7 @@ class DataProvider with ChangeNotifier {
             
             _scheduleLoaded = true;
             _scheduleLoading = false;
+            _updateScheduleWidget();
             notifyListeners();
             return;
           }
@@ -213,10 +231,18 @@ class DataProvider with ChangeNotifier {
       }
 
       _scheduleLoaded = true;
+      _updateScheduleWidget();
       
       // Save to cache
       await _saveScheduleToCache(_schedule);
     } catch (e) {
+      if (e is EvaluationRequiredException || 
+         (e is DioException && e.error is EvaluationRequiredException)) {
+        _evaluationRequired = true;
+        notifyListeners();
+        _scheduleLoading = false;
+        return;
+      }
       debugPrint("Error loading schedule: $e");
       // Try to load stale cache on error
       try {
@@ -231,6 +257,7 @@ class DataProvider with ChangeNotifier {
              _calculateCurrentWeek(startDayStr);
            }
            _scheduleLoaded = true;
+           _updateScheduleWidget();
         }
       } catch (cacheError) {
         debugPrint("Error loading stale schedule cache: $cacheError");
@@ -304,6 +331,7 @@ class DataProvider with ChangeNotifier {
             _progressInfo = (decoded['info'] as List).map((e) => ProgressInfo.fromJson(e)).toList();
             _progressLoaded = true;
             _progressLoading = false;
+            _updateProgressWidget();
             notifyListeners();
             return;
           }
@@ -314,6 +342,7 @@ class DataProvider with ChangeNotifier {
       _progressGroups = data['groups'] ?? [];
       _progressInfo = data['info'] ?? [];
       _progressLoaded = true;
+      _updateProgressWidget();
 
       // Start background loading of details without awaiting
       _loadDetailsInBackground();
@@ -328,6 +357,7 @@ class DataProvider with ChangeNotifier {
             _progressGroups = (decoded['groups'] as List).map((e) => ProgressGroup.fromJson(e)).toList();
             _progressInfo = (decoded['info'] as List).map((e) => ProgressInfo.fromJson(e)).toList();
             _progressLoaded = true;
+            _updateProgressWidget();
         }
       } catch (cacheError) {
          debugPrint("Error loading stale progress cache: $cacheError");
@@ -602,5 +632,48 @@ class DataProvider with ChangeNotifier {
     _exams = [];
     _examsLoaded = false;
     notifyListeners();
+  }
+
+  Future<void> _updateProgressWidget() async {
+    if (_progressInfo.isEmpty) return;
+    try {
+      final gpa = _progressInfo
+          .firstWhere((i) => i.label.contains("学位课程绩点"),
+              orElse: () => ProgressInfo(label: "", value: "-"))
+          .value;
+      // Extract number if possible
+      final gpaMatch = RegExp(r'\d+(\.\d+)?').firstMatch(gpa);
+      final gpaValue = gpaMatch?.group(0) ?? (gpa.length > 4 ? gpa.substring(0, 4) : gpa);
+
+      final majorExtra = _progressInfo
+          .firstWhere((i) => i.label.contains("主修与方案外获得学分"),
+              orElse: () => ProgressInfo(label: "", value: "-"))
+          .value;
+      final earned = _progressInfo
+          .firstWhere((i) => i.label.contains("已获得学分"),
+              orElse: () => ProgressInfo(label: "", value: "-"))
+          .value;
+      final required = _progressInfo
+          .firstWhere((i) => i.label.contains("要求最低学分"),
+              orElse: () => ProgressInfo(label: "", value: "-"))
+          .value;
+
+      await WidgetService.updateProgressWidget(
+        gpa: gpaValue,
+        majorExtraCredits: majorExtra,
+        earnedCredits: earned,
+        requiredCredits: required,
+      );
+    } catch (e) {
+      debugPrint("Error updating progress widget: $e");
+    }
+  }
+
+  Future<void> _updateScheduleWidget() async {
+      try {
+          await WidgetService.updateScheduleWidget(_schedule, currentWeek: _currentWeek);
+      } catch (e) {
+          debugPrint("Error updating schedule widget: $e");
+      }
   }
 }

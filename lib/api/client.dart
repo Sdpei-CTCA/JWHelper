@@ -5,6 +5,7 @@ import 'package:dio_cookie_manager/dio_cookie_manager.dart';
 import 'package:cookie_jar/cookie_jar.dart';
 import 'package:path_provider/path_provider.dart';
 import '../config.dart';
+import 'exceptions.dart';
 
 
 class ApiClient {
@@ -28,7 +29,34 @@ class ApiClient {
       responseType: ResponseType.plain, // We handle HTML parsing manually
       validateStatus: (status) => status! < 500,
     ));
+
+    dio.interceptors.add(InterceptorsWrapper(
+      onResponse: (response, handler) {
+        // Detect evaluation requirement
+        // If the request was NOT for evaluation, but we ended up there or got its content
+        final isEvalRequest = response.requestOptions.path.contains("TeachingEvaluation");
+        
+        if (!isEvalRequest) {
+          bool redirected = response.realUri.toString().contains("TeachingEvaluation/TeachingEvaluation.aspx");
+          // Check content for specific markers if not redirected via headers but returned 200 with HTML
+          // Usually look for unique form ID or title
+          bool contentMatch = response.data is String && 
+                              (response.data as String).contains("/Student/TeachingEvaluation/EvaluationAnswerHandler.ashx");
+
+          if (redirected || contentMatch) {
+             return handler.reject(DioException(
+                requestOptions: response.requestOptions,
+                error: EvaluationRequiredException(),
+                type: DioExceptionType.unknown,
+                response: response
+             ));
+          }
+        }
+        return handler.next(response);
+      },
+    ));
   }
+
 
   bool _initialized = false;
 

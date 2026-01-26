@@ -32,11 +32,13 @@ class DataProvider with ChangeNotifier {
   bool _scheduleLoading = false;
   bool _scheduleLoaded = false;
   int _currentWeek = 1;
+  int _daysUntilStart = 0;
   
   List<ScheduleItem> get schedule => _schedule;
   bool get scheduleLoading => _scheduleLoading;
   bool get scheduleLoaded => _scheduleLoaded;
   int get currentWeek => _currentWeek;
+  int get daysUntilStart => _daysUntilStart;
 
   // Optimized Getters for UI
   Map<int, List<ScheduleItem>> get scheduleGroupedByDay {
@@ -281,10 +283,12 @@ class DataProvider with ChangeNotifier {
       
       if (diffDays >= 0) {
         _currentWeek = (diffDays / 7).floor() + 1;
+        _daysUntilStart = 0;
       } else {
         _currentWeek = 1; // Before semester starts
+        _daysUntilStart = -diffDays;
       }
-      debugPrint("Calculated Current Week: $_currentWeek (Start: $startDayStr)");
+      debugPrint("Calculated Current Week: $_currentWeek (Start: $startDayStr), DaysUntilStart: $_daysUntilStart");
     } catch (e) {
       debugPrint("Error calculating current week: $e");
     }

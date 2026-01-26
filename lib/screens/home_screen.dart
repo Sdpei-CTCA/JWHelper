@@ -296,7 +296,12 @@ class _HomeScreenState extends State<HomeScreen> {
               "教务小助手",
               style: TextStyle(fontWeight: FontWeight.bold),
             ),
-            if (dataProvider.currentWeek > 0)
+            if (dataProvider.daysUntilStart > 0)
+              Text(
+                "距开学还有${dataProvider.daysUntilStart}天",
+                style: const TextStyle(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.normal),
+              )
+            else if (dataProvider.currentWeek > 0)
               Text(
                 "第${dataProvider.currentWeek}周",
                 style: const TextStyle(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.normal),

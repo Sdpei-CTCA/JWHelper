@@ -3,42 +3,184 @@
     android:layout_height="match_parent"
     android:orientation="vertical"
     android:background="@drawable/widget_background"
-    android:padding="16dp">
-    
-    <LinearLayout 
+    android:padding="12dp">
+
+    <!-- Header: Date and Weekday -->
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:layout_marginBottom="8dp">
+        android:gravity="center_vertical"
+        android:layout_marginBottom="12dp">
+        
         <TextView
-            android:id="@+id/tv_date"
+            android:id="@+id/tv_date_num"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Today"
+            android:text="1.26"
+            android:textSize="15sp"
             android:textStyle="bold"
-            android:textSize="14sp"
             android:textColor="#000000"/>
+            
         <TextView
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"/>
-        <TextView
-            android:id="@+id/tv_week"
+            android:id="@+id/tv_weekday"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text=""
-            android:textSize="12sp"
-            android:textColor="#666666"/>
+            android:text="周一"
+            android:textSize="15sp"
+            android:textStyle="bold"
+            android:textColor="#F56C6C"
+            android:layout_marginStart="6dp"/>
     </LinearLayout>
 
-    <TextView
-        android:id="@+id/tv_schedule_text"
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Loading..."
-        android:textSize="12sp"
-        android:textColor="#333333"
-        android:lineSpacingExtra="4dp"
-        android:maxLines="10"
-        android:ellipsize="end"/>
+        android:orientation="horizontal"
+        android:baselineAligned="false">
+
+        <!-- Left: Current Class -->
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+            
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="当前"
+                android:textSize="11sp"
+                android:textColor="#606266"
+                android:layout_marginBottom="6dp"/>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+                
+                <!-- Red Bar -->
+                <View
+                    android:layout_width="3dp"
+                    android:layout_height="match_parent"
+                    android:background="@drawable/widget_bar_current"
+                    android:minHeight="40dp"/>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:layout_marginStart="8dp">
+                    
+                    <TextView
+                        android:id="@+id/tv_cur_name"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="无课程"
+                        android:textSize="14sp"
+                        android:textStyle="bold"
+                        android:textColor="#303133"
+                        android:maxLines="1"
+                        android:ellipsize="end"/>
+                        
+                    <TextView
+                        android:id="@+id/tv_cur_info"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text=""
+                        android:textSize="11sp"
+                        android:textColor="#606266"
+                        android:maxLines="1"
+                        android:ellipsize="end"
+                        android:layout_marginTop="2dp"/>
+                        
+                    <TextView
+                        android:id="@+id/tv_cur_time"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text=""
+                        android:textSize="12sp"
+                        android:textColor="#303133"
+                        android:layout_marginTop="2dp"/>
+                </LinearLayout>
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- Vertical Divider -->
+        <View
+            android:layout_width="1dp"
+            android:layout_height="match_parent"
+            android:background="#E4E7ED"
+            android:layout_marginTop="20dp"
+            android:layout_marginBottom="4dp"
+            android:layout_marginHorizontal="8dp"/>
+
+        <!-- Right: Next Class -->
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+            
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="接下来"
+                android:textSize="11sp"
+                android:textColor="#606266"
+                android:layout_marginBottom="6dp"/>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+                
+                <!-- Blue Bar -->
+                <View
+                    android:layout_width="3dp"
+                    android:layout_height="match_parent"
+                    android:background="@drawable/widget_bar_next"
+                     android:minHeight="40dp"/>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:layout_marginStart="8dp">
+                    
+                    <TextView
+                        android:id="@+id/tv_next_name"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="无课程"
+                        android:textSize="14sp"
+                        android:textStyle="bold"
+                        android:textColor="#303133"
+                        android:maxLines="1"
+                        android:ellipsize="end"/>
+                        
+                    <TextView
+                        android:id="@+id/tv_next_info"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text=""
+                        android:textSize="11sp"
+                        android:textColor="#606266"
+                        android:maxLines="1"
+                        android:ellipsize="end"
+                        android:layout_marginTop="2dp"/>
+                        
+                    <TextView
+                        android:id="@+id/tv_next_time"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text=""
+                        android:textSize="12sp"
+                        android:textColor="#303133"
+                        android:layout_marginTop="2dp"/>
+                </LinearLayout>
+            </LinearLayout>
+        </LinearLayout>
+
+    </LinearLayout>
 </LinearLayout>

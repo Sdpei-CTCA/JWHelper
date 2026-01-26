@@ -2,6 +2,9 @@ package edu.sdpei.JWSystem
 
 import android.appwidget.AppWidgetManager
 import android.content.Context
+import android.content.Intent
+import android.app.PendingIntent
+import android.net.Uri
 import android.content.SharedPreferences
 import android.widget.RemoteViews
 import es.antonborri.home_widget.HomeWidgetProvider
@@ -71,6 +74,20 @@ class ScheduleWidgetProvider : HomeWidgetProvider() {
 
                 setTextViewText(R.id.tv_date_num, dateNum)
                 setTextViewText(R.id.tv_weekday, weekDayStr)
+
+                // Click Intent
+                val intent = Intent(context, MainActivity::class.java).apply {
+                    action = Intent.ACTION_VIEW
+                    data = Uri.parse("jwhelper://schedule")
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                }
+                val pendingIntent = PendingIntent.getActivity(
+                    context,
+                    0,
+                    intent,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+                setOnClickPendingIntent(android.R.id.background, pendingIntent)
 
                 try {
                     val jsonArray = JSONArray(jsonString)

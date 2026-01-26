@@ -4,6 +4,7 @@
         android:label="教务小助手"
         android:name="${applicationName}"
         android:icon="@mipmap/launcher_icon">
+
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -32,7 +33,8 @@
             android:name="flutterEmbedding"
             android:value="2" />
         
-        <receiver android:name=".ProgressWidgetProvider" android:exported="true">
+        <!-- 学业进度 -->
+        <receiver android:name=".ProgressWidgetProvider" android:label="学业进度" android:exported="true">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
@@ -40,7 +42,8 @@
                 android:resource="@xml/progress_widget_info" />
         </receiver>
 
-        <receiver android:name=".ScheduleWidgetProvider" android:exported="true">
+        <!-- 今日课表 -->
+        <receiver android:name=".ScheduleWidgetProvider" android:label="今日课表" android:exported="true">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>

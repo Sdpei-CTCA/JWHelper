@@ -1,30 +1,54 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@android:id/background"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
+    android:clipToOutline="true"
+    android:orientation="horizontal"
     android:background="@drawable/widget_background"
-    android:padding="16dp">
+    android:padding="8dp"
+    android:gravity="center_vertical"
+    android:baselineAligned="false">
 
-    <TextView
-        android:id="@+id/tv_gpa_label"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="学位课程绩点"
-        android:textSize="12sp"
-        android:textColor="#666666"/>
-    <TextView
-        android:id="@+id/tv_gpa"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="--"
-        android:textSize="24sp"
-        android:textStyle="bold"
-        android:textColor="#000000"
-        android:layout_marginBottom="12dp"/>
-
+    <!-- Left: GPA big text -->
     <LinearLayout
-        android:layout_width="match_parent"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
+        android:layout_weight="0.8"
+        android:orientation="vertical"
+        android:gravity="center_vertical">
+        
+        <TextView
+            android:id="@+id/tv_gpa_label"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="学位课程绩点"
+            android:textSize="12sp"
+            android:textColor="#666666"/>
+            
+        <TextView
+            android:id="@+id/tv_gpa"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="--"
+            android:textSize="28sp"
+            android:textStyle="bold"
+            android:textColor="#000000"
+            android:layout_marginTop="4dp"/>
+    </LinearLayout>
+    
+    <!-- Divider -->
+    <ImageView
+        android:layout_width="1dp"
+        android:layout_height="match_parent"
+        android:background="#E4E7ED"
+        android:layout_marginHorizontal="12dp"
+        android:layout_marginVertical="8dp"/>
+
+    <!-- Right: Details -->
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1.2"
         android:orientation="horizontal">
         
         <LinearLayout
@@ -35,7 +59,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="主修+方案外"
+                android:text="主修+方案"
                 android:textSize="10sp"
                 android:textColor="#666666"/>
             <TextView
@@ -44,7 +68,8 @@
                 android:layout_height="wrap_content"
                 android:text="--"
                 android:textSize="16sp"
-                android:textColor="#000000"/>
+                android:textColor="#000000"
+                android:textStyle="bold"/>
         </LinearLayout>
 
         <LinearLayout
@@ -64,7 +89,8 @@
                 android:layout_height="wrap_content"
                 android:text="--"
                 android:textSize="16sp"
-                android:textColor="#000000"/>
+                android:textColor="#000000"
+                android:textStyle="bold"/>
         </LinearLayout>
         
         <LinearLayout
@@ -84,7 +110,8 @@
                 android:layout_height="wrap_content"
                 android:text="--"
                 android:textSize="16sp"
-                android:textColor="#000000"/>
+                android:textColor="#000000"
+                android:textStyle="bold"/>
         </LinearLayout>
     </LinearLayout>
 </LinearLayout>

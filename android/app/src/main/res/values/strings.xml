@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="widget_schedule_desc">显示今天的课程安排，让你不错过每一节课。</string>
+    <string name="widget_progress_desc">查看你的学分绩点(GPA)和学分完成情况。</string>
+</resources>

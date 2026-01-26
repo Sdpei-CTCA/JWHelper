@@ -1,9 +1,11 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@android:id/background"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:clipToOutline="true"
     android:orientation="vertical"
     android:background="@drawable/widget_background"
-    android:padding="12dp">
+    android:padding="8dp">
 
     <!-- Header: Date and Weekday -->
     <LinearLayout
@@ -60,10 +62,10 @@
                 android:orientation="horizontal">
                 
                 <!-- Red Bar -->
-                <View
+                <ImageView
                     android:layout_width="3dp"
                     android:layout_height="match_parent"
-                    android:background="@drawable/widget_bar_current"
+                    android:src="@drawable/widget_bar_current"
                     android:minHeight="40dp"/>
 
                 <LinearLayout
@@ -107,7 +109,7 @@
         </LinearLayout>
 
         <!-- Vertical Divider -->
-        <View
+        <ImageView
             android:layout_width="1dp"
             android:layout_height="match_parent"
             android:background="#E4E7ED"
@@ -136,10 +138,10 @@
                 android:orientation="horizontal">
                 
                 <!-- Blue Bar -->
-                <View
+                <ImageView
                     android:layout_width="3dp"
                     android:layout_height="match_parent"
-                    android:background="@drawable/widget_bar_next"
+                    android:src="@drawable/widget_bar_next"
                      android:minHeight="40dp"/>
 
                 <LinearLayout

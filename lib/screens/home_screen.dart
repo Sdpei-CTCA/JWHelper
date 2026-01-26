@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:home_widget/home_widget.dart';
 import '../providers/auth_provider.dart';
 import '../providers/data_provider.dart';
 import '../providers/theme_provider.dart';
@@ -32,6 +34,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   final UpdateService _updateService = UpdateService();
   bool _isEvaluationDialogShowing = false;
+  StreamSubscription? _sub;
 
   @override
   void initState() {
@@ -43,14 +46,41 @@ class _HomeScreenState extends State<HomeScreen> {
     // Initial check
     WidgetsBinding.instance.addPostFrameCallback((_) {
        _onDataChanged();
+       _checkWidgetLaunch();
     });
+
+    _sub = HomeWidget.widgetClicked.listen(_handleWidgetClick);
   }
 
   @override
   void dispose() {
+    _sub?.cancel();
     context.read<DataProvider>().removeListener(_onDataChanged);
     _updateService.dispose();
     super.dispose();
+  }
+
+  void _checkWidgetLaunch() async {
+    try {
+      final uri = await HomeWidget.initiallyLaunchedFromHomeWidget();
+      _handleWidgetClick(uri);
+    } catch (e) {
+      debugPrint("Error checking widget launch: $e");
+    }
+  }
+
+  void _handleWidgetClick(Uri? uri) {
+    if (!mounted || uri == null) return;
+    
+    if (uri.host == 'schedule') {
+      setState(() {
+        _currentIndex = 0;
+      });
+    } else if (uri.host == 'progress') {
+      setState(() {
+        _currentIndex = 3;
+      });
+    }
   }
   
   void _onDataChanged() {

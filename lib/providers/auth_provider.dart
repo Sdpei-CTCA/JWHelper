@@ -81,6 +81,20 @@ class AuthProvider with ChangeNotifier {
     // Ensure client is initialized
     await ApiClient().init();
 
+    // Check for maintenance time (00:00 - 06:00)
+    final now = DateTime.now();
+    if (now.hour >= 0 && now.hour < 6) {
+      if (_rememberPassword && _savedUsername == username && _savedPassword == password) {
+        _isLoggedIn = true;
+        _needCaptcha = false;
+        _currentUsername = username;
+        _isOfflineMode = true;
+        _isLoading = false;
+        notifyListeners();
+        return null; // Automatically enter offline mode
+      }
+    }
+
     var result = await _authService.login(username, password, verifyCode: verifyCode);
     
     _isLoading = false;

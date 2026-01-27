@@ -31,4 +31,4 @@ workflows:
       - build/**/outputs/**/*.apk
       - build/**/outputs/**/flutter-apk/*.apk
       - build/ios/iphoneos/*.app
-      - *.ipa
+      - "*.ipa"

@@ -356,7 +356,7 @@ class UpdateService {
                   child: SingleChildScrollView(
                     child: SelectableText(
                       state.releaseNotes!,
-                      style: const TextStyle(fontSize: 13),
+                      style: const TextStyle(fontSize: 13, color: Colors.black87),
                     ),
                   ),
                 ),

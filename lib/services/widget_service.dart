@@ -4,7 +4,11 @@ import '../models/schedule_item.dart';
 
 class WidgetService {
   // Use group ID for iOS if needed, usually configured in Xcode
-  static const String appGroupId = 'group.edu.sdpei.JWSystem.widget'; 
+  static const String appGroupId = 'group.com.jwhelper.shared'; 
+
+  static Future<void> init() async {
+    await HomeWidget.setAppGroupId(appGroupId);
+  }
   
   static Future<void> updateProgressWidget({
     required String gpa,
@@ -16,10 +20,30 @@ class WidgetService {
     await HomeWidget.saveWidgetData<String>('major_extra_credits', majorExtraCredits);
     await HomeWidget.saveWidgetData<String>('earned_credits', earnedCredits);
     await HomeWidget.saveWidgetData<String>('required_credits', requiredCredits);
+    await HomeWidget.saveWidgetData<String>(
+      'widget_last_updated',
+      DateTime.now().toIso8601String(),
+    );
     
     await HomeWidget.updateWidget(
       name: 'ProgressWidgetProvider',
       iOSName: 'ProgressWidget',
+    );
+  }
+
+  static Future<void> setWidgetDebugEnabled(bool enabled) async {
+    await HomeWidget.saveWidgetData<bool>('widget_debug_enabled', enabled);
+    await HomeWidget.saveWidgetData<String>(
+      'widget_last_updated',
+      DateTime.now().toIso8601String(),
+    );
+    await HomeWidget.updateWidget(
+      name: 'ProgressWidgetProvider',
+      iOSName: 'ProgressWidget',
+    );
+    await HomeWidget.updateWidget(
+      name: 'ScheduleWidgetProvider',
+      iOSName: 'ScheduleWidget',
     );
   }
 
@@ -52,6 +76,10 @@ class WidgetService {
     await HomeWidget.saveWidgetData<String>('today_schedule', jsonString);
     await HomeWidget.saveWidgetData<String>('today_date', "${now.month}月${now.day}日");
     await HomeWidget.saveWidgetData<String>('current_week', "第$currentWeek周");
+    await HomeWidget.saveWidgetData<String>(
+      'widget_last_updated',
+      DateTime.now().toIso8601String(),
+    );
 
     await HomeWidget.updateWidget(
       name: 'ScheduleWidgetProvider',

@@ -64,3 +64,5 @@ app.*.map.json
 
 # Debug info (from split-debug-info)
 /debug-info/
+# payload folder
+/payload/

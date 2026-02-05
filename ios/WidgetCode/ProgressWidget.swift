@@ -14,7 +14,7 @@ struct ProgressProvider: TimelineProvider {
     func getTimeline(in context: Context, completion: @escaping (Timeline<ProgressEntry>) -> ()) {
         // Fetch from UserDefaults
         // NOTE: Make sure App Groups is enabled in Xcode and matches this suite name
-        let userDefaults = UserDefaults(suiteName: "group.edu.sdpei.JWSystem.widget")
+        let userDefaults = UserDefaults(suiteName: "group.com.jwhelper.shared")
         let gpa = userDefaults?.string(forKey: "gpa") ?? "--"
         let majorExtra = userDefaults?.string(forKey: "major_extra_credits") ?? "--"
         let earned = userDefaults?.string(forKey: "earned_credits") ?? "--"

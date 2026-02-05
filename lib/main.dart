@@ -5,8 +5,11 @@ import 'providers/auth_provider.dart';
 import 'providers/data_provider.dart';
 import 'providers/theme_provider.dart';
 import 'screens/login_screen.dart';
+import 'services/widget_service.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await WidgetService.init();
   runApp(const MyApp());
 }
 

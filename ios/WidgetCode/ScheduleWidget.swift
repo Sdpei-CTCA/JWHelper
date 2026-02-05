@@ -42,7 +42,7 @@ struct ScheduleProvider: TimelineProvider {
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<ScheduleEntry>) -> ()) {
-        let userDefaults = UserDefaults(suiteName: "group.edu.sdpei.JWSystem.widget")
+        let userDefaults = UserDefaults(suiteName: "group.com.jwhelper.shared")
         let jsonString = userDefaults?.string(forKey: "today_schedule") ?? "[]"
         
         var items: [ScheduleItemData] = []

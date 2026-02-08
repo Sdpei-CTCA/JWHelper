@@ -44,6 +44,9 @@ enum WidgetColors {
     static let primary = Color(red: 64/255, green: 158/255, blue: 255/255)
     static let accent = Color(red: 245/255, green: 108/255, blue: 108/255)
     static let textSecondary = Color.secondary
+    static let background = Color(.systemBackground)
+    static let cardBackground = Color(.secondarySystemBackground)
+    static let debugBackground = Color(.tertiarySystemBackground)
 }
 
 struct DebugBlock: View {
@@ -59,7 +62,7 @@ struct DebugBlock: View {
             }
         }
         .padding(6)
-        .background(Color(white: 0.94))
+        .background(WidgetColors.debugBackground)
         .cornerRadius(8)
     }
 }

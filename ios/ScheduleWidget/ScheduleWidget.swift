@@ -93,11 +93,7 @@ struct ScheduleWidgetEntryView: View {
             if entry.items.isEmpty {
                 emptyState
             } else {
-                VStack(spacing: 8) {
-                    ForEach(Array(entry.items.prefix(3).enumerated()), id: \.offset) { index, item in
-                        ScheduleRow(item: item, index: index)
-                    }
-                }
+                ScheduleTwoColumn(items: entry.items)
             }
 
             if entry.debugEnabled {
@@ -112,7 +108,7 @@ struct ScheduleWidgetEntryView: View {
             Spacer(minLength: 0)
         }
         .padding()
-        .widgetBackground(Color.white)
+        .widgetBackground(WidgetColors.background)
     }
 
     private var header: some View {
@@ -184,8 +180,71 @@ struct ScheduleRow: View {
         }
         .padding(.vertical, 6)
         .padding(.horizontal, 8)
-        .background(Color(white: 0.95))
+        .background(WidgetColors.cardBackground)
         .cornerRadius(10)
+    }
+}
+
+struct ScheduleTwoColumn: View {
+    let items: [ScheduleItemData]
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            ScheduleColumn(title: "第一节", item: items.first, accent: WidgetColors.accent)
+
+            Divider()
+                .frame(maxHeight: 90)
+
+            ScheduleColumn(title: "第二节", item: items.count > 1 ? items[1] : nil, accent: WidgetColors.primary)
+        }
+    }
+}
+
+struct ScheduleColumn: View {
+    let title: String
+    let item: ScheduleItemData?
+    let accent: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(.caption2)
+                .foregroundColor(.secondary)
+
+            if let item {
+                HStack(alignment: .top, spacing: 8) {
+                    Capsule()
+                        .fill(accent)
+                        .frame(width: 4)
+
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(item.name)
+                            .font(.system(size: 13, weight: .bold))
+                            .lineLimit(1)
+
+                        Text("\(item.classroom) · \(item.teacher)")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                            .lineLimit(1)
+
+                        Text(TimeHelper.getTimeRange(start: item.startUnit, end: item.endUnit))
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+
+                    Spacer(minLength: 0)
+                }
+                .padding(8)
+                .background(WidgetColors.cardBackground)
+                .cornerRadius(10)
+            } else {
+                Text("无课程")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -226,6 +285,6 @@ struct ScheduleWidget: Widget {
         }
         .configurationDisplayName("今日课表")
         .description("展示今天的课程安排")
-        .supportedFamilies([.systemMedium, .systemLarge])
+        .supportedFamilies([.systemMedium])
     }
 }

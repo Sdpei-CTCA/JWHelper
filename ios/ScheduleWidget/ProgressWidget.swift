@@ -94,7 +94,7 @@ struct ProgressWidgetEntryView: View {
             }
         }
         .padding()
-        .widgetBackground(Color.white)
+        .widgetBackground(WidgetColors.background)
     }
 
     func timeString(_ date: Date) -> String {
@@ -118,7 +118,7 @@ struct ProgressStat: View {
         }
         .padding(8)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(white: 0.95))
+        .background(WidgetColors.cardBackground)
         .cornerRadius(10)
     }
 }
@@ -132,6 +132,6 @@ struct ProgressWidget: Widget {
         }
         .configurationDisplayName("绩点与学分")
         .description("展示绩点与学分进度")
-        .supportedFamilies([.systemSmall, .systemMedium])
+        .supportedFamilies([.systemMedium])
     }
 }

@@ -12,6 +12,9 @@ enum WidgetKeys {
     static let earned = "earned_credits"
     static let required = "required_credits"
     static let todaySchedule = "today_schedule"
+    static let tomorrowSchedule = "tomorrow_schedule"
+    static let todayDate = "today_date"
+    static let tomorrowDate = "tomorrow_date"
     static let lastUpdated = "widget_last_updated"
     static let debugEnabled = "widget_debug_enabled"
 }
@@ -30,6 +33,13 @@ struct WidgetStore {
 
     static func scheduleItems() -> [ScheduleItemData] {
         let jsonString = defaults?.string(forKey: WidgetKeys.todaySchedule) ?? "[]"
+        guard let data = jsonString.data(using: .utf8) else { return [] }
+        guard let decoded = try? JSONDecoder().decode([ScheduleItemData].self, from: data) else { return [] }
+        return decoded.sorted(by: { $0.startUnit < $1.startUnit })
+    }
+
+    static func tomorrowItems() -> [ScheduleItemData] {
+        let jsonString = defaults?.string(forKey: WidgetKeys.tomorrowSchedule) ?? "[]"
         guard let data = jsonString.data(using: .utf8) else { return [] }
         guard let decoded = try? JSONDecoder().decode([ScheduleItemData].self, from: data) else { return [] }
         return decoded.sorted(by: { $0.startUnit < $1.startUnit })

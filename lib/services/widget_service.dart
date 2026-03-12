@@ -51,30 +51,40 @@ class WidgetService {
     final now = DateTime.now();
     // ScheduleItem dayIndex: 0=Mon, 6=Sun
     // DateTime.weekday: 1=Mon, 7=Sun
-    final todayIndex = now.weekday - 1; 
-    
-    final todayItems = allItems.where((item) {
-        if (item.dayIndex != todayIndex) return false;
-        
-        // If currentWeek is valid (>0), filter by week
-        if (currentWeek > 0) {
-           // Assuming weekStart/End 0 means valid for all? 
-           // Or strictly adhering to ranges. Usually 1-20. 
-           // Let's assume strict if set.
-           if (item.weekStart > 0 && item.weekEnd > 0) {
-              if (currentWeek < item.weekStart || currentWeek > item.weekEnd) return false;
-           }
+    final todayIndex = now.weekday - 1;
+    final tomorrowIndex = (todayIndex + 1) % 7; // Handles Sunday (6) -> Monday (0)
+
+    List<ScheduleItem> filterForDay(int dayIndex, {int? weekOverride}) {
+      final week = weekOverride ?? currentWeek;
+      final items = allItems.where((item) {
+        if (item.dayIndex != dayIndex) return false;
+        if (week > 0) {
+          if (item.weekStart > 0 && item.weekEnd > 0) {
+            if (week < item.weekStart || week > item.weekEnd) return false;
+          }
         }
         return true;
-    }).toList();
+      }).toList();
+      items.sort((a, b) => a.startUnit.compareTo(b.startUnit));
+      return items;
+    }
 
-    // Sort by start unit
-    todayItems.sort((a, b) => a.startUnit.compareTo(b.startUnit));
+    final todayItems = filterForDay(todayIndex);
+    final tomorrow = now.add(const Duration(days: 1));
+    // When tomorrow is Monday (tomorrowIndex == 0), it belongs to the next academic week
+    final tomorrowWeek = (tomorrowIndex == 0 && currentWeek > 0) ? currentWeek + 1 : currentWeek;
+    final tomorrowItems = filterForDay(tomorrowIndex, weekOverride: tomorrowWeek);
 
-    // Serialize to JSON
-    final jsonString = jsonEncode(todayItems.map((e) => e.toJson()).toList());
-    await HomeWidget.saveWidgetData<String>('today_schedule', jsonString);
+    // Save today's schedule
+    final todayJson = jsonEncode(todayItems.map((e) => e.toJson()).toList());
+    await HomeWidget.saveWidgetData<String>('today_schedule', todayJson);
     await HomeWidget.saveWidgetData<String>('today_date', "${now.month}月${now.day}日");
+
+    // Save tomorrow's schedule so the widget can fall back to it when today is done
+    final tomorrowJson = jsonEncode(tomorrowItems.map((e) => e.toJson()).toList());
+    await HomeWidget.saveWidgetData<String>('tomorrow_schedule', tomorrowJson);
+    await HomeWidget.saveWidgetData<String>('tomorrow_date', "${tomorrow.month}月${tomorrow.day}日");
+
     await HomeWidget.saveWidgetData<String>('current_week', "第$currentWeek周");
     await HomeWidget.saveWidgetData<String>(
       'widget_last_updated',

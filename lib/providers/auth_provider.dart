@@ -122,9 +122,9 @@ class AuthProvider with ChangeNotifier {
       notifyListeners();
       return null; // No error
     } else {
-      // Check for offline login possibility
-      String msg = result['message'].toString();
-      if (msg.contains("网络错误") || msg.contains("SocketException") || msg.contains("DioException")) {
+      // If the server did not explicitly reject credentials (no captcha prompt),
+      // fall back to offline mode when cached credentials are available.
+      if (result['needCaptcha'] != true) {
         if (_rememberPassword && _savedUsername == username && _savedPassword == password) {
           _isLoggedIn = true;
           _needCaptcha = false;

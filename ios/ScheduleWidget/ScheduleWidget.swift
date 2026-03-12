@@ -29,10 +29,12 @@ struct ScheduleProvider: TimelineProvider {
     func placeholder(in context: Context) -> ScheduleEntry {
         ScheduleEntry(
             date: Date(),
+            displayDate: Date(),
             items: [
                 ScheduleItemData(name: "高等数学", teacher: "小洁", classroom: "东教楼123", startUnit: 1, endUnit: 2),
                 ScheduleItemData(name: "数据库原理", teacher: "小越", classroom: "文成楼125", startUnit: 3, endUnit: 4)
             ],
+            isTomorrow: false,
             lastUpdated: Date(),
             debugEnabled: false
         )
@@ -41,10 +43,12 @@ struct ScheduleProvider: TimelineProvider {
     func getSnapshot(in context: Context, completion: @escaping (ScheduleEntry) -> ()) {
         let entry = ScheduleEntry(
             date: Date(),
+            displayDate: Date(),
             items: [
                 ScheduleItemData(name: "高等数学", teacher: "小洁", classroom: "东教楼123", startUnit: 1, endUnit: 2),
                 ScheduleItemData(name: "数据库原理", teacher: "小越", classroom: "文成楼125", startUnit: 3, endUnit: 4)
             ],
+            isTomorrow: false,
             lastUpdated: Date(),
             debugEnabled: false
         )
@@ -52,13 +56,28 @@ struct ScheduleProvider: TimelineProvider {
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<ScheduleEntry>) -> ()) {
-        let items = WidgetStore.scheduleItems()
+        let todayItems = WidgetStore.scheduleItems()
         let now = Date()
 
-        let validItems = ScheduleFilter.filterUpcoming(items: items, now: now)
+        let validTodayItems = ScheduleFilter.filterUpcoming(items: todayItems, now: now)
+
+        // If all today's classes are done (or there were none), show tomorrow's schedule
+        let isTomorrow = validTodayItems.isEmpty
+        let displayItems: [ScheduleItemData]
+        let displayDate: Date
+        if isTomorrow {
+            displayItems = WidgetStore.tomorrowItems()
+            displayDate = Calendar.current.date(byAdding: .day, value: 1, to: now) ?? now
+        } else {
+            displayItems = validTodayItems
+            displayDate = now
+        }
+
         let entry = ScheduleEntry(
             date: now,
-            items: validItems.isEmpty && !items.isEmpty ? [] : validItems,
+            displayDate: displayDate,
+            items: displayItems,
+            isTomorrow: isTomorrow,
             lastUpdated: WidgetStore.date(WidgetKeys.lastUpdated),
             debugEnabled: WidgetStore.debugEnabled()
         )
@@ -78,7 +97,9 @@ struct ScheduleItemData: Codable {
 
 struct ScheduleEntry: TimelineEntry {
     let date: Date
+    let displayDate: Date
     let items: [ScheduleItemData]
+    let isTomorrow: Bool
     let lastUpdated: Date?
     let debugEnabled: Bool
 }
@@ -113,11 +134,17 @@ struct ScheduleWidgetEntryView: View {
 
     private var header: some View {
         HStack(alignment: .lastTextBaseline) {
-            Text(formatDate(entry.date))
+            Text(formatDate(entry.displayDate))
                 .font(.system(size: 18, weight: .bold))
-            Text(Config.weekday(entry.date))
+            Text(Config.weekday(entry.displayDate))
                 .font(.system(size: 18, weight: .bold))
                 .foregroundColor(WidgetColors.accent)
+            if entry.isTomorrow {
+                Text("明日")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .padding(.leading, 4)
+            }
             Spacer()
             if let time = entry.lastUpdated {
                 Text("更新 \(timeString(time))")
@@ -129,7 +156,7 @@ struct ScheduleWidgetEntryView: View {
 
     private var emptyState: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("今日无课")
+            Text(entry.isTomorrow ? "明日无课" : "今日无课")
                 .font(.headline)
             Text("去 APP 同步后自动刷新")
                 .font(.caption)

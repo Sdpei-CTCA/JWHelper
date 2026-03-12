@@ -27,53 +27,56 @@ struct TimeHelper {
 
 struct ScheduleProvider: TimelineProvider {
     func placeholder(in context: Context) -> ScheduleEntry {
-        ScheduleEntry(date: Date(), items: [
+        ScheduleEntry(date: Date(), displayDate: Date(), items: [
             ScheduleItemData(name: "高等数学", teacher: "小洁", classroom: "东教楼123", startUnit: 1, endUnit: 2),
             ScheduleItemData(name: "数据库原理", teacher: "小越", classroom: "文成楼125", startUnit: 3, endUnit: 4)
-        ])
+        ], isTomorrow: false)
     }
 
     func getSnapshot(in context: Context, completion: @escaping (ScheduleEntry) -> ()) {
-        let entry = ScheduleEntry(date: Date(), items: [
+        let entry = ScheduleEntry(date: Date(), displayDate: Date(), items: [
             ScheduleItemData(name: "高等数学", teacher: "小洁", classroom: "东教楼123", startUnit: 1, endUnit: 2),
             ScheduleItemData(name: "数据库原理", teacher: "小越", classroom: "文成楼125", startUnit: 3, endUnit: 4)
-        ])
+        ], isTomorrow: false)
         completion(entry)
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<ScheduleEntry>) -> ()) {
         let userDefaults = UserDefaults(suiteName: "group.com.jwhelper.shared")
-        let jsonString = userDefaults?.string(forKey: "today_schedule") ?? "[]"
+        let todayJsonString = userDefaults?.string(forKey: "today_schedule") ?? "[]"
+        let tomorrowJsonString = userDefaults?.string(forKey: "tomorrow_schedule") ?? "[]"
         
-        var items: [ScheduleItemData] = []
-        
-        if let data = jsonString.data(using: .utf8) {
-             if let decoded = try? JSONDecoder().decode([ScheduleItemData].self, from: data) {
-                 items = decoded.sorted(by: { $0.startUnit < $1.startUnit })
-             }
+        func parseItems(_ jsonString: String) -> [ScheduleItemData] {
+            guard let data = jsonString.data(using: .utf8),
+                  let decoded = try? JSONDecoder().decode([ScheduleItemData].self, from: data) else {
+                return []
+            }
+            return decoded.sorted(by: { $0.startUnit < $1.startUnit })
         }
-        
-        // Filter passed items relative to NOW
-        // Since timelines are static until reload, we construct 'Now' entry.
-        // For better experience, we should filter items that end before Now.
-        
+
+        let todayItems = parseItems(todayJsonString)
+        let tomorrowItems = parseItems(tomorrowJsonString)
+
         let now = Date()
         let calendar = Calendar.current
         let hour = calendar.component(.hour, from: now)
         let minute = calendar.component(.minute, from: now)
         let nowMinutes = hour * 60 + minute
         
-        let validItems = items.filter { item in
-            // Parse end time from map
+        let validTodayItems = todayItems.filter { item in
             let endRange = TimeHelper.map[item.endUnit] ?? "23:59-23:59"
             let endTimeStr = endRange.components(separatedBy: "-")[1]
             let parts = endTimeStr.split(separator: ":").map { Int($0) ?? 0 }
             let endMinutes = parts[0] * 60 + parts[1]
-            
             return endMinutes > nowMinutes
         }
 
-        let entry = ScheduleEntry(date: Date(), items: validItems.isEmpty && !items.isEmpty ? [] : validItems) // If all passed, show empty list to trigger "Finished" state
+        // If all today's classes are done, fall back to tomorrow's schedule
+        let isTomorrow = validTodayItems.isEmpty
+        let displayItems = isTomorrow ? tomorrowItems : validTodayItems
+        let displayDate = isTomorrow ? (calendar.date(byAdding: .day, value: 1, to: now) ?? now) : now
+
+        let entry = ScheduleEntry(date: now, displayDate: displayDate, items: displayItems, isTomorrow: isTomorrow)
 
         let timeline = Timeline(entries: [entry], policy: .atEnd)
         completion(timeline)
@@ -90,7 +93,9 @@ struct ScheduleItemData: Codable {
 
 struct ScheduleEntry: TimelineEntry {
     let date: Date
+    let displayDate: Date
     let items: [ScheduleItemData]
+    let isTomorrow: Bool
 }
 
 struct ScheduleWidgetEntryView : View {
@@ -100,17 +105,23 @@ struct ScheduleWidgetEntryView : View {
         VStack(alignment: .leading, spacing: 12) {
             // Header
             HStack(alignment: .bottom) {
-                Text(formatDate(entry.date)).font(.system(size: 16, weight: .bold))
-                Text(Config.weekday(entry.date))
+                Text(formatDate(entry.displayDate)).font(.system(size: 16, weight: .bold))
+                Text(Config.weekday(entry.displayDate))
                     .font(.system(size: 16, weight: .bold))
                     .foregroundColor(Color(red: 245/255, green: 108/255, blue: 108/255))
+                if entry.isTomorrow {
+                    Text("明日")
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondary)
+                        .padding(.leading, 2)
+                }
                 Spacer()
             }
             
             HStack(alignment: .top, spacing: 0) {
-                // Left: Current
+                // Left: Current/First class
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("当前").font(.system(size: 10)).foregroundColor(.gray)
+                    Text(entry.isTomorrow ? "第一节" : "当前").font(.system(size: 10)).foregroundColor(.gray)
                     if let cur = entry.items.first {
                         ClassView(item: cur, color: Color(red: 245/255, green: 108/255, blue: 108/255))
                     } else {
@@ -121,9 +132,9 @@ struct ScheduleWidgetEntryView : View {
                 
                 Divider().frame(height: 60).padding(.horizontal, 8)
                 
-                // Right: Next
+                // Right: Next/Second class
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("接下来").font(.system(size: 10)).foregroundColor(.gray)
+                    Text(entry.isTomorrow ? "第二节" : "接下来").font(.system(size: 10)).foregroundColor(.gray)
                     if entry.items.count > 1 {
                         ClassView(item: entry.items[1], color: Color(red: 64/255, green: 158/255, blue: 255/255))
                     } else {

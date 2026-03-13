@@ -11,6 +11,8 @@ import es.antonborri.home_widget.HomeWidgetProvider
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.Calendar
+import java.util.Locale
+import java.text.SimpleDateFormat
 
 class ScheduleWidgetProvider : HomeWidgetProvider() {
 
@@ -55,12 +57,35 @@ class ScheduleWidgetProvider : HomeWidgetProvider() {
         return false
     }
 
+    private fun parseIsoDate(raw: String?): Calendar? {
+        if (raw.isNullOrBlank()) return null
+        return try {
+            val formatter = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+            formatter.isLenient = false
+            val date = formatter.parse(raw) ?: return null
+            Calendar.getInstance().apply { time = date }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun isSameDay(left: Calendar, right: Calendar): Boolean {
+        return left.get(Calendar.YEAR) == right.get(Calendar.YEAR) &&
+            left.get(Calendar.DAY_OF_YEAR) == right.get(Calendar.DAY_OF_YEAR)
+    }
+
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray, widgetData: SharedPreferences) {
         appWidgetIds.forEach { widgetId ->
             val views = RemoteViews(context.packageName, R.layout.widget_schedule).apply {
-                val date = widgetData.getString("today_date", "1月1日") ?: "1月1日"
+                val nowCal = Calendar.getInstance()
+                val scheduleCal = parseIsoDate(widgetData.getString("schedule_date_iso", null)) ?: nowCal
+                val date = widgetData.getString(
+                    "today_date",
+                    "${scheduleCal.get(Calendar.MONTH) + 1}月${scheduleCal.get(Calendar.DAY_OF_MONTH)}日"
+                ) ?: "1月1日"
                 val week = widgetData.getString("current_week", "") ?: "" // No longer used in main layout, but maybe debug
                 val jsonString = widgetData.getString("today_schedule", "[]")
+                val isDisplayToday = isSameDay(scheduleCal, nowCal)
                 
                 // Parse Date "X月X日" -> "X.X"
                 val dateNum = date.replace("月", ".").replace("日", "")
@@ -68,9 +93,8 @@ class ScheduleWidgetProvider : HomeWidgetProvider() {
                 // Get Weekday (Android Calendar) for "周X"
                 // Actually Flutter passes "today_date" static string.
                 // It's better to compute weekday here.
-                val cal = Calendar.getInstance()
                 val weekDayMap = arrayOf("", "周日", "周一", "周二", "周三", "周四", "周五", "周六")
-                val weekDayStr = weekDayMap[cal.get(Calendar.DAY_OF_WEEK)]
+                val weekDayStr = weekDayMap[scheduleCal.get(Calendar.DAY_OF_WEEK)]
 
                 setTextViewText(R.id.tv_date_num, dateNum)
                 setTextViewText(R.id.tv_weekday, weekDayStr)
@@ -101,11 +125,15 @@ class ScheduleWidgetProvider : HomeWidgetProvider() {
                     
                     // Filter: Find first item that is NOT passed
                     var currentIdx = -1
-                    for (i in allItems.indices) {
-                         if (!isClassPassed(allItems[i].optInt("endUnit"))) {
-                             currentIdx = i
-                             break
-                         }
+                    if (isDisplayToday) {
+                        for (i in allItems.indices) {
+                             if (!isClassPassed(allItems[i].optInt("endUnit"))) {
+                                 currentIdx = i
+                                 break
+                             }
+                        }
+                    } else if (allItems.isNotEmpty()) {
+                        currentIdx = 0
                     }
                     
                     // If all passed, maybe show nothing or just the last one?
@@ -140,8 +168,8 @@ class ScheduleWidgetProvider : HomeWidgetProvider() {
                         setTextViewText(R.id.tv_next_time, "")
                     } else {
                         // No classes today
-                         setTextViewText(R.id.tv_cur_name, "今天没有课")
-                         setTextViewText(R.id.tv_cur_info, "好好休息吧")
+                         setTextViewText(R.id.tv_cur_name, if (isDisplayToday) "今天没有课" else "无课程")
+                         setTextViewText(R.id.tv_cur_info, if (isDisplayToday) "好好休息吧" else "下一天暂无课程")
                          setTextViewText(R.id.tv_cur_time, "")
                          
                          setTextViewText(R.id.tv_next_name, "")

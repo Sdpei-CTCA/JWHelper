@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'providers/auth_provider.dart';
-import 'providers/data_provider.dart';
-import 'providers/theme_provider.dart';
-import 'screens/login_screen.dart';
-import 'services/widget_service.dart';
+import 'package:JWHelper/features/auth/presentation/auth_provider.dart';
+import 'package:JWHelper/app/state/data_provider.dart';
+import 'package:JWHelper/shared/theme/theme_provider.dart';
+import 'package:JWHelper/features/auth/presentation/login_screen.dart';
+import 'package:JWHelper/infrastructure/platform/widget_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();

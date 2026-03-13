@@ -54,10 +54,12 @@ struct ScheduleProvider: TimelineProvider {
     func getTimeline(in context: Context, completion: @escaping (Timeline<ScheduleEntry>) -> ()) {
         let items = WidgetStore.scheduleItems()
         let now = Date()
+        let displayDate = WidgetStore.scheduleDate() ?? now
+        let isDisplayToday = Calendar.current.isDate(displayDate, inSameDayAs: now)
 
-        let validItems = ScheduleFilter.filterUpcoming(items: items, now: now)
+        let validItems = isDisplayToday ? ScheduleFilter.filterUpcoming(items: items, now: now) : items
         let entry = ScheduleEntry(
-            date: now,
+            date: displayDate,
             items: validItems.isEmpty && !items.isEmpty ? [] : validItems,
             lastUpdated: WidgetStore.date(WidgetKeys.lastUpdated),
             debugEnabled: WidgetStore.debugEnabled()

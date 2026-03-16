@@ -1,13 +1,18 @@
-# 教务小助手
+<div align="center">
+  <img src="assets/images/logo.png" alt="Logo" width="120" height="120">
+  
 
-基于 Flutter 开发的山东体育学院教务系统客户端，提供课表、考试、成绩、学业进度查询，以及教学评价辅助、离线缓存和多端运行能力。
+
+# 教务小助手
+</div>
+基于 Flutter 开发的山东体育学院教务系统数据查看APP，提供课表、考试、成绩、学业进度查询，以及教学评价辅助、离线缓存和多端运行能力。
 
 ## 项目概览
 
 - 项目名称：JWHelper
 - 当前版本：1.2.2
 - 技术栈：Flutter + Provider + Dio + SharedPreferences
-- 支持平台：Android、iOS、Windows、macOS、Linux、Web
+- 支持平台：Android、iOS、Windows、macOS、Linux
 - 主要定位：个人教务信息查询与轻量辅助操作
 
 ## 功能特性
@@ -147,20 +152,28 @@ flutter build ios --release
 
 # 不签名构建
 flutter build ios --release --no-codesign
-```
+
 
 如需手动打包 ipa，可在生成 Runner.app 后自行封装 Payload 目录。
+# 封装方式
+# 1. 创建一个名为 Payload 的文件夹
+mkdir Payload
+
+# 2. 将生成的 Runner.app 复制到 Payload 文件夹中
+cp -r build/ios/iphoneos/Runner.app Payload/
+
+# 3. 将 Payload 文件夹压缩为 zip
+zip -r -y Payload.zip Payload/
+
+# 4. 将 zip 重命名为 ipa
+mv Payload.zip app-unsigned.ipa
+```
+
 
 ### Windows
 
 ```bash
 flutter build windows --release
-```
-
-### Web
-
-```bash
-flutter build web
 ```
 
 ## 常用开发命令

@@ -9,17 +9,15 @@ class WidgetService {
   static const String appGroupId = 'group.com.jwhelper.shared'; 
   static const Map<int, int> _periodEndMinutes = {
     1: 8 * 60 + 45,
-    2: 9 * 60 + 40,
+    2: 9 * 60 + 30,
     3: 10 * 60 + 45,
-    4: 11 * 60 + 40,
+    4: 11 * 60 + 30,
     5: 14 * 60 + 15,
-    6: 15 * 60 + 10,
-    7: 16 * 60 + 5,
-    8: 17 * 60 + 10,
-    9: 18 * 60 + 5,
-    10: 19 * 60 + 15,
-    11: 20 * 60 + 10,
-    12: 21 * 60 + 5,
+    6: 15 * 60,
+    7: 16 * 60 + 15,
+    8: 17 * 60,
+    9: 19 * 60 + 45,
+    10: 20 * 60 + 30,
   };
 
   static bool get _isHomeWidgetSupported {
@@ -89,12 +87,17 @@ class WidgetService {
 
     DateTime displayDate = todayDate;
     int displayDayIndex = todayIndex;
+    int displayWeek = currentWeek;
     List<ScheduleItem> displayItems = todayItems;
 
     if (shouldShowNextDay) {
       displayDate = todayDate.add(const Duration(days: 1));
       displayDayIndex = (todayIndex + 1) % 7;
-      displayItems = _itemsForDay(allItems, dayIndex: displayDayIndex, currentWeek: currentWeek);
+      if (todayIndex == 6 && currentWeek > 0) {
+        // Sunday -> Monday crosses into next academic week.
+        displayWeek = currentWeek + 1;
+      }
+      displayItems = _itemsForDay(allItems, dayIndex: displayDayIndex, currentWeek: displayWeek);
     }
 
     // Serialize to JSON
@@ -102,7 +105,7 @@ class WidgetService {
     await HomeWidget.saveWidgetData<String>('today_schedule', jsonString);
     await HomeWidget.saveWidgetData<String>('today_date', "${displayDate.month}月${displayDate.day}日");
     await HomeWidget.saveWidgetData<String>('schedule_date_iso', _toIsoDate(displayDate));
-    await HomeWidget.saveWidgetData<String>('current_week', "第$currentWeek周");
+    await HomeWidget.saveWidgetData<String>('current_week', "第$displayWeek周");
     await HomeWidget.saveWidgetData<String>(
       'widget_last_updated',
       DateTime.now().toIso8601String(),

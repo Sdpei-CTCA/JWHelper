@@ -20,7 +20,9 @@ class ProgressGroup {
       required: (json['required'] as num).toDouble(),
       earned: (json['earned'] as num).toDouble(),
       courses: json['courses'] != null
-          ? (json['courses'] as List).map((i) => ProgressCourse.fromJson(i)).toList()
+          ? (json['courses'] as List)
+              .map((i) => ProgressCourse.fromJson(i))
+              .toList()
           : null,
     );
   }

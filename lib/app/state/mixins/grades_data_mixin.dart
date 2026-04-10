@@ -1,14 +1,14 @@
 part of data_provider;
 
 extension GradesDataMixin on DataProvider {
-
   List<Grade> get grades => _grades;
   bool get gradesLoading => _gradesLoading;
   bool get gradesLoaded => _gradesLoaded;
 
   List<String> get semesterList {
     if (_grades.isEmpty) return [];
-    return _grades.map((e) => e.semester).toSet().toList()..sort((a, b) => b.compareTo(a));
+    return _grades.map((e) => e.semester).toSet().toList()
+      ..sort((a, b) => b.compareTo(a));
   }
 
   String get _gradesCacheKey => 'grades_cache_$_username';

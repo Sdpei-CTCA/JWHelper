@@ -11,11 +11,13 @@ import 'package:JWHelper/features/exam/domain/exam.dart';
 List<Semester> _parseExamSemesters(String html) {
   final document = html_parser.parse(html);
   final options = document.querySelectorAll("#ddlSemester option");
-  
-  return options.map((e) => Semester(
-    id: e.attributes['value'] ?? "",
-    name: e.text.trim(),
-  )).toList();
+
+  return options
+      .map((e) => Semester(
+            id: e.attributes['value'] ?? "",
+            name: e.text.trim(),
+          ))
+      .toList();
 }
 
 List<Exam> _parseExportedHtml(String html) {
@@ -42,12 +44,12 @@ List<Exam> _parseExportedHtml(String html) {
     final no = cells[1].text.trim();
     final type = cells[2].text.trim();
     final time = cells[3].text.trim();
-    
+
     String location = "";
     if (cells.length >= 6) {
-       location = cells[5].text.trim();
+      location = cells[5].text.trim();
     } else if (cells.length >= 5) {
-       location = cells[4].text.trim();
+      location = cells[4].text.trim();
     }
 
     exams.add(Exam(
@@ -71,7 +73,7 @@ class ExamService {
       final response = await _client.dio.get(
         "${Config.baseUrl}/Student/StudentExamArrangeTable.aspx",
       );
-      
+
       return await compute(_parseExamSemesters, response.data.toString());
     } catch (e) {
       debugPrint("Error fetching semesters: $e");
@@ -103,13 +105,14 @@ class ExamService {
       final List<dynamic> jsonList = jsonDecode(response.data);
       if (jsonList.isNotEmpty && jsonList[0]['EtLst'] != null) {
         final List<dynamic> etList = jsonList[0]['EtLst'];
-        return etList.map((e) => ExamRound(
-          id: e['id'].toString(),
-          name: e['name'].toString(),
-        )).toList();
+        return etList
+            .map((e) => ExamRound(
+                  id: e['id'].toString(),
+                  name: e['name'].toString(),
+                ))
+            .toList();
       }
       return [];
-
     } catch (e) {
       debugPrint("Error fetching exam rounds: $e");
       rethrow;
@@ -134,7 +137,7 @@ class ExamService {
 
       // The response is JSON
       // {"a":true,"b":[{"periodTime":"","CourseNO":"...","CourseName":"...","serialNumber":"3",...}]}
-      
+
       if (response.data == null || response.data.toString().isEmpty) {
         return [];
       }
@@ -156,7 +159,6 @@ class ExamService {
           applyStatus: e['ApplyStatus']?.toString() ?? "",
         );
       }).toList();
-
     } catch (e) {
       debugPrint("Error fetching exam list: $e");
       rethrow;
@@ -195,7 +197,7 @@ class ExamService {
 
       final String filePath = response.data.toString();
       if (filePath.isEmpty || !filePath.startsWith("/")) {
-         throw Exception("Invalid file path received: $filePath");
+        throw Exception("Invalid file path received: $filePath");
       }
 
       final fileResponse = await _client.dio.get(
@@ -245,7 +247,7 @@ class ExamService {
 
       final String filePath = response.data.toString();
       if (filePath.isEmpty || !filePath.startsWith("/")) {
-         throw Exception("Invalid file path received: $filePath");
+        throw Exception("Invalid file path received: $filePath");
       }
 
       final fileResponse = await _client.dio.get(

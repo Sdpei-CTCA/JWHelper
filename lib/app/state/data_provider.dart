@@ -16,6 +16,7 @@ import 'package:JWHelper/app/usecases/schedule_loader_usecase.dart';
 import 'package:JWHelper/app/usecases/progress_loader_usecase.dart';
 import 'package:JWHelper/app/usecases/exam_loader_usecase.dart';
 import 'package:JWHelper/app/coordinators/login_data_coordinator.dart';
+import 'package:JWHelper/infrastructure/notifications/notification_service.dart';
 
 part 'mixins/grades_data_mixin.dart';
 part 'mixins/schedule_data_mixin.dart';
@@ -89,7 +90,7 @@ class DataProvider with ChangeNotifier {
       loadExamSemesters: loadExamSemesters,
     );
   }
-  
+
   Future<void> clearCache() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_gradesCacheKey);
@@ -98,7 +99,7 @@ class DataProvider with ChangeNotifier {
     await prefs.remove(_scheduleCacheTimeKey);
     await prefs.remove(_progressCacheKey);
     await prefs.remove(_progressCacheTimeKey);
-    
+
     // Clear exam caches - this is harder because keys are dynamic
     // We can iterate all keys and remove those starting with exam_
     final keys = prefs.getKeys();
@@ -110,7 +111,7 @@ class DataProvider with ChangeNotifier {
       }
     }
   }
-  
+
   void clearAll() {
     _grades = [];
     _gradesLoaded = false;

@@ -22,10 +22,12 @@ class _GradesScreenState extends State<GradesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final dataProvider = Provider.of<DataProvider>(context);
-    final grades = dataProvider.grades;
+    // Only rebuild when grades-related states change
+    final gradesLoading = context.select<DataProvider, bool>((d) => d.gradesLoading);
+    final grades = context.select<DataProvider, List<dynamic>>((d) => d.grades);
+    final rawSemesters = context.select<DataProvider, List<String>>((d) => d.semesterList);
 
-    if (dataProvider.gradesLoading && grades.isEmpty) {
+    if (gradesLoading && grades.isEmpty) {
       return const Center(child: CircularProgressIndicator());
     }
 
@@ -38,18 +40,16 @@ class _GradesScreenState extends State<GradesScreen> {
             const SizedBox(height: 16),
             const Text("暂无成绩数据", style: TextStyle(color: Colors.grey)),
             TextButton(
-              onPressed: () => dataProvider.loadGrades(forceRefresh: true), 
-              child: const Text("刷新")
-            )
+                onPressed: () => context.read<DataProvider>().loadGrades(forceRefresh: true),
+                child: const Text("刷新"))
           ],
         ),
       );
     }
 
     // Get unique semesters using optimized getter
-    final rawSemesters = dataProvider.semesterList;
     final allOptions = ['全部', ...rawSemesters];
-    
+
     // Set default selection logic
     if (_selectedSemester == null) {
       // Default to the latest semester (first in the sorted list) if available
@@ -76,21 +76,33 @@ class _GradesScreenState extends State<GradesScreen> {
             children: [
               const Icon(Icons.filter_list, size: 20, color: Colors.grey),
               const SizedBox(width: 8),
-              Text("学期筛选: ", style: TextStyle(fontSize: 16, color: Theme.of(context).colorScheme.onSurface)),
+              Text("学期筛选: ",
+                  style: TextStyle(
+                      fontSize: 16,
+                      color: Theme.of(context).colorScheme.onSurface)),
               const SizedBox(width: 16),
               Expanded(
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
                   decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                    color: Theme.of(context)
+                        .colorScheme
+                        .surfaceContainerHighest
+                        .withValues(alpha: 0.3),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.grey.withValues(alpha: 0.3)),
+                    border:
+                        Border.all(color: Colors.grey.withValues(alpha: 0.3)),
                   ),
                   child: DropdownButtonHideUnderline(
                     child: DropdownButton<String>(
                       isExpanded: true,
-                      icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Color(0xFF409EFF)),
-                      style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontSize: 15, fontWeight: FontWeight.w500),
+                      icon: const Icon(Icons.keyboard_arrow_down_rounded,
+                          color: Color(0xFF409EFF)),
+                      style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurface,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w500),
                       dropdownColor: Theme.of(context).cardTheme.color,
                       borderRadius: BorderRadius.circular(12),
                       value: _selectedSemester,
@@ -114,7 +126,7 @@ class _GradesScreenState extends State<GradesScreen> {
         ),
         Expanded(
           child: RefreshIndicator(
-            onRefresh: () => dataProvider.loadGrades(forceRefresh: true),
+            onRefresh: () => context.read<DataProvider>().loadGrades(forceRefresh: true),
             child: filteredGrades.isEmpty
                 ? ListView(
                     physics: const AlwaysScrollableScrollPhysics(),
@@ -136,7 +148,8 @@ class _GradesScreenState extends State<GradesScreen> {
                         margin: const EdgeInsets.only(bottom: 12),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
-                          side: BorderSide(color: Colors.grey.withValues(alpha: 0.1)),
+                          side: BorderSide(
+                              color: Colors.grey.withValues(alpha: 0.1)),
                         ),
                         child: Padding(
                           padding: const EdgeInsets.all(16),
@@ -144,27 +157,36 @@ class _GradesScreenState extends State<GradesScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
                                 children: [
                                   Expanded(
                                     child: Text(
                                       grade.courseName,
-                                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                                      style: const TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold),
                                     ),
                                   ),
                                   Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 8, vertical: 4),
                                     decoration: BoxDecoration(
-                                      color: double.tryParse(grade.score) != null && double.parse(grade.score) < 60 
-                                          ? Colors.red.withValues(alpha: 0.1) 
-                                          : const Color(0xFF409EFF).withValues(alpha: 0.1),
+                                      color: double.tryParse(grade.score) !=
+                                                  null &&
+                                              double.parse(grade.score) < 60
+                                          ? Colors.red.withValues(alpha: 0.1)
+                                          : const Color(0xFF409EFF)
+                                              .withValues(alpha: 0.1),
                                       borderRadius: BorderRadius.circular(4),
                                     ),
                                     child: Text(
                                       grade.score,
                                       style: TextStyle(
-                                        color: double.tryParse(grade.score) != null && double.parse(grade.score) < 60 
-                                            ? Colors.red 
+                                        color: double.tryParse(grade.score) !=
+                                                    null &&
+                                                double.parse(grade.score) < 60
+                                            ? Colors.red
                                             : const Color(0xFF409EFF),
                                         fontWeight: FontWeight.bold,
                                       ),
@@ -175,7 +197,8 @@ class _GradesScreenState extends State<GradesScreen> {
                               const SizedBox(height: 8),
                               Row(
                                 children: [
-                                  _buildTag(Icons.calendar_today, grade.semester),
+                                  _buildTag(
+                                      Icons.calendar_today, grade.semester),
                                   const SizedBox(width: 12),
                                   _buildTag(Icons.class_, "${grade.credit} 学分"),
                                   const SizedBox(width: 12),

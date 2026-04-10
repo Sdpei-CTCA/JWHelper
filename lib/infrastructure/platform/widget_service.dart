@@ -6,7 +6,7 @@ import 'package:JWHelper/features/schedule/domain/schedule_item.dart';
 
 class WidgetService {
   // Use group ID for iOS if needed, usually configured in Xcode
-  static const String appGroupId = 'group.com.jwhelper.shared'; 
+  static const String appGroupId = 'group.com.jwhelper.shared';
   static const Map<int, int> _periodEndMinutes = {
     1: 8 * 60 + 45,
     2: 9 * 60 + 40,
@@ -36,7 +36,7 @@ class WidgetService {
       // Ignore on platforms where plugin methods are not implemented.
     }
   }
-  
+
   static Future<void> updateProgressWidget({
     required String gpa,
     required String majorExtraCredits,
@@ -45,14 +45,16 @@ class WidgetService {
   }) async {
     if (!_isHomeWidgetSupported) return;
     await HomeWidget.saveWidgetData<String>('gpa', gpa);
-    await HomeWidget.saveWidgetData<String>('major_extra_credits', majorExtraCredits);
+    await HomeWidget.saveWidgetData<String>(
+        'major_extra_credits', majorExtraCredits);
     await HomeWidget.saveWidgetData<String>('earned_credits', earnedCredits);
-    await HomeWidget.saveWidgetData<String>('required_credits', requiredCredits);
+    await HomeWidget.saveWidgetData<String>(
+        'required_credits', requiredCredits);
     await HomeWidget.saveWidgetData<String>(
       'widget_last_updated',
       DateTime.now().toIso8601String(),
     );
-    
+
     await HomeWidget.updateWidget(
       name: 'ProgressWidgetProvider',
       iOSName: 'ProgressWidget',
@@ -76,16 +78,19 @@ class WidgetService {
     );
   }
 
-  static Future<void> updateScheduleWidget(List<ScheduleItem> allItems, {int currentWeek = 0}) async {
+  static Future<void> updateScheduleWidget(List<ScheduleItem> allItems,
+      {int currentWeek = 0}) async {
     if (!_isHomeWidgetSupported) return;
     final now = DateTime.now();
     final todayDate = DateTime(now.year, now.month, now.day);
     // ScheduleItem dayIndex: 0=Mon, 6=Sun
     // DateTime.weekday: 1=Mon, 7=Sun
-    final todayIndex = now.weekday - 1; 
+    final todayIndex = now.weekday - 1;
 
-    final todayItems = _itemsForDay(allItems, dayIndex: todayIndex, currentWeek: currentWeek);
-    final shouldShowNextDay = todayItems.isNotEmpty && todayItems.every((item) => _isClassPassed(item, now));
+    final todayItems =
+        _itemsForDay(allItems, dayIndex: todayIndex, currentWeek: currentWeek);
+    final shouldShowNextDay = todayItems.isNotEmpty &&
+        todayItems.every((item) => _isClassPassed(item, now));
 
     DateTime displayDate = todayDate;
     int displayDayIndex = todayIndex;
@@ -94,14 +99,17 @@ class WidgetService {
     if (shouldShowNextDay) {
       displayDate = todayDate.add(const Duration(days: 1));
       displayDayIndex = (todayIndex + 1) % 7;
-      displayItems = _itemsForDay(allItems, dayIndex: displayDayIndex, currentWeek: currentWeek);
+      displayItems = _itemsForDay(allItems,
+          dayIndex: displayDayIndex, currentWeek: currentWeek);
     }
 
     // Serialize to JSON
     final jsonString = jsonEncode(displayItems.map((e) => e.toJson()).toList());
     await HomeWidget.saveWidgetData<String>('today_schedule', jsonString);
-    await HomeWidget.saveWidgetData<String>('today_date', "${displayDate.month}月${displayDate.day}日");
-    await HomeWidget.saveWidgetData<String>('schedule_date_iso', _toIsoDate(displayDate));
+    await HomeWidget.saveWidgetData<String>(
+        'today_date', "${displayDate.month}月${displayDate.day}日");
+    await HomeWidget.saveWidgetData<String>(
+        'schedule_date_iso', _toIsoDate(displayDate));
     await HomeWidget.saveWidgetData<String>('current_week', "第$currentWeek周");
     await HomeWidget.saveWidgetData<String>(
       'widget_last_updated',

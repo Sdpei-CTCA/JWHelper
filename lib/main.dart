@@ -24,7 +24,8 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
         ChangeNotifierProxyProvider<AuthProvider, DataProvider>(
           create: (_) => DataProvider(),
-          update: (_, auth, data) => data!..updateUsername(auth.currentUsername),
+          update: (_, auth, data) =>
+              data!..updateUsername(auth.currentUsername),
         ),
       ],
       child: Consumer<ThemeProvider>(
@@ -76,7 +77,8 @@ class MyApp extends StatelessWidget {
                 surfaceTintColor: Colors.transparent,
               ),
               useMaterial3: true,
-              textTheme: GoogleFonts.notoSansTextTheme(ThemeData.dark().textTheme),
+              textTheme:
+                  GoogleFonts.notoSansTextTheme(ThemeData.dark().textTheme),
             ),
             home: const LoginScreen(),
             debugShowCheckedModeBanner: false,

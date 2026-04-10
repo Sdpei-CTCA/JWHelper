@@ -15,7 +15,7 @@ class AuthProvider with ChangeNotifier {
   bool _isLoading = false;
   Uint8List? _captchaImage;
   bool _needCaptcha = false;
-  
+
   bool _rememberPassword = false;
   bool _autoLogin = false;
   String _savedUsername = "";
@@ -81,7 +81,8 @@ class AuthProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  Future<String?> login(String username, String password, {String verifyCode = ""}) async {
+  Future<String?> login(String username, String password,
+      {String verifyCode = ""}) async {
     _isLoading = true;
     notifyListeners();
 
@@ -108,15 +109,16 @@ class AuthProvider with ChangeNotifier {
       }
     }
 
-    var result = await _authService.login(username, password, verifyCode: verifyCode);
-    
+    var result =
+        await _authService.login(username, password, verifyCode: verifyCode);
+
     _isLoading = false;
     if (result['success']) {
       _isLoggedIn = true;
       _needCaptcha = false;
       _currentUsername = username;
       _isOfflineMode = false;
-      
+
       // Save preferences
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool('remember_password', _rememberPassword);
@@ -168,15 +170,15 @@ class AuthProvider with ChangeNotifier {
     _isLoggedIn = false;
     _needCaptcha = false;
     _isOfflineMode = false;
-    
+
     // Cancel auto login and clear saved password
     _autoLogin = false;
-    
+
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('auto_login', false);
     await prefs.remove('password');
     await _secureStorage.delete(key: _securePasswordKey);
-    
+
     notifyListeners();
   }
 
@@ -196,7 +198,8 @@ class AuthProvider with ChangeNotifier {
 
     final legacyPassword = prefs.getString('password') ?? "";
     if (legacyPassword.isNotEmpty) {
-      await _secureStorage.write(key: _securePasswordKey, value: legacyPassword);
+      await _secureStorage.write(
+          key: _securePasswordKey, value: legacyPassword);
       await prefs.remove('password');
       return legacyPassword;
     }
@@ -222,7 +225,8 @@ class AuthProvider with ChangeNotifier {
 
     final allKeys = prefs.getKeys();
     for (final key in allKeys) {
-      if ((key.startsWith('exams_') || key.startsWith('exam_rounds_')) && key.endsWith('_$username')) {
+      if ((key.startsWith('exams_') || key.startsWith('exam_rounds_')) &&
+          key.endsWith('_$username')) {
         final value = prefs.getString(key);
         if (value != null && value.isNotEmpty) {
           return true;
@@ -233,7 +237,8 @@ class AuthProvider with ChangeNotifier {
     return false;
   }
 
-  Future<bool> _matchesRememberedCredentials(String username, String password) async {
+  Future<bool> _matchesRememberedCredentials(
+      String username, String password) async {
     if (!_rememberPassword || _savedUsername != username) {
       return false;
     }

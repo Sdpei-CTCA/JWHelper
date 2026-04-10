@@ -21,11 +21,13 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final dataProvider = Provider.of<DataProvider>(context);
-    final items = dataProvider.schedule;
     final theme = Theme.of(context);
 
-    if (dataProvider.scheduleLoading && items.isEmpty) {
+    // Only rebuild when these specific properties change, avoiding unnecessary rebuilds when other data points (grades, exam etc.) change.
+    final scheduleLoading = context.select<DataProvider, bool>((d) => d.scheduleLoading);
+    final scheduleIsEmpty = context.select<DataProvider, bool>((d) => d.schedule.isEmpty);
+
+    if (scheduleLoading && scheduleIsEmpty) {
       return const Center(child: CircularProgressIndicator());
     }
 
@@ -33,7 +35,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
     // 7 days x 6 slots (approx)
     // For mobile, maybe a list grouped by day is better?
     // Let's do a TabView for each day.
-    
+
     return DefaultTabController(
       length: 7,
       initialIndex: DateTime.now().weekday - 1,
@@ -61,79 +63,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
           Expanded(
             child: TabBarView(
               children: List.generate(7, (dayIndex) {
-                // Use optimized getter from provider
-                final groupedSchedule = dataProvider.scheduleGroupedByDay;
-                final dayItems = groupedSchedule[dayIndex] ?? [];
-                
-                if (dayItems.isEmpty) {
-                  return RefreshIndicator(
-                    onRefresh: () => dataProvider.loadSchedule(forceRefresh: true),
-                    child: ListView(
-                      children: const [
-                        SizedBox(height: 100),
-                        Center(child: Text("今天没有课哦 ~", style: TextStyle(color: Colors.grey))),
-                      ],
-                    ),
-                  );
-                }
-
-                // Group items by start unit to handle overlaps
-                Map<int, List<ScheduleItem>> groupedItems = {};
-                for (var item in dayItems) {
-                  if (!groupedItems.containsKey(item.startUnit)) {
-                    groupedItems[item.startUnit] = [];
-                  }
-                  groupedItems[item.startUnit]!.add(item);
-                }
-
-                // Sort groups by start unit
-                var sortedKeys = groupedItems.keys.toList()..sort();
-                                
-                // Helper to process a group
-                Widget processGroup(int startUnit) {
-                  var group = groupedItems[startUnit]!;
-                  return _CourseGroup(items: group, currentWeek: dataProvider.currentWeek);
-                }
-
-                List<Widget> morningWidgets = [];
-                List<Widget> afternoonWidgets = [];
-                List<Widget> eveningWidgets = [];
-
-                for (var key in sortedKeys) {
-                  var item = groupedItems[key]!.first; // Representative for time check
-                  var widget = processGroup(key);
-                  
-                  if (item.startPeriod <= 4) {
-                    morningWidgets.add(widget);
-                  } else if (item.startPeriod <= 8) {
-                    afternoonWidgets.add(widget);
-                  } else {
-                    eveningWidgets.add(widget);
-                  }
-                }
-
-                return RefreshIndicator(
-                  onRefresh: () => dataProvider.loadSchedule(forceRefresh: true),
-                  child: ListView(
-                    padding: const EdgeInsets.all(16),
-                    children: [
-                      if (morningWidgets.isNotEmpty) ...[
-                        _buildSectionHeader("上午"),
-                        ...morningWidgets,
-                        const SizedBox(height: 16),
-                      ],
-                      if (afternoonWidgets.isNotEmpty) ...[
-                        _buildSectionHeader("下午"),
-                        ...afternoonWidgets,
-                        const SizedBox(height: 16),
-                      ],
-                      if (eveningWidgets.isNotEmpty) ...[
-                        _buildSectionHeader("晚上"),
-                        ...eveningWidgets,
-                      ],
-                    ],
-                  ),
-                );
+                return _DayScheduleView(dayIndex: dayIndex);
               }),
             ),
           ),
@@ -141,8 +71,96 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
       ),
     );
   }
+}
 
-  Widget _buildSectionHeader(String title) {
+class _DayScheduleView extends StatelessWidget {
+  final int dayIndex;
+
+  const _DayScheduleView({required this.dayIndex});
+
+  @override
+  Widget build(BuildContext context) {
+    final dataProvider = context.read<DataProvider>();
+    // Listen to changes in the schedule precisely
+    final groupedSchedule = context.select<DataProvider, Map<int, List<ScheduleItem>>>((d) => d.scheduleGroupedByDay);
+    final currentWeek = context.select<DataProvider, int>((d) => d.currentWeek);
+
+    final dayItems = groupedSchedule[dayIndex] ?? [];
+
+    if (dayItems.isEmpty) {
+      return RefreshIndicator(
+        onRefresh: () => dataProvider.loadSchedule(forceRefresh: true),
+        child: ListView(
+          children: const [
+            SizedBox(height: 100),
+            Center(
+              child: Text("今天没有课哦 ~",
+                  style: TextStyle(color: Colors.grey))),
+          ],
+        ),
+      );
+    }
+
+    // Group items by start unit to handle overlaps
+    Map<int, List<ScheduleItem>> groupedItems = {};
+    for (var item in dayItems) {
+      if (!groupedItems.containsKey(item.startUnit)) {
+        groupedItems[item.startUnit] = [];
+      }
+      groupedItems[item.startUnit]!.add(item);
+    }
+
+    // Sort groups by start unit
+    var sortedKeys = groupedItems.keys.toList()..sort();
+
+    // Helper to process a group
+    Widget processGroup(int startUnit) {
+      var group = groupedItems[startUnit]!;
+      return _CourseGroup(items: group, currentWeek: currentWeek);
+    }
+
+    List<Widget> morningWidgets = [];
+    List<Widget> afternoonWidgets = [];
+    List<Widget> eveningWidgets = [];
+
+    for (var key in sortedKeys) {
+      var item = groupedItems[key]!.first; // Representative for time check
+      var widget = processGroup(key);
+
+      if (item.startPeriod <= 4) {
+        morningWidgets.add(widget);
+      } else if (item.startPeriod <= 8) {
+        afternoonWidgets.add(widget);
+      } else {
+        eveningWidgets.add(widget);
+      }
+    }
+
+    return RefreshIndicator(
+      onRefresh: () => dataProvider.loadSchedule(forceRefresh: true),
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          if (morningWidgets.isNotEmpty) ...[
+            _buildSectionHeader(context, "上午"),
+            ...morningWidgets,
+            const SizedBox(height: 16),
+          ],
+          if (afternoonWidgets.isNotEmpty) ...[
+            _buildSectionHeader(context, "下午"),
+            ...afternoonWidgets,
+            const SizedBox(height: 16),
+          ],
+          if (eveningWidgets.isNotEmpty) ...[
+            _buildSectionHeader(context, "晚上"),
+            ...eveningWidgets,
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSectionHeader(BuildContext context, String title) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12, top: 4, left: 4),
       child: Row(
@@ -189,10 +207,14 @@ class _CourseGroupState extends State<_CourseGroup> {
     var sortedItems = List<ScheduleItem>.from(widget.items);
     sortedItems.sort((a, b) {
       int getScore(ScheduleItem item) {
-        if (widget.currentWeek >= item.weekStart && widget.currentWeek <= item.weekEnd) return 0; // Current
+        if (widget.currentWeek >= item.weekStart &&
+            widget.currentWeek <= item.weekEnd) {
+          return 0; // Current
+        }
         if (widget.currentWeek < item.weekStart) return 1; // Upcoming
         return 2; // Finished
       }
+
       return getScore(a).compareTo(getScore(b));
     });
 
@@ -216,14 +238,21 @@ class _CourseGroupState extends State<_CourseGroup> {
                 child: Container(
                   padding: const EdgeInsets.all(4),
                   decoration: BoxDecoration(
-                    color: Theme.of(context).cardTheme.color?.withValues(alpha: 0.8) ?? Colors.white.withValues(alpha: 0.8),
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                       BoxShadow(color: Colors.black.withValues(alpha: 0.12), blurRadius: 2)
-                    ]
-                  ),
+                      color: Theme.of(context)
+                              .cardTheme
+                              .color
+                              ?.withValues(alpha: 0.8) ??
+                          Colors.white.withValues(alpha: 0.8),
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.12),
+                            blurRadius: 2)
+                      ]),
                   child: Icon(
-                    _isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                    _isExpanded
+                        ? Icons.keyboard_arrow_up
+                        : Icons.keyboard_arrow_down,
                     size: 20,
                     color: Colors.blue,
                   ),
@@ -234,22 +263,24 @@ class _CourseGroupState extends State<_CourseGroup> {
         ),
         if (_isExpanded)
           ...otherItems.map((item) => Padding(
-            padding: const EdgeInsets.only(left: 16.0), // Indent secondary items
-            child: _buildCourseCard(item, isSecondary: true),
-          )),
+                padding:
+                    const EdgeInsets.only(left: 16.0), // Indent secondary items
+                child: _buildCourseCard(item, isSecondary: true),
+              )),
       ],
     );
   }
 
   Widget _buildCourseCard(ScheduleItem item, {bool isSecondary = false}) {
-    bool isCurrent = widget.currentWeek >= item.weekStart && widget.currentWeek <= item.weekEnd;
+    bool isCurrent = widget.currentWeek >= item.weekStart &&
+        widget.currentWeek <= item.weekEnd;
     bool isFinished = widget.currentWeek > item.weekEnd;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    
+
     Color bgColor;
     Color accentColor;
     Color textColor;
-    
+
     if (isCurrent) {
       bgColor = isDark ? const Color(0xFF1B2E1B) : const Color(0xFFF0F9EB);
       accentColor = const Color(0xFF67C23A);
@@ -265,8 +296,10 @@ class _CourseGroupState extends State<_CourseGroup> {
     }
 
     if (isSecondary) {
-       // Secondary items might override bg slightly if not current
-       if (!isCurrent && !isFinished) bgColor = isDark ? const Color(0xFF252525) : Colors.grey[50]!;
+      // Secondary items might override bg slightly if not current
+      if (!isCurrent && !isFinished) {
+        bgColor = isDark ? const Color(0xFF252525) : Colors.grey[50]!;
+      }
     }
 
     return Card(
@@ -275,7 +308,10 @@ class _CourseGroupState extends State<_CourseGroup> {
       margin: const EdgeInsets.only(bottom: 12),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: isCurrent ? accentColor.withValues(alpha: .3) : Colors.grey.withValues(alpha: .1)),
+        side: BorderSide(
+            color: isCurrent
+                ? accentColor.withValues(alpha: .3)
+                : Colors.grey.withValues(alpha: .1)),
       ),
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -296,12 +332,16 @@ class _CourseGroupState extends State<_CourseGroup> {
                 children: [
                   Text(
                     item.name,
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: textColor),
+                    style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: textColor),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     "${item.teacher} #${item.classroom}${item.weekStart > 0 && item.weekEnd > 0 ? ' @${item.weekStart}-${item.weekEnd}周' : ''}",
-                    style: TextStyle(color: isFinished ? Colors.grey : Colors.grey[600]),
+                    style: TextStyle(
+                        color: isFinished ? Colors.grey : Colors.grey[600]),
                   ),
                 ],
               ),
@@ -309,12 +349,18 @@ class _CourseGroupState extends State<_CourseGroup> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
-                color: isCurrent ? (isDark ? const Color(0xFF1B2E1B) : const Color(0xFFF0F9EB)) : (isDark ? const Color(0xFF2C2C2C) : Colors.grey[100]),
+                color: isCurrent
+                    ? (isDark
+                        ? const Color(0xFF1B2E1B)
+                        : const Color(0xFFF0F9EB))
+                    : (isDark ? const Color(0xFF2C2C2C) : Colors.grey[100]),
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Text(
                 item.periodString,
-                style: TextStyle(color: isCurrent ? const Color(0xFF67C23A) : Colors.grey, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                    color: isCurrent ? const Color(0xFF67C23A) : Colors.grey,
+                    fontWeight: FontWeight.bold),
               ),
             ),
           ],

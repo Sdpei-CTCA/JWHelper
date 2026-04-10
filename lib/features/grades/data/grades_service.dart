@@ -35,7 +35,7 @@ List<Grade> _parseAllGrades(String html) {
       for (var i = 1; i < rows.length; i++) {
         var cols = rows[i].querySelectorAll('td');
         if (cols.isEmpty) continue;
-        
+
         var rowData = cols.map((e) => e.text.trim()).toList();
         if (rowData.length >= 6) {
           allGrades.add(Grade(
@@ -57,7 +57,7 @@ class GradesService {
 
   // Kept for compatibility if needed, but getAllGrades is preferred
   Future<List<String>> getSemesters() async {
-    // This is less efficient now if we want to use compute for everything, 
+    // This is less efficient now if we want to use compute for everything,
     // but for just getting semesters, we can still parse lightly or use the full parse.
     // Let's just fetch and parse quickly.
     try {

@@ -64,7 +64,7 @@ class ExamRound {
 
   @override
   String toString() => name;
-  
+
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||

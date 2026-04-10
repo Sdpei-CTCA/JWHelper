@@ -26,8 +26,10 @@ class ExamListResult {
 
 class ExamLoaderUsecase {
   static String semestersKey(String username) => 'exam_semesters_$username';
-  static String roundsKey(String semId, String username) => 'exam_rounds_${semId}_$username';
-  static String examsKey(String semId, String roundId, String username) => 'exams_${semId}_${roundId}_$username';
+  static String roundsKey(String semId, String username) =>
+      'exam_rounds_${semId}_$username';
+  static String examsKey(String semId, String roundId, String username) =>
+      'exams_${semId}_${roundId}_$username';
 
   static Future<ExamSemestersResult> loadSemesters({
     required ExamService service,
@@ -46,7 +48,8 @@ class ExamLoaderUsecase {
 
     try {
       final semesters = await service.getSemesters();
-      final String encoded = jsonEncode(semesters.map((e) => e.toJson()).toList());
+      final String encoded =
+          jsonEncode(semesters.map((e) => e.toJson()).toList());
       await prefs.setString(semestersKey(username), encoded);
       return ExamSemestersResult(semesters: semesters);
     } catch (e) {

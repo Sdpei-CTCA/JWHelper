@@ -1,7 +1,6 @@
 part of data_provider;
 
 extension ProgressDataMixin on DataProvider {
-
   List<ProgressGroup> get progressGroups => _progressGroups;
   List<ProgressInfo> get progressInfo => _progressInfo;
   bool get progressLoading => _progressLoading;

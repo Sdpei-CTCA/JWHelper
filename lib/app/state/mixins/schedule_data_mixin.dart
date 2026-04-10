@@ -1,7 +1,6 @@
 part of data_provider;
 
 extension ScheduleDataMixin on DataProvider {
-
   List<ScheduleItem> get schedule => _schedule;
   bool get scheduleLoading => _scheduleLoading;
   bool get scheduleLoaded => _scheduleLoaded;
@@ -51,6 +50,15 @@ extension ScheduleDataMixin on DataProvider {
 
       if (startDayStr != null) {
         _calculateCurrentWeek(startDayStr);
+        // Trigger notification scheduling
+        try {
+          NotificationService().scheduleClassReminders(
+            schedule: _schedule,
+            startDay: DateTime.parse(startDayStr),
+          );
+        } catch (e) {
+          debugPrint("Error scheduling notifications: $e");
+        }
       }
 
       _scheduleLoaded = result.loaded;
@@ -80,7 +88,8 @@ extension ScheduleDataMixin on DataProvider {
         _currentWeek = 1;
         _daysUntilStart = -diffDays;
       }
-      debugPrint("Calculated Current Week: $_currentWeek (Start: $startDayStr), DaysUntilStart: $_daysUntilStart");
+      debugPrint(
+          "Calculated Current Week: $_currentWeek (Start: $startDayStr), DaysUntilStart: $_daysUntilStart");
     } catch (e) {
       debugPrint("Error calculating current week: $e");
     }

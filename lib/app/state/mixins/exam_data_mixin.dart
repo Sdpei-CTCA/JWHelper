@@ -1,7 +1,6 @@
 part of data_provider;
 
 extension ExamDataMixin on DataProvider {
-
   List<Semester> get examSemesters => _examSemesters;
   List<ExamRound> get examRounds => _examRounds;
   List<Exam> get exams => _exams;
@@ -42,7 +41,8 @@ extension ExamDataMixin on DataProvider {
     }
   }
 
-  Future<void> loadExams(String semId, String roundId, {bool forceRefresh = false}) async {
+  Future<void> loadExams(String semId, String roundId,
+      {bool forceRefresh = false}) async {
     if (_username.isEmpty) return;
 
     _examsLoading = true;

@@ -35,13 +35,15 @@ class GradesLoaderUsecase {
       final String? cachedData = prefs.getString(_cacheKey(username));
 
       if (lastTime != null && cachedData != null) {
-        final DateTime lastFetchTime = DateTime.fromMillisecondsSinceEpoch(lastTime);
+        final DateTime lastFetchTime =
+            DateTime.fromMillisecondsSinceEpoch(lastTime);
         final DateTime now = DateTime.now();
 
         if (now.difference(lastFetchTime).inDays < 30) {
           final List<dynamic> decoded = jsonDecode(cachedData);
           final grades = decoded.map((e) => Grade.fromJson(e)).toList();
-          return GradesLoadResult(grades: grades, loaded: true, evaluationRequired: false);
+          return GradesLoadResult(
+              grades: grades, loaded: true, evaluationRequired: false);
         }
       }
     }
@@ -51,26 +53,31 @@ class GradesLoaderUsecase {
       if (grades.isEmpty) {
         final cached = _loadCachedGrades(prefs, username);
         if (cached != null) {
-          return GradesLoadResult(grades: cached, loaded: true, evaluationRequired: false);
+          return GradesLoadResult(
+              grades: cached, loaded: true, evaluationRequired: false);
         }
       }
       await _saveToCache(username: username, grades: grades);
-      return GradesLoadResult(grades: grades, loaded: true, evaluationRequired: false);
+      return GradesLoadResult(
+          grades: grades, loaded: true, evaluationRequired: false);
     } catch (e) {
       if (e is EvaluationRequiredException ||
           (e is DioException && e.error is EvaluationRequiredException)) {
         final cached = _loadCachedGrades(prefs, username);
         if (cached != null) {
-          return GradesLoadResult(grades: cached, loaded: true, evaluationRequired: false);
+          return GradesLoadResult(
+              grades: cached, loaded: true, evaluationRequired: false);
         }
-        return const GradesLoadResult(grades: [], loaded: false, evaluationRequired: true);
+        return const GradesLoadResult(
+            grades: [], loaded: false, evaluationRequired: true);
       }
 
       debugPrint('Error loading grades: $e');
       try {
         final cached = _loadCachedGrades(prefs, username);
         if (cached != null) {
-          return GradesLoadResult(grades: cached, loaded: true, evaluationRequired: false);
+          return GradesLoadResult(
+              grades: cached, loaded: true, evaluationRequired: false);
         }
       } catch (cacheError) {
         debugPrint('Error loading stale grades cache: $cacheError');
@@ -88,13 +95,15 @@ class GradesLoaderUsecase {
       final prefs = await SharedPreferences.getInstance();
       final String encoded = jsonEncode(grades.map((g) => g.toJson()).toList());
       await prefs.setString(_cacheKey(username), encoded);
-      await prefs.setInt(_cacheTimeKey(username), DateTime.now().millisecondsSinceEpoch);
+      await prefs.setInt(
+          _cacheTimeKey(username), DateTime.now().millisecondsSinceEpoch);
     } catch (e) {
       debugPrint('Error saving grades cache: $e');
     }
   }
 
-  static List<Grade>? _loadCachedGrades(SharedPreferences prefs, String username) {
+  static List<Grade>? _loadCachedGrades(
+      SharedPreferences prefs, String username) {
     final String? cachedData = prefs.getString(_cacheKey(username));
     if (cachedData == null || cachedData.isEmpty) {
       return null;

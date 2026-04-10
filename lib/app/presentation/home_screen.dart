@@ -17,6 +17,7 @@ import 'package:JWHelper/features/auth/presentation/login_screen.dart';
 import 'package:JWHelper/app/coordinators/logout_coordinator.dart';
 import 'package:JWHelper/app/coordinators/home_navigation_coordinator.dart';
 import 'package:JWHelper/app/coordinators/evaluation_flow_coordinator.dart';
+import 'package:JWHelper/infrastructure/notifications/notification_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -44,11 +45,11 @@ class _HomeScreenState extends State<HomeScreen> {
     _updateService.init();
     final data = context.read<DataProvider>();
     data.addListener(_onDataChanged);
-    
+
     // Initial check
     WidgetsBinding.instance.addPostFrameCallback((_) {
-       _onDataChanged();
-       _checkWidgetLaunch();
+      _onDataChanged();
+      _checkWidgetLaunch();
     });
 
     _sub = HomeWidget.widgetClicked.listen(_handleWidgetClick);
@@ -74,14 +75,15 @@ class _HomeScreenState extends State<HomeScreen> {
   void _handleWidgetClick(Uri? uri) {
     if (!mounted || uri == null) return;
 
-    final nextIndex = HomeNavigationCoordinator.tabIndexFromWidgetHost(uri.host);
+    final nextIndex =
+        HomeNavigationCoordinator.tabIndexFromWidgetHost(uri.host);
     if (nextIndex == null) return;
 
     setState(() {
       _currentIndex = nextIndex;
     });
   }
-  
+
   void _onDataChanged() {
     if (!mounted) return;
     final data = context.read<DataProvider>();
@@ -89,81 +91,88 @@ class _HomeScreenState extends State<HomeScreen> {
       evaluationRequired: data.evaluationRequired,
       dialogShowing: _isEvaluationDialogShowing,
     )) {
-       _showEvaluationDialog();
+      _showEvaluationDialog();
     }
   }
-  
+
   Future<void> _showEvaluationDialog() async {
     _isEvaluationDialogShowing = true;
     final data = context.read<DataProvider>();
-    
+
     await showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) => Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         child: Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-                Container(
+              Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   color: Colors.orange.withValues(alpha: 0.1),
-                    shape: BoxShape.circle,
+                  shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.assignment_late_outlined, color: Colors.orange, size: 32),
-                ),
-                const SizedBox(height: 16),
-                const Text(
+                child: const Icon(Icons.assignment_late_outlined,
+                    color: Colors.orange, size: 32),
+              ),
+              const SizedBox(height: 16),
+              const Text(
                 "需要进行教学评价",
                 style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 12),
-                Text(
+              ),
+              const SizedBox(height: 12),
+              Text(
                 "系统检测到您未完成教学评价，导致数据无法加载。\n请优先完成评价。",
                 textAlign: TextAlign.center,
-                style: TextStyle(color: Theme.of(context).disabledColor, fontSize: 14),
-                ),
-                const SizedBox(height: 24),
-                Row(
+                style: TextStyle(
+                    color: Theme.of(context).disabledColor, fontSize: 14),
+              ),
+              const SizedBox(height: 24),
+              Row(
                 children: [
-                    Expanded(
+                  Expanded(
                     child: OutlinedButton(
-                      onPressed: () => EvaluationFlowCoordinator.openWebEvaluation(context),
-                        style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                        ),
-                        child: const Text("网页评价"),
+                      onPressed: () =>
+                          EvaluationFlowCoordinator.openWebEvaluation(context),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10)),
+                      ),
+                      child: const Text("网页评价"),
                     ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
                     child: FilledButton(
-                        onPressed: () async {
-                          Navigator.of(context).pop();
-                          await EvaluationFlowCoordinator.openHelperAndReset(
-                            openHelper: () async {
-                              await Navigator.of(context).push(
-                                MaterialPageRoute(builder: (_) => const EvaluationHelperScreen()),
-                              );
-                            },
-                            resetEvaluationState: data.resetEvaluationState,
-                          );
-                        },
-                        style: FilledButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                        ),
-                        child: const Text("手动评教"),
+                      onPressed: () async {
+                        Navigator.of(context).pop();
+                        await EvaluationFlowCoordinator.openHelperAndReset(
+                          openHelper: () async {
+                            await Navigator.of(context).push(
+                              MaterialPageRoute(
+                                  builder: (_) =>
+                                      const EvaluationHelperScreen()),
+                            );
+                          },
+                          resetEvaluationState: data.resetEvaluationState,
+                        );
+                      },
+                      style: FilledButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10)),
+                      ),
+                      child: const Text("手动评教"),
                     ),
-                    ),
+                  ),
                 ],
-                )
+              )
             ],
-            ),
+          ),
         ),
       ),
     );
@@ -206,7 +215,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   fit: BoxFit.cover,
                   errorBuilder: (context, error, stackTrace) => Container(
                     color: const Color(0xFF409EFF),
-                    child: const Icon(Icons.school, size: 50, color: Colors.white),
+                    child:
+                        const Icon(Icons.school, size: 50, color: Colors.white),
                   ),
                 ),
               ),
@@ -218,20 +228,24 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             const SizedBox(height: 4),
             if (_updateService.currentVersion.isNotEmpty)
-              Text("v${_updateService.currentVersion}", style: const TextStyle(color: Colors.grey))
+              Text("v${_updateService.currentVersion}",
+                  style: const TextStyle(color: Colors.grey))
             else
               FutureBuilder<PackageInfo>(
                 future: PackageInfo.fromPlatform(),
                 builder: (context, snapshot) {
                   if (snapshot.hasData) {
-                    return Text("v${snapshot.data!.version}", style: const TextStyle(color: Colors.grey));
+                    return Text("v${snapshot.data!.version}",
+                        style: const TextStyle(color: Colors.grey));
                   }
-                  return const Text("v...", style: TextStyle(color: Colors.grey));
+                  return const Text("v...",
+                      style: TextStyle(color: Colors.grey));
                 },
               ),
             const SizedBox(height: 24),
             InkWell(
-              onTap: () => launchUrl(Uri.parse("https://github.com/Sdpei-CTCA/JWHelper")),
+              onTap: () => launchUrl(
+                  Uri.parse("https://github.com/Sdpei-CTCA/JWHelper")),
               child: const Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -239,7 +253,9 @@ class _HomeScreenState extends State<HomeScreen> {
                   SizedBox(width: 4),
                   Text(
                     "GitHub 仓库",
-                    style: TextStyle(color: Colors.blue, decoration: TextDecoration.underline),
+                    style: TextStyle(
+                        color: Colors.blue,
+                        decoration: TextDecoration.underline),
                   ),
                 ],
               ),
@@ -285,6 +301,53 @@ class _HomeScreenState extends State<HomeScreen> {
               },
             ),
             const SizedBox(height: 12),
+            StatefulBuilder(
+              builder: (context, setState) {
+                return FutureBuilder<bool>(
+                  future: NotificationService().isEnabled,
+                  builder: (context, snapshot) {
+                    final isEnabled = snapshot.data ?? true;
+                    return InkWell(
+                      onTap: () async {
+                        final newValue = !isEnabled;
+                        await NotificationService().setEnabled(newValue);
+                        if (!context.mounted) return;
+                        setState(() {});
+                        
+                        if (newValue) {
+                          // Try scheduling right away if enabled
+                          final dataProvider = Provider.of<DataProvider>(context, listen: false);
+                          dataProvider.loadSchedule(forceRefresh: true);
+                        } else {
+                          // Cancel all if disabled
+                          NotificationService().flutterLocalNotificationsPlugin.cancelAll();
+                        }
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8.0),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              isEnabled ? Icons.notifications_active : Icons.notifications_off,
+                              size: 16,
+                              color: isEnabled ? const Color(0xFF409EFF) : Colors.grey,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              "课前提醒: ${isEnabled ? '已开启' : '已关闭'}",
+                              style: TextStyle(
+                                  color: isEnabled ? const Color(0xFF409EFF) : Colors.grey),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+            const SizedBox(height: 12),
             _buildUpdateSection(),
             const SizedBox(height: 12),
             const Text(
@@ -323,13 +386,19 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             if (dataProvider.daysUntilStart > 0)
               Text(
-                "距开学还有${dataProvider.daysUntilStart}天",
-                style: const TextStyle(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.normal),
+                "距新学期还有${dataProvider.daysUntilStart}天",
+                style: const TextStyle(
+                    color: Colors.grey,
+                    fontSize: 12,
+                    fontWeight: FontWeight.normal),
               )
             else if (dataProvider.currentWeek > 0)
               Text(
                 "第${dataProvider.currentWeek}周",
-                style: const TextStyle(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.normal),
+                style: const TextStyle(
+                    color: Colors.grey,
+                    fontSize: 12,
+                    fontWeight: FontWeight.normal),
               ),
           ],
         ),
@@ -346,12 +415,12 @@ class _HomeScreenState extends State<HomeScreen> {
             onPressed: () async {
               final auth = Provider.of<AuthProvider>(context, listen: false);
               final data = Provider.of<DataProvider>(context, listen: false);
-              
+
               await LogoutCoordinator.execute(
                 logoutAuth: auth.logout,
                 clearData: data.clearAll,
               );
-              
+
               if (context.mounted) {
                 Navigator.of(context).pushReplacement(
                   MaterialPageRoute(builder: (_) => const LoginScreen()),
@@ -366,12 +435,12 @@ class _HomeScreenState extends State<HomeScreen> {
         selectedIndex: _currentIndex,
         onDestinationSelected: (index) => setState(() => _currentIndex = index),
         elevation: 2,
-        destinations: const [ 
+        destinations: const [
           NavigationDestination(
             icon: Icon(Icons.calendar_today_outlined),
             selectedIcon: Icon(Icons.calendar_today),
             label: '课表',
-          ),          
+          ),
           NavigationDestination(
             icon: Icon(Icons.assignment_outlined),
             selectedIcon: Icon(Icons.assignment),
@@ -382,7 +451,6 @@ class _HomeScreenState extends State<HomeScreen> {
             selectedIcon: Icon(Icons.bar_chart),
             label: '成绩',
           ),
-
           NavigationDestination(
             icon: Icon(Icons.school_outlined),
             selectedIcon: Icon(Icons.school),

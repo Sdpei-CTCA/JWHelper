@@ -82,7 +82,8 @@ class UpdateService {
   static const String _githubLatestApi =
       'https://api.github.com/repos/Sdpei-CTCA/JWHelper/releases/latest';
 
-  final ValueNotifier<UpdateUiState> updateState = ValueNotifier(const UpdateUiState());
+  final ValueNotifier<UpdateUiState> updateState =
+      ValueNotifier(const UpdateUiState());
   String currentVersion = '';
 
   Future<void> init() async {
@@ -146,14 +147,15 @@ class UpdateService {
 
   Future<UpdateCheckResult> checkUpdate() async {
     final currentVersion = await getCurrentVersion();
-    
+
     final response = await _dio.get(_githubLatestApi);
     final data = response.data as Map<String, dynamic>;
 
     final tag = data['tag_name'] as String?;
     final name = data['name'] as String?;
-    final latest = _extractVersionFromText(tag) ?? _extractVersionFromText(name);
-    
+    final latest =
+        _extractVersionFromText(tag) ?? _extractVersionFromText(name);
+
     if (latest == null) {
       throw Exception('未在发布信息中找到版本号');
     }
@@ -356,7 +358,8 @@ class UpdateService {
                   child: SingleChildScrollView(
                     child: SelectableText(
                       state.releaseNotes!,
-                      style: const TextStyle(fontSize: 13, color: Colors.black87),
+                      style:
+                          const TextStyle(fontSize: 13, color: Colors.black87),
                     ),
                   ),
                 ),

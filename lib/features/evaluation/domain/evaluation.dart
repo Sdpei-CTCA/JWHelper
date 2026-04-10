@@ -4,10 +4,10 @@ class EvaluationItem {
   final String? courseName;
   final String? teacherName;
   final String? evaluationId; // This is crucial for 'getPaper' -> 'Id=...'
-  
+
   // Also 'action=getStudentCourse' might return fields like 'kcmc', 'jsxm', 'pjid' etc.
   // We will map dynamically.
-  
+
   EvaluationItem({this.courseName, this.teacherName, this.evaluationId});
 
   factory EvaluationItem.fromJson(Map<String, dynamic> json) {
@@ -15,11 +15,17 @@ class EvaluationItem {
     // Adjust if user provides specific JSON
     return EvaluationItem(
       // Python script: "LUName"
-      courseName: json['LUName'] ?? json['kcmc'] ?? json['CourseName'] ?? 'Unknown Course',
+      courseName: json['LUName'] ??
+          json['kcmc'] ??
+          json['CourseName'] ??
+          'Unknown Course',
       // Python script: "Teacher"
-      teacherName: json['Teacher'] ?? json['jsxm'] ?? json['TeacherName'] ?? 'Unknown Teacher',
+      teacherName: json['Teacher'] ??
+          json['jsxm'] ??
+          json['TeacherName'] ??
+          'Unknown Teacher',
       // Python script: "Id"
-      evaluationId: json['Id']?.toString() ?? json['pjid']?.toString() ?? '', 
+      evaluationId: json['Id']?.toString() ?? json['pjid']?.toString() ?? '',
     );
   }
 }
@@ -31,8 +37,8 @@ class EvaluationQuestion {
   final List<EvaluationOption> options;
 
   EvaluationQuestion({
-    required this.id, 
-    required this.type, 
+    required this.id,
+    required this.type,
     required this.title,
     this.options = const [],
   });
@@ -44,7 +50,7 @@ class EvaluationQuestion {
           .map((o) => EvaluationOption.fromJson(o))
           .toList();
     }
-    
+
     return EvaluationQuestion(
       id: json['Id'].toString(),
       type: json['QuestionType'] ?? 0,

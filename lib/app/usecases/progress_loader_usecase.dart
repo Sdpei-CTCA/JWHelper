@@ -19,7 +19,8 @@ class ProgressLoadResult {
 
 class ProgressLoaderUsecase {
   static String cacheKey(String username) => 'progress_cache_$username';
-  static String cacheTimeKey(String username) => 'progress_cache_time_$username';
+  static String cacheTimeKey(String username) =>
+      'progress_cache_time_$username';
 
   static Future<ProgressLoadResult> execute({
     required ProgressService service,
@@ -33,13 +34,18 @@ class ProgressLoaderUsecase {
       final String? cachedData = prefs.getString(cacheKey(username));
 
       if (lastTime != null && cachedData != null) {
-        final DateTime lastFetchTime = DateTime.fromMillisecondsSinceEpoch(lastTime);
+        final DateTime lastFetchTime =
+            DateTime.fromMillisecondsSinceEpoch(lastTime);
         final DateTime now = DateTime.now();
 
         if (now.difference(lastFetchTime).inDays < 30) {
           final Map<String, dynamic> decoded = jsonDecode(cachedData);
-          final groups = (decoded['groups'] as List).map((e) => ProgressGroup.fromJson(e)).toList();
-          final info = (decoded['info'] as List).map((e) => ProgressInfo.fromJson(e)).toList();
+          final groups = (decoded['groups'] as List)
+              .map((e) => ProgressGroup.fromJson(e))
+              .toList();
+          final info = (decoded['info'] as List)
+              .map((e) => ProgressInfo.fromJson(e))
+              .toList();
           return ProgressLoadResult(groups: groups, info: info, loaded: true);
         }
       }
@@ -53,7 +59,8 @@ class ProgressLoaderUsecase {
       if (groups.isEmpty && info.isEmpty) {
         final cached = _loadCachedProgress(prefs, username);
         if (cached != null) {
-          return ProgressLoadResult(groups: cached.$1, info: cached.$2, loaded: true);
+          return ProgressLoadResult(
+              groups: cached.$1, info: cached.$2, loaded: true);
         }
       }
 
@@ -64,7 +71,8 @@ class ProgressLoaderUsecase {
       try {
         final cached = _loadCachedProgress(prefs, username);
         if (cached != null) {
-          return ProgressLoadResult(groups: cached.$1, info: cached.$2, loaded: true);
+          return ProgressLoadResult(
+              groups: cached.$1, info: cached.$2, loaded: true);
         }
       } catch (cacheError) {
         debugPrint('Error loading stale progress cache: $cacheError');
@@ -87,7 +95,8 @@ class ProgressLoaderUsecase {
       };
       final String encoded = jsonEncode(data);
       await prefs.setString(cacheKey(username), encoded);
-      await prefs.setInt(cacheTimeKey(username), DateTime.now().millisecondsSinceEpoch);
+      await prefs.setInt(
+          cacheTimeKey(username), DateTime.now().millisecondsSinceEpoch);
     } catch (e) {
       debugPrint('Error saving progress cache: $e');
     }
@@ -102,8 +111,11 @@ class ProgressLoaderUsecase {
       return null;
     }
     final Map<String, dynamic> decoded = jsonDecode(cachedData);
-    final groups = (decoded['groups'] as List).map((e) => ProgressGroup.fromJson(e)).toList();
-    final info = (decoded['info'] as List).map((e) => ProgressInfo.fromJson(e)).toList();
+    final groups = (decoded['groups'] as List)
+        .map((e) => ProgressGroup.fromJson(e))
+        .toList();
+    final info =
+        (decoded['info'] as List).map((e) => ProgressInfo.fromJson(e)).toList();
     return (groups, info);
   }
 }

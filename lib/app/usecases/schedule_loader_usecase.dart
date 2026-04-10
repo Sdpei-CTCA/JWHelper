@@ -23,7 +23,8 @@ class ScheduleLoadResult {
 
 class ScheduleLoaderUsecase {
   static String _cacheKey(String username) => 'schedule_cache_$username';
-  static String _cacheTimeKey(String username) => 'schedule_cache_time_$username';
+  static String _cacheTimeKey(String username) =>
+      'schedule_cache_time_$username';
   static String _startDayKey(String username) => 'schedule_start_day_$username';
 
   static Future<ScheduleLoadResult> execute({
@@ -39,12 +40,14 @@ class ScheduleLoaderUsecase {
       final String? startDayStr = prefs.getString(_startDayKey(username));
 
       if (lastTime != null && cachedData != null) {
-        final DateTime lastFetchTime = DateTime.fromMillisecondsSinceEpoch(lastTime);
+        final DateTime lastFetchTime =
+            DateTime.fromMillisecondsSinceEpoch(lastTime);
         final DateTime now = DateTime.now();
 
         if (now.difference(lastFetchTime).inDays < 30) {
           final List<dynamic> decoded = jsonDecode(cachedData);
-          final schedule = decoded.map((e) => ScheduleItem.fromJson(e)).toList();
+          final schedule =
+              decoded.map((e) => ScheduleItem.fromJson(e)).toList();
           return ScheduleLoadResult(
             schedule: schedule,
             startDay: startDayStr,
@@ -72,7 +75,8 @@ class ScheduleLoaderUsecase {
         }
       }
 
-      await _saveToCache(username: username, schedule: schedule, startDay: startDayStr);
+      await _saveToCache(
+          username: username, schedule: schedule, startDay: startDayStr);
       return ScheduleLoadResult(
         schedule: schedule,
         startDay: startDayStr,
@@ -125,9 +129,11 @@ class ScheduleLoaderUsecase {
   }) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final String encoded = jsonEncode(schedule.map((s) => s.toJson()).toList());
+      final String encoded =
+          jsonEncode(schedule.map((s) => s.toJson()).toList());
       await prefs.setString(_cacheKey(username), encoded);
-      await prefs.setInt(_cacheTimeKey(username), DateTime.now().millisecondsSinceEpoch);
+      await prefs.setInt(
+          _cacheTimeKey(username), DateTime.now().millisecondsSinceEpoch);
       if (startDay != null) {
         await prefs.setString(_startDayKey(username), startDay);
       }

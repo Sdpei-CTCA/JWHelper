@@ -5,13 +5,13 @@ import 'package:JWHelper/core/constants/config.dart';
 import 'package:JWHelper/infrastructure/network/client.dart';
 import 'package:flutter/rendering.dart';
 
-
 class AuthService {
   final ApiClient _client = ApiClient();
 
   Future<Uint8List?> getCaptchaImage() async {
     try {
-      String url = "${Config.baseUrl}/LoginHandler.ashx?createvc=true&random=${DateTime.now().millisecondsSinceEpoch}";
+      String url =
+          "${Config.baseUrl}/LoginHandler.ashx?createvc=true&random=${DateTime.now().millisecondsSinceEpoch}";
       Response response = await _client.dio.get(
         url,
         options: Options(responseType: ResponseType.bytes),
@@ -23,7 +23,8 @@ class AuthService {
     }
   }
 
-  Future<Map<String, dynamic>> login(String username, String password, {String verifyCode = ""}) async {
+  Future<Map<String, dynamic>> login(String username, String password,
+      {String verifyCode = ""}) async {
     String userIdEncoded = base64.encode(utf8.encode(username));
     String userPwdEncoded = base64.encode(utf8.encode(password));
 
@@ -35,7 +36,8 @@ class AuthService {
     });
 
     try {
-      Response response = await _client.dio.post(Config.loginUrl, data: formData);
+      Response response =
+          await _client.dio.post(Config.loginUrl, data: formData);
       String result = response.data.toString();
 
       if (result.contains("true")) {

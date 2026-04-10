@@ -17,7 +17,8 @@ class EvaluationFlowCoordinator {
     final Uri url = Uri.parse(Config.evaluationUrl);
     if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('无法打开网页')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('无法打开网页')));
       }
     }
   }

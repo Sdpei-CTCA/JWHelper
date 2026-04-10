@@ -16,20 +16,18 @@ import java.text.SimpleDateFormat
 
 class ScheduleWidgetProvider : HomeWidgetProvider() {
 
-    // Simple time mapping for periods 1-12
+    // Simple time mapping for periods 1-10
     private val timeMap = mapOf(
         1 to "08:00-08:45",
-        2 to "08:55-09:40",
+        2 to "08:45-09:30",
         3 to "10:00-10:45",
-        4 to "10:55-11:40",
+        4 to "10:45-11:30",
         5 to "13:30-14:15",
-        6 to "14:25-15:10",
-        7 to "15:20-16:05",
-        8 to "16:25-17:10",
-        9 to "17:20-18:05",
-        10 to "18:30-19:15",
-        11 to "19:25-20:10",
-        12 to "20:20-21:05"
+        6 to "14:15-15:00",
+        7 to "15:30-16:15",
+        8 to "16:15-17:00",
+        9 to "19:00-19:45",
+        10 to "19:45-20:30"
     )
 
     // Helper to get time range string

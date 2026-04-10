@@ -188,21 +188,6 @@ flutter test
 # 清理构建缓存
 flutter clean
 ```
-
-## 依赖说明
-
-核心依赖包括：
-
-- provider：状态管理
-- dio：网络请求
-- dio_cookie_manager / cookie_jar：会话与 Cookie 管理
-- shared_preferences：本地缓存
-- html：HTML 解析
-- home_widget：小组件同步
-- url_launcher：外部链接打开
-- google_fonts：字体
-- flutter_animate：界面动画
-
 ## 使用说明
 
 ### 登录

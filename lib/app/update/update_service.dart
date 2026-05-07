@@ -275,7 +275,7 @@ class UpdateService {
     return ValueListenableBuilder<UpdateUiState>(
       valueListenable: updateState,
       builder: (context, state, child) {
-        const icon = Icon(Icons.info_outline, color: Color(0xFF409EFF));
+        const icon = Icon(Icons.settings, color: Color(0xFF409EFF));
         if (!state.hasUpdate) return icon;
         return const Badge(
           backgroundColor: Colors.amber,

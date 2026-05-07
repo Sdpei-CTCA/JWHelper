@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:home_widget/home_widget.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:JWHelper/features/auth/presentation/auth_provider.dart';
 import 'package:JWHelper/app/state/data_provider.dart';
 import 'package:JWHelper/shared/theme/theme_provider.dart';
@@ -28,21 +30,31 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
-  final List<Widget> _pages = [
-    const ScheduleScreen(),
-    const ExamScreen(),
-    const GradesScreen(),
-    const ProgressScreen(),
-  ];
-
+  final ValueNotifier<bool> _isGridSchedule = ValueNotifier(false);
   final UpdateService _updateService = UpdateService();
   bool _isEvaluationDialogShowing = false;
   StreamSubscription? _sub;
 
+  late final List<Widget> _pages;
+
   @override
   void initState() {
     super.initState();
+    _initScheduleViewMode();
+    _pages = [
+      ScheduleScreen(isGridViewNotifier: _isGridSchedule),
+      const ExamScreen(),
+      const GradesScreen(),
+      const ProgressScreen(),
+    ];
     _updateService.init();
+
+    // Listen to changes to save state
+    _isGridSchedule.addListener(() async {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('is_grid_schedule', _isGridSchedule.value);
+    });
+
     final data = context.read<DataProvider>();
     data.addListener(_onDataChanged);
 
@@ -50,9 +62,68 @@ class _HomeScreenState extends State<HomeScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _onDataChanged();
       _checkWidgetLaunch();
+      _checkCampusSetting();
     });
 
     _sub = HomeWidget.widgetClicked.listen(_handleWidgetClick);
+  }
+
+  void _initScheduleViewMode() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.containsKey('is_grid_schedule')) {
+      _isGridSchedule.value = prefs.getBool('is_grid_schedule') ?? false;
+    }
+  }
+
+  void _checkCampusSetting() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!prefs.containsKey('campus_prompt_shown')) {
+      if (!mounted) return;
+      await showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) {
+          String selectedCampus = '济南';
+          return StatefulBuilder(
+            builder: (context, setState) {
+              return AlertDialog(
+                title: const Text("选择校区"),
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text("请选择您的所在校区，以便应用能够为您提供准确的上课时间表。您稍后可以在“关于我们”中更改。"),
+                    const SizedBox(height: 16),
+                    RadioListTile<String>(
+                      title: const Text('济南校区'),
+                      value: '济南',
+                      groupValue: selectedCampus,
+                      onChanged: (value) => setState(() => selectedCampus = value!),
+                    ),
+                    RadioListTile<String>(
+                      title: const Text('日照校区'),
+                      value: '日照',
+                      groupValue: selectedCampus,
+                      onChanged: (value) => setState(() => selectedCampus = value!),
+                    ),
+                  ],
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () async {
+                      final data = Provider.of<DataProvider>(context, listen: false);
+                      await data.setCampus(selectedCampus);
+                      await prefs.setBool('campus_prompt_shown', true);
+                      if (context.mounted) Navigator.of(context).pop();
+                    },
+                    child: const Text("确定"),
+                  ),
+                ],
+              );
+            },
+          );
+        },
+      );
+    }
   }
 
   @override
@@ -187,186 +258,320 @@ class _HomeScreenState extends State<HomeScreen> {
     return _updateService.buildUpdateSection(context);
   }
 
-  void _showAboutDialog() {
-    showDialog(
+  void _showSettingsDialog() {
+    showModalBottomSheet(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text("关于我们", textAlign: TextAlign.center),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: BoxDecoration(
+          color: Theme.of(context).scaffoldBackgroundColor,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.85,
+        ),
+        child: Column(
           children: [
+            // Handle
             Container(
-              width: 80,
-              height: 80,
+              margin: const EdgeInsets.symmetric(vertical: 12),
+              width: 40,
+              height: 4,
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.1),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: Image.asset(
-                  'assets/images/logo.png',
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) => Container(
-                    color: const Color(0xFF409EFF),
-                    child:
-                        const Icon(Icons.school, size: 50, color: Colors.white),
-                  ),
-                ),
+                color: Colors.grey.withValues(alpha: 0.3),
+                borderRadius: BorderRadius.circular(2),
               ),
             ),
-            const SizedBox(height: 16),
             const Text(
-              "教务小助手",
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              "设置与关于",
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
-            const SizedBox(height: 4),
-            if (_updateService.currentVersion.isNotEmpty)
-              Text("v${_updateService.currentVersion}",
-                  style: const TextStyle(color: Colors.grey))
-            else
-              FutureBuilder<PackageInfo>(
-                future: PackageInfo.fromPlatform(),
-                builder: (context, snapshot) {
-                  if (snapshot.hasData) {
-                    return Text("v${snapshot.data!.version}",
-                        style: const TextStyle(color: Colors.grey));
-                  }
-                  return const Text("v...",
-                      style: TextStyle(color: Colors.grey));
-                },
-              ),
-            const SizedBox(height: 24),
-            InkWell(
-              onTap: () => launchUrl(
-                  Uri.parse("https://github.com/Sdpei-CTCA/JWHelper")),
-              child: const Row(
-                mainAxisAlignment: MainAxisAlignment.center,
+            const SizedBox(height: 8),
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 children: [
-                  Icon(Icons.link, size: 16, color: Colors.blue),
-                  SizedBox(width: 4),
-                  Text(
-                    "GitHub 仓库",
-                    style: TextStyle(
-                        color: Colors.blue,
-                        decoration: TextDecoration.underline),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-            Consumer<ThemeProvider>(
-              builder: (context, themeProvider, child) {
-                String themeText;
-                IconData icon;
-                switch (themeProvider.themeMode) {
-                  case ThemeMode.system:
-                    themeText = "跟随系统";
-                    icon = Icons.brightness_auto;
-                    break;
-                  case ThemeMode.light:
-                    themeText = "浅色模式";
-                    icon = Icons.brightness_7;
-                    break;
-                  case ThemeMode.dark:
-                    themeText = "深色模式";
-                    icon = Icons.brightness_2;
-                    break;
-                }
-                return InkWell(
-                  onTap: () {
-                    themeProvider.toggleTheme();
-                  },
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 8.0),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
+                  // App Info Section
+                  Center(
+                    child: Column(
                       children: [
-                        Icon(icon, size: 16, color: Colors.grey),
-                        const SizedBox(width: 4),
-                        Text(
-                          "主题: $themeText",
-                          style: const TextStyle(color: Colors.grey),
+                        Container(
+                          width: 70,
+                          height: 70,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(16),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.1),
+                                blurRadius: 10,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(16),
+                            child: Image.asset(
+                              'assets/images/logo.png',
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) => Container(
+                                color: const Color(0xFF409EFF),
+                                child: const Icon(Icons.school, size: 40, color: Colors.white),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        const Text(
+                          "教务小助手",
+                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        ),
+                        if (_updateService.currentVersion.isNotEmpty)
+                          Text("v${_updateService.currentVersion}", style: const TextStyle(color: Colors.grey, fontSize: 13))
+                        else
+                          FutureBuilder<PackageInfo>(
+                            future: PackageInfo.fromPlatform(),
+                            builder: (context, snapshot) {
+                              if (snapshot.hasData) {
+                                return Text("v${snapshot.data!.version}", style: const TextStyle(color: Colors.grey, fontSize: 13));
+                              }
+                              return const Text("v...", style: TextStyle(color: Colors.grey, fontSize: 13));
+                            },
+                          ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  
+                  const Text("常规设置", style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF409EFF))),
+                  const SizedBox(height: 8),
+                  
+                  Card(
+                    elevation: 0,
+                    margin: EdgeInsets.zero,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: Colors.grey.withValues(alpha: 0.2))),
+                    child: Column(
+                      children: [
+                        Consumer<ThemeProvider>(
+                          builder: (context, themeProvider, child) {
+                            String themeText;
+                            IconData icon;
+                            switch (themeProvider.themeMode) {
+                              case ThemeMode.system:
+                                themeText = "跟随系统";
+                                icon = Icons.brightness_auto;
+                                break;
+                              case ThemeMode.light:
+                                themeText = "浅色模式";
+                                icon = Icons.brightness_7;
+                                break;
+                              case ThemeMode.dark:
+                                themeText = "深色模式";
+                                icon = Icons.brightness_2;
+                                break;
+                            }
+                            return ListTile(
+                              leading: Icon(icon, color: const Color(0xFF409EFF)),
+                              title: const Text("外观主题"),
+                              trailing: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(themeText, style: const TextStyle(color: Colors.grey)),
+                                  const SizedBox(width: 8),
+                                  const Icon(Icons.chevron_right, size: 16, color: Colors.grey),
+                                ],
+                              ),
+                              onTap: () => themeProvider.toggleTheme(),
+                            );
+                          },
+                        ),
+                        const Divider(height: 1, indent: 16, endIndent: 16),
+                        Consumer<DataProvider>(
+                          builder: (context, dataProvider, child) {
+                            return ListTile(
+                              leading: const Icon(Icons.location_city, color: Color(0xFF409EFF)),
+                              title: const Text("当前校区"),
+                              subtitle: const Text("影响作息时间表计算", style: TextStyle(fontSize: 12)),
+                              trailing: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(dataProvider.campus, style: const TextStyle(color: Colors.grey)),
+                                  const SizedBox(width: 8),
+                                  const Icon(Icons.compare_arrows, size: 16, color: Colors.grey),
+                                ],
+                              ),
+                              onTap: () async {
+                                String newCampus = dataProvider.campus == '济南' ? '日照' : '济南';
+                                await dataProvider.setCampus(newCampus);
+                              },
+                            );
+                          },
+                        ),
+                        const Divider(height: 1, indent: 16, endIndent: 16),
+                        StatefulBuilder(
+                          builder: (context, setState) {
+                            return FutureBuilder<bool>(
+                              future: NotificationService().isEnabled,
+                              builder: (context, snapshot) {
+                                final isEnabled = snapshot.data ?? true;
+                                return SwitchListTile(
+                                  secondary: const Icon(Icons.notifications_active, color: Color(0xFF409EFF)),
+                                  title: const Text("课前提醒"),
+                                  subtitle: const Text("课前10分钟发送本地通知", style: TextStyle(fontSize: 12)),
+                                  value: isEnabled,
+                                  activeColor: const Color(0xFF409EFF),
+                                  onChanged: (newValue) async {
+                                    if (newValue) {
+                                      var status = await Permission.notification.status;
+                                      if (!status.isGranted) {
+                                        status = await Permission.notification.request();
+                                        if (status.isPermanentlyDenied || !status.isGranted) {
+                                          if (context.mounted) {
+                                            showDialog(
+                                              context: context,
+                                              builder: (context) => AlertDialog(
+                                                title: const Text("需要通知权限"),
+                                                content: const Text("课前提醒功能需要通知权限。请在系统设置中允许通知。"),
+                                                actions: [
+                                                  TextButton(
+                                                    onPressed: () => Navigator.pop(context),
+                                                    child: const Text("取消"),
+                                                  ),
+                                                  TextButton(
+                                                    onPressed: () {
+                                                      openAppSettings();
+                                                      Navigator.pop(context);
+                                                    },
+                                                    child: const Text("去设置"),
+                                                  ),
+                                                ],
+                                              ),
+                                            );
+                                          }
+                                          return;
+                                        }
+                                      }
+                                    }
+                                    await NotificationService().setEnabled(newValue);
+                                    if (!context.mounted) return;
+                                    setState(() {});
+                                    
+                                    if (newValue) {
+                                      final dataProvider = Provider.of<DataProvider>(context, listen: false);
+                                      dataProvider.loadSchedule(forceRefresh: true);
+                                    } else {
+                                      NotificationService().flutterLocalNotificationsPlugin.cancelAll();
+                                    }
+                                  },
+                                );
+                              },
+                            );
+                          },
+                        ),
+                        const Divider(height: 1, indent: 16, endIndent: 16),
+                        // ListTile(
+                        //   leading: const Icon(Icons.bug_report, color: Colors.orange),
+                        //   title: const Text("测试课前提醒 (Debug)"),
+                        //   subtitle: const Text("立即发送一条测试通知", style: TextStyle(fontSize: 12)),
+                        //   trailing: const Icon(Icons.chevron_right, size: 16, color: Colors.grey),
+                        //   onTap: () async {
+                        //     final notificationService = NotificationService();
+                        //     await notificationService.showNotification(
+                        //       title: "测试通知",
+                        //       body: "这是一条来自Debug按钮的测试课程提醒！",
+                        //       payload: "debug_test",
+                        //     );
+                        //     if (context.mounted) {
+                        //       ScaffoldMessenger.of(context).showSnackBar(
+                        //         const SnackBar(content: Text('测试通知已触发')),
+                        //       );
+                        //     }
+                        //   },
+                        // ),
+                      ],
+                    ),
+                  ),
+                  
+                  const SizedBox(height: 24),
+                  const Text("关于", style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF409EFF))),
+                  const SizedBox(height: 8),
+                  Card(
+                    elevation: 0,
+                    margin: EdgeInsets.zero,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: Colors.grey.withValues(alpha: 0.2))),
+                    child: Column(
+                      children: [
+                        ListTile(
+                          leading: const Icon(Icons.update, color: Color(0xFF409EFF)),
+                          title: const Text("检查更新"),
+                          trailing: const Icon(Icons.chevron_right, size: 16, color: Colors.grey),
+                          onTap: () {
+                            // Close popup to show update
+                            Navigator.pop(context);
+                            showDialog(
+                              context: context, 
+                              builder: (_) => Dialog(
+                                insetPadding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 24.0),
+                                child: Container(
+                                  constraints: BoxConstraints(
+                                    maxHeight: MediaQuery.of(context).size.height * 0.8,
+                                    maxWidth: MediaQuery.of(context).size.width * 0.9,
+                                  ),
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Padding(
+                                        padding: EdgeInsets.all(16.0),
+                                        child: Text("版本更新", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                                      ),
+                                      Flexible(
+                                        child: SingleChildScrollView(
+                                          child: Padding(
+                                            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                                            child: _buildUpdateSection(),
+                                          ),
+                                        ),
+                                      ),
+                                      Padding(
+                                        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                                        child: Align(
+                                          alignment: Alignment.centerRight,
+                                          child: TextButton(onPressed: () => Navigator.pop(_), child: const Text("关闭")),
+                                        ),
+                                      )
+                                    ]
+                                  ),
+                                )
+                              )
+                            );
+                          },
+                        ),
+                        const Divider(height: 1, indent: 16, endIndent: 16),
+                        ListTile(
+                          leading: const Icon(Icons.code, color: Color(0xFF409EFF)),
+                          title: const Text("开源仓库"),
+                          subtitle: const Text("GitHub: Sdpei-CTCA/JWHelper", style: TextStyle(fontSize: 12)),
+                          trailing: const Icon(Icons.open_in_new, size: 16, color: Colors.grey),
+                          onTap: () => launchUrl(Uri.parse("https://github.com/Sdpei-CTCA/JWHelper")),
                         ),
                       ],
                     ),
                   ),
-                );
-              },
-            ),
-            const SizedBox(height: 12),
-            StatefulBuilder(
-              builder: (context, setState) {
-                return FutureBuilder<bool>(
-                  future: NotificationService().isEnabled,
-                  builder: (context, snapshot) {
-                    final isEnabled = snapshot.data ?? true;
-                    return InkWell(
-                      onTap: () async {
-                        final newValue = !isEnabled;
-                        await NotificationService().setEnabled(newValue);
-                        if (!context.mounted) return;
-                        setState(() {});
-                        
-                        if (newValue) {
-                          // Try scheduling right away if enabled
-                          final dataProvider = Provider.of<DataProvider>(context, listen: false);
-                          dataProvider.loadSchedule(forceRefresh: true);
-                        } else {
-                          // Cancel all if disabled
-                          NotificationService().flutterLocalNotificationsPlugin.cancelAll();
-                        }
-                      },
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 8.0),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              isEnabled ? Icons.notifications_active : Icons.notifications_off,
-                              size: 16,
-                              color: isEnabled ? const Color(0xFF409EFF) : Colors.grey,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              "课前提醒: ${isEnabled ? '已开启' : '已关闭'}",
-                              style: TextStyle(
-                                  color: isEnabled ? const Color(0xFF409EFF) : Colors.grey),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                );
-              },
-            ),
-            const SizedBox(height: 12),
-            _buildUpdateSection(),
-            const SizedBox(height: 12),
-            const Text(
-              "GPL3.0 License",
-              style: TextStyle(fontSize: 12, color: Colors.grey),
-            ),
-            const SizedBox(height: 4),
-            const Text(
-              "Original Author:Chendayday-2025\nRemake by: Sdpei-CTCA",
-              style: TextStyle(fontSize: 12, color: Colors.grey),
+
+                  const SizedBox(height: 24),
+                  const Center(
+                    child: Text(
+                      "GPL3.0 License\nOriginal Author: Chendayday-2025\nRemake by: Sdpei-CTCA",
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 12, color: Colors.grey, height: 1.5),
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+                ],
+              ),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("关闭"),
-          ),
-        ],
       ),
     );
   }
@@ -404,10 +609,23 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         elevation: 0,
         actions: [
+          if (_currentIndex == 0)
+            ValueListenableBuilder<bool>(
+              valueListenable: _isGridSchedule,
+              builder: (context, isGrid, child) {
+                return IconButton(
+                  icon: Icon(isGrid ? Icons.view_agenda : Icons.view_headline),
+                  tooltip: "切换视图",
+                  onPressed: () {
+                    _isGridSchedule.value = !isGrid;
+                  },
+                );
+              },
+            ),
           IconButton(
             icon: _buildAboutIcon(),
-            tooltip: "关于我们",
-            onPressed: _showAboutDialog,
+            tooltip: "设置",
+            onPressed: _showSettingsDialog,
           ),
           IconButton(
             icon: const Icon(Icons.logout, color: Color(0xFF409EFF)),

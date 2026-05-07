@@ -68,3 +68,5 @@ app.*.map.json
 /payload/
 #portApptest
 /portAppTest/
+#docs
+/docs/

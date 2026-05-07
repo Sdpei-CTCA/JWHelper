@@ -55,6 +55,7 @@ extension ScheduleDataMixin on DataProvider {
           NotificationService().scheduleClassReminders(
             schedule: _schedule,
             startDay: DateTime.parse(startDayStr),
+            campus: _campus,
           );
         } catch (e) {
           debugPrint("Error scheduling notifications: $e");

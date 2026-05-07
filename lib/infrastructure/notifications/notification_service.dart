@@ -58,24 +58,10 @@ class NotificationService {
     await prefs.setBool('class_reminder_enabled', value);
   }
 
-  final Map<int, String> _periodStartTimes = {
-    1: '08:00',
-    2: '08:55',
-    3: '10:00',
-    4: '10:55',
-    5: '13:30',
-    6: '14:25',
-    7: '15:20',
-    8: '16:25',
-    9: '17:20',
-    10: '18:30',
-    11: '19:25',
-    12: '20:20',
-  };
-
   Future<void> scheduleClassReminders({
     required List<ScheduleItem> schedule,
     required DateTime startDay,
+    String? campus, // passed to determine time
   }) async {
     if (!_initialized) await init();
 
@@ -84,6 +70,12 @@ class NotificationService {
 
     if (!(await isEnabled)) {
       return;
+    }
+    
+    // get campus if not provided
+    if (campus == null) {
+      final prefs = await SharedPreferences.getInstance();
+      campus = prefs.getString('campus') ?? '济南';
     }
 
     final now = DateTime.now();
@@ -97,8 +89,8 @@ class NotificationService {
         final daysToAdd = (week - 1) * 7 + item.dayIndex;
         final classBaseDate = startDay.add(Duration(days: daysToAdd));
 
-        final timeStr = _periodStartTimes[item.startUnit];
-        if (timeStr == null) continue;
+        final timeStr = _getPeriodStartTime(item.startUnit, campus, classBaseDate);
+        if (timeStr == null || timeStr.isEmpty) continue;
 
         final parts = timeStr.split(':');
         final hour = int.parse(parts[0]);
@@ -132,6 +124,51 @@ class NotificationService {
     debugPrint('Scheduled $scheduledCount class reminders.');
   }
 
+  String? _getPeriodStartTime(int period, String campus, DateTime targetDate) {
+    if (campus == '济南') {
+      switch (period) {
+        case 1: return "08:00";
+        case 2: return "08:50";
+        case 3: return "10:00";
+        case 4: return "10:50";
+        case 5: return "13:30";
+        case 6: return "14:20";
+        case 7: return "15:30";
+        case 8: return "16:20";
+        case 9: return "18:00";
+        case 10: return "18:50";
+        case 11: return "20:00";
+        case 12: return "20:50";
+        default: return null;
+      }
+    } else {
+      // 日照校区
+      // 判断是否夏令时: 5月1日至10月1日
+      bool isSummer = false;
+      if (targetDate.month > 5 && targetDate.month < 10) {
+        isSummer = true;
+      } else if (targetDate.month == 5 || targetDate.month == 10) {
+        isSummer = targetDate.month == 5; 
+      }
+
+      switch (period) {
+        case 1: return "08:00";
+        case 2: return "08:50";
+        case 3: return "10:00";
+        case 4: return "10:50";
+        case 5: return isSummer ? "14:30" : "14:00";
+        case 6: return isSummer ? "15:20" : "14:50";
+        case 7: return isSummer ? "16:30" : "16:00";
+        case 8: return isSummer ? "17:20" : "16:50";
+        case 9: return "19:00";
+        case 10: return "19:50";
+        case 11: return "20:40";
+        case 12: return "21:30";
+        default: return null;
+      }
+    }
+  }
+
   Future<void> _scheduleNotification({
     required int id,
     required String title,
@@ -154,6 +191,32 @@ class NotificationService {
         iOS: DarwinNotificationDetails(),
       ),
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+    );
+  }
+
+  Future<void> showNotification({
+    required String title,
+    required String body,
+    String? payload,
+    int id = 0,
+  }) async {
+    if (!_initialized) await init();
+
+    await flutterLocalNotificationsPlugin.show(
+      id: id,
+      title: title,
+      body: body,
+      notificationDetails: const NotificationDetails(
+        android: AndroidNotificationDetails(
+          'debug_reminder_channel',
+          '测试提醒',
+          channelDescription: '测试发送的通知',
+          importance: Importance.max,
+          priority: Priority.high,
+        ),
+        iOS: DarwinNotificationDetails(),
+      ),
+      payload: payload,
     );
   }
 }

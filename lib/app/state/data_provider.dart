@@ -59,9 +59,30 @@ class DataProvider with ChangeNotifier {
   }
 
   String _username = '';
+  String _campus = '济南';
+  String get campus => _campus;
 
   void notifyStateChanged() {
     notifyListeners();
+  }
+
+  Future<void> loadPreferences() async {
+    final prefs = await SharedPreferences.getInstance();
+    _campus = prefs.getString('campus_$_username') ?? prefs.getString('campus') ?? '济南';
+    notifyListeners();
+  }
+
+  Future<void> setCampus(String campusName) async {
+    _campus = campusName;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('campus_$_username', campusName);
+    await prefs.setString('campus', campusName);
+    notifyListeners();
+    
+    // Reschedule notifications based on the new campus times
+    if (_scheduleLoaded) {
+      loadSchedule(forceRefresh: true);
+    }
   }
 
   void updateUsername(String username) {
@@ -69,6 +90,7 @@ class DataProvider with ChangeNotifier {
       _username = username;
       // Clear memory data when switching users
       clearAll();
+      loadPreferences();
     }
   }
 

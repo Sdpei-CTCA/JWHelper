@@ -34,7 +34,7 @@ class _LoginScreenState extends State<LoginScreen> {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                     content: Text("自动登录失败: $error"),
-                    backgroundColor: Colors.orange),
+                    backgroundColor: Theme.of(context).colorScheme.tertiary),
               );
             }
             if (auth.rememberPassword) {
@@ -57,9 +57,9 @@ class _LoginScreenState extends State<LoginScreen> {
 
     if (username.isEmpty || password.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("请输入学号和密码"),
-          backgroundColor: Colors.orange,
+        SnackBar(
+          content: const Text("请输入学号和密码"),
+          backgroundColor: Theme.of(context).colorScheme.tertiary,
         ),
       );
       return;
@@ -91,10 +91,10 @@ class _LoginScreenState extends State<LoginScreen> {
           if (!mounted) return;
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text("网络连接失败，已进入离线模式"),
-              backgroundColor: Colors.orange,
-              duration: Duration(seconds: 3),
+            SnackBar(
+              content: const Text("网络连接失败，已进入离线模式"),
+              backgroundColor: Theme.of(context).colorScheme.tertiary,
+              duration: const Duration(seconds: 3),
             ),
           );
           dataProvider.prepareOfflineLoginData();
@@ -282,7 +282,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       child: ElevatedButton(
                         onPressed: auth.isLoading ? null : _handleLogin,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF409EFF),
+                          backgroundColor: Theme.of(context).colorScheme.primary,
                           foregroundColor: Colors.white,
                           shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(8)),

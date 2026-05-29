@@ -211,22 +211,22 @@ class _ExamScreenState extends State<ExamScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
               color: theme.brightness == Brightness.dark
-                  ? const Color(0xFF409EFF).withValues(alpha: 0.2)
-                  : const Color(0xFFECF5FF),
+                  ? theme.colorScheme.primary.withValues(alpha: 0.2)
+                  : theme.colorScheme.primary.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
                   color: theme.brightness == Brightness.dark
-                      ? const Color(0xFF409EFF).withValues(alpha: 0.3)
-                      : const Color(0xFFD9ECFF)),
+                      ? theme.colorScheme.primary.withValues(alpha: 0.3)
+                      : theme.colorScheme.primary.withValues(alpha: 0.2)),
             ),
             child: DropdownButtonHideUnderline(
               child: DropdownButton<String>(
                 value: _selectedCampus,
                 isDense: true,
-                icon: const Icon(Icons.keyboard_arrow_down_rounded,
-                    color: Color(0xFF409EFF), size: 18),
-                style: const TextStyle(
-                    color: Color(0xFF409EFF),
+                icon: Icon(Icons.keyboard_arrow_down_rounded,
+                    color: theme.colorScheme.primary, size: 18),
+                style: TextStyle(
+                    color: theme.colorScheme.primary,
                     fontWeight: FontWeight.bold,
                     fontSize: 14),
                 borderRadius: BorderRadius.circular(12),
@@ -290,8 +290,8 @@ class _ExamScreenState extends State<ExamScreen> {
                           labelStyle: TextStyle(
                               color: theme.colorScheme.onSurface
                                   .withValues(alpha: 0.7)),
-                          prefixIcon: const Icon(Icons.calendar_today_outlined,
-                              size: 20, color: Color(0xFF409EFF)),
+                          prefixIcon: Icon(Icons.calendar_today_outlined,
+                              size: 20, color: theme.colorScheme.primary),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
                             borderSide: BorderSide(
@@ -302,10 +302,10 @@ class _ExamScreenState extends State<ExamScreen> {
                             borderSide: BorderSide(
                                 color: Colors.grey.withValues(alpha: 0.3)),
                           ),
-                          focusedBorder: const OutlineInputBorder(
-                            borderRadius: BorderRadius.all(Radius.circular(12)),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: const BorderRadius.all(Radius.circular(12)),
                             borderSide:
-                                BorderSide(color: Color(0xFF409EFF), width: 2),
+                                BorderSide(color: theme.colorScheme.primary, width: 2),
                           ),
                           filled: true,
                           fillColor: theme.colorScheme.surfaceContainerHighest
@@ -313,8 +313,8 @@ class _ExamScreenState extends State<ExamScreen> {
                           contentPadding: const EdgeInsets.symmetric(
                               horizontal: 16, vertical: 12),
                         ),
-                        icon: const Icon(Icons.arrow_drop_down_circle_outlined,
-                            color: Color(0xFF409EFF)),
+                        icon: Icon(Icons.arrow_drop_down_circle_outlined,
+                            color: theme.colorScheme.primary),
                         dropdownColor: theme.cardTheme.color,
                         borderRadius: BorderRadius.circular(12),
                         style: TextStyle(
@@ -370,8 +370,8 @@ class _ExamScreenState extends State<ExamScreen> {
                           labelStyle: TextStyle(
                               color: theme.colorScheme.onSurface
                                   .withValues(alpha: 0.7)),
-                          prefixIcon: const Icon(Icons.layers_outlined,
-                              size: 20, color: Color(0xFF409EFF)),
+                          prefixIcon: Icon(Icons.layers_outlined,
+                              size: 20, color: theme.colorScheme.primary),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
                             borderSide: BorderSide(
@@ -382,10 +382,10 @@ class _ExamScreenState extends State<ExamScreen> {
                             borderSide: BorderSide(
                                 color: Colors.grey.withValues(alpha: 0.3)),
                           ),
-                          focusedBorder: const OutlineInputBorder(
-                            borderRadius: BorderRadius.all(Radius.circular(12)),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: const BorderRadius.all(Radius.circular(12)),
                             borderSide:
-                                BorderSide(color: Color(0xFF409EFF), width: 2),
+                                BorderSide(color: theme.colorScheme.primary, width: 2),
                           ),
                           filled: true,
                           fillColor: theme.colorScheme.surfaceContainerHighest
@@ -393,8 +393,8 @@ class _ExamScreenState extends State<ExamScreen> {
                           contentPadding: const EdgeInsets.symmetric(
                               horizontal: 16, vertical: 12),
                         ),
-                        icon: const Icon(Icons.arrow_drop_down_circle_outlined,
-                            color: Color(0xFF409EFF)),
+                        icon: Icon(Icons.arrow_drop_down_circle_outlined,
+                            color: theme.colorScheme.primary),
                         dropdownColor: theme.cardTheme.color,
                         borderRadius: BorderRadius.circular(12),
                         style: TextStyle(
@@ -598,17 +598,17 @@ class _ExamScreenState extends State<ExamScreen> {
                           horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
                         color: Theme.of(context).brightness == Brightness.dark
-                            ? const Color(0xFF1890FF).withValues(alpha: 0.2)
-                            : const Color(0xFFE6F7FF),
+                            ? Theme.of(context).colorScheme.secondary.withValues(alpha: 0.2)
+                            : Theme.of(context).colorScheme.secondary.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(4),
                         border: Border.all(
                             color:
-                                const Color(0xFF91D5FF).withValues(alpha: 0.5)),
+                                Theme.of(context).colorScheme.secondary.withValues(alpha: 0.3)),
                       ),
                       child: Text(
                         exam.type,
-                        style: const TextStyle(
-                            fontSize: 12, color: Color(0xFF1890FF)),
+                        style: TextStyle(
+                            fontSize: 12, color: Theme.of(context).colorScheme.secondary),
                       ),
                     ),
                   ],

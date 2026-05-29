@@ -1,9 +1,9 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:dio/dio.dart';
 import 'package:JWHelper/core/constants/config.dart';
 import 'package:JWHelper/infrastructure/network/client.dart';
 import 'package:JWHelper/features/schedule/domain/schedule_item.dart';
-import 'package:flutter/rendering.dart';
 
 class ScheduleService {
   final ApiClient _client = ApiClient();

@@ -1,7 +1,9 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:JWHelper/app/state/data_provider.dart';
 import 'package:JWHelper/features/schedule/domain/schedule_item.dart';
+import 'package:JWHelper/shared/theme/wallpaper_provider.dart';
 
 class ScheduleScreen extends StatefulWidget {
   final ValueNotifier<bool> isGridViewNotifier;
@@ -23,6 +25,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final wallpaperProvider = context.watch<WallpaperProvider>();
 
     // Only rebuild when these specific properties change, avoiding unnecessary rebuilds when other data points (grades, exam etc.) change.
     final scheduleLoading = context.select<DataProvider, bool>((d) => d.scheduleLoading);
@@ -37,61 +40,81 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
     // For mobile, maybe a list grouped by day is better?
     // Let's do a TabView for each day.
 
-    return ValueListenableBuilder<bool>(
-      valueListenable: widget.isGridViewNotifier,
-      builder: (context, isGrid, child) {
-        return AnimatedSwitcher(
-          duration: const Duration(milliseconds: 300),
-          switchInCurve: Curves.easeOutBack,
-          switchOutCurve: Curves.easeInBack,
-          transitionBuilder: (Widget child, Animation<double> animation) {
-            return ScaleTransition(
-              scale: Tween<double>(begin: 0.8, end: 1.0).animate(animation),
-              child: FadeTransition(
-                opacity: animation,
-                child: child,
+    return Stack(
+      children: [
+        // Wallpaper Background
+        if (wallpaperProvider.wallpaperPath != null)
+          Positioned.fill(
+            child: Opacity(
+              opacity: 1.0 - wallpaperProvider.opacity,
+              child: Image.file(
+                File(wallpaperProvider.wallpaperPath!),
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  return const SizedBox.shrink();
+                },
               ),
+            ),
+          ),
+        
+        // Main Content
+        ValueListenableBuilder<bool>(
+          valueListenable: widget.isGridViewNotifier,
+          builder: (context, isGrid, child) {
+            return AnimatedSwitcher(
+              duration: const Duration(milliseconds: 300),
+              switchInCurve: Curves.easeOutBack,
+              switchOutCurve: Curves.easeInBack,
+              transitionBuilder: (Widget child, Animation<double> animation) {
+                return ScaleTransition(
+                  scale: Tween<double>(begin: 0.8, end: 1.0).animate(animation),
+                  child: FadeTransition(
+                    opacity: animation,
+                    child: child,
+                  ),
+                );
+              },
+              child: isGrid 
+                ? const _WeekScheduleGridView(key: ValueKey('grid'))
+                : DefaultTabController(
+                    key: const ValueKey('list'),
+                    length: 7,
+                    initialIndex: DateTime.now().weekday - 1,
+                    child: Column(
+                      children: [
+                        Container(
+                          color: theme.cardTheme.color?.withValues(alpha: 0.9),
+                          child: TabBar(
+                            isScrollable: false,
+                            labelPadding: EdgeInsets.zero,
+                            labelColor: theme.colorScheme.primary,
+                            unselectedLabelColor: Colors.grey,
+                            indicatorColor: theme.colorScheme.primary,
+                            tabs: const [
+                              Tab(text: "周一"),
+                              Tab(text: "周二"),
+                              Tab(text: "周三"),
+                              Tab(text: "周四"),
+                              Tab(text: "周五"),
+                              Tab(text: "周六"),
+                              Tab(text: "周日"),
+                            ],
+                          ),
+                        ),
+                        Expanded(
+                          child: TabBarView(
+                            children: List.generate(7, (dayIndex) {
+                              return _DayScheduleView(dayIndex: dayIndex);
+                            }),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
             );
           },
-          child: isGrid 
-            ? const _WeekScheduleGridView(key: ValueKey('grid'))
-            : DefaultTabController(
-                key: const ValueKey('list'),
-                length: 7,
-                initialIndex: DateTime.now().weekday - 1,
-                child: Column(
-                  children: [
-                    Container(
-                      color: theme.cardTheme.color,
-                      child: const TabBar(
-                        isScrollable: false,
-                        labelPadding: EdgeInsets.zero,
-                        labelColor: Color(0xFF409EFF),
-                        unselectedLabelColor: Colors.grey,
-                        indicatorColor: Color(0xFF409EFF),
-                        tabs: [
-                          Tab(text: "周一"),
-                          Tab(text: "周二"),
-                          Tab(text: "周三"),
-                          Tab(text: "周四"),
-                          Tab(text: "周五"),
-                          Tab(text: "周六"),
-                          Tab(text: "周日"),
-                        ],
-                      ),
-                    ),
-                    Expanded(
-                      child: TabBarView(
-                        children: List.generate(7, (dayIndex) {
-                          return _DayScheduleView(dayIndex: dayIndex);
-                        }),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-        );
-      },
+        ),
+      ],
     );
   }
 }
@@ -139,7 +162,10 @@ class _DayScheduleView extends StatelessWidget {
     // Helper to process a group
     Widget processGroup(int startUnit) {
       var group = groupedItems[startUnit]!;
-      return _CourseGroup(items: group, currentWeek: currentWeek);
+      return _CourseGroup(
+        items: group, 
+        currentWeek: currentWeek,
+      );
     }
 
     List<Widget> morningWidgets = [];
@@ -184,6 +210,7 @@ class _DayScheduleView extends StatelessWidget {
   }
 
   Widget _buildSectionHeader(BuildContext context, String title) {
+    final primaryColor = Theme.of(context).colorScheme.primary;
     return Padding(
       padding: const EdgeInsets.only(bottom: 12, top: 4, left: 4),
       child: Row(
@@ -192,7 +219,7 @@ class _DayScheduleView extends StatelessWidget {
             width: 4,
             height: 16,
             decoration: BoxDecoration(
-              color: const Color(0xFF409EFF),
+              color: primaryColor,
               borderRadius: BorderRadius.circular(2),
             ),
           ),
@@ -215,7 +242,10 @@ class _CourseGroup extends StatefulWidget {
   final List<ScheduleItem> items;
   final int currentWeek;
 
-  const _CourseGroup({required this.items, required this.currentWeek});
+  const _CourseGroup({
+    required this.items, 
+    required this.currentWeek,
+  });
 
   @override
   State<_CourseGroup> createState() => _CourseGroupState();
@@ -306,7 +336,7 @@ class _CourseGroupState extends State<_CourseGroup> {
 
     if (isCurrent) {
       bgColor = isDark ? const Color(0xFF1B2E1B) : const Color(0xFFF0F9EB);
-      accentColor = const Color(0xFF67C23A);
+      accentColor = Theme.of(context).colorScheme.secondary;
       textColor = isDark ? Colors.white : Colors.black;
     } else if (isFinished) {
       bgColor = isDark ? const Color(0xFF2C2C2C) : Colors.grey[100]!;
@@ -314,7 +344,7 @@ class _CourseGroupState extends State<_CourseGroup> {
       textColor = Colors.grey;
     } else {
       bgColor = isDark ? const Color(0xFF1E1E1E) : Colors.white;
-      accentColor = const Color(0xFF409EFF);
+      accentColor = Theme.of(context).colorScheme.primary;
       textColor = isDark ? Colors.white : Colors.black;
     }
 
@@ -325,9 +355,11 @@ class _CourseGroupState extends State<_CourseGroup> {
       }
     }
 
+    final cardOpacity = context.read<WallpaperProvider>().listCardOpacity;
+
     return Card(
       elevation: 0,
-      color: bgColor,
+      color: bgColor.withValues(alpha: cardOpacity),
       margin: const EdgeInsets.only(bottom: 12),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
@@ -382,7 +414,7 @@ class _CourseGroupState extends State<_CourseGroup> {
               child: Text(
                 item.periodString,
                 style: TextStyle(
-                    color: isCurrent ? const Color(0xFF67C23A) : Colors.grey,
+                    color: isCurrent ? Theme.of(context).colorScheme.secondary : Colors.grey,
                     fontWeight: FontWeight.bold),
               ),
             ),
@@ -544,7 +576,7 @@ class _WeekScheduleGridViewState extends State<_WeekScheduleGridView> {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 20, color: const Color(0xFF409EFF)),
+        Icon(icon, size: 20, color: Theme.of(context).colorScheme.primary),
         const SizedBox(width: 8),
         Expanded(child: Text(text, style: const TextStyle(fontSize: 14))),
       ],
@@ -568,15 +600,15 @@ class _WeekScheduleGridViewState extends State<_WeekScheduleGridView> {
     final double cellWidth = MediaQuery.of(context).size.width / 7.5;
     final double timeColumnWidth = cellWidth * 0.8;
     final double dayCellWidth = (MediaQuery.of(context).size.width - timeColumnWidth) / 7;
-    final double cellHeight = 60.0;
-    final List<String> weekDays = ['一', '二', '三', '四', '五', '六', '日'];
+    const double cellHeight = 60.0;
+    const List<String> weekDays = ['一', '二', '三', '四', '五', '六', '日'];
 
     return Column(
       children: [
         // Week selector header
         Container(
           padding: const EdgeInsets.symmetric(vertical: 8),
-          color: theme.cardTheme.color,
+          color: theme.cardTheme.color?.withValues(alpha: 0.9),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -590,7 +622,11 @@ class _WeekScheduleGridViewState extends State<_WeekScheduleGridView> {
               ),
               Text(
                 "第 $_selectedWeek 周",
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  fontSize: 16, 
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
               ),
               IconButton(
                 icon: const Icon(Icons.chevron_right),
@@ -618,7 +654,7 @@ class _WeekScheduleGridViewState extends State<_WeekScheduleGridView> {
                     '周${weekDays[index]}',
                     style: TextStyle(
                       fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
-                      color: isToday ? const Color(0xFF409EFF) : (isDark ? Colors.white70 : Colors.black87),
+                      color: isToday ? Theme.of(context).colorScheme.primary : (isDark ? Colors.white70 : Colors.black87),
                     ),
                   ),
                 ),
@@ -710,7 +746,8 @@ class _WeekScheduleGridViewState extends State<_WeekScheduleGridView> {
                               // Items
                               ...weekSchedule.map((item) {
                                 Color bgColor = _getColorForCourse(item.name, isDark);
-                                Color textColor = Colors.white; // Mostly white text on colored bg works well
+                                Color textColor = Colors.white;
+                                final cardOpacity = context.read<WallpaperProvider>().gridCardOpacity;
 
                                 return Positioned(
                                   left: item.dayIndex * dayCellWidth,
@@ -722,7 +759,7 @@ class _WeekScheduleGridViewState extends State<_WeekScheduleGridView> {
                                     child: Container(
                                       margin: const EdgeInsets.all(1),
                                       decoration: BoxDecoration(
-                                        color: bgColor,
+                                        color: bgColor.withValues(alpha: cardOpacity),
                                         borderRadius: BorderRadius.circular(4),
                                         boxShadow: [
                                           BoxShadow(

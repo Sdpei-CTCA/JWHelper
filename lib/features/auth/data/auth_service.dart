@@ -1,9 +1,8 @@
 import 'dart:convert';
-import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:dio/dio.dart';
 import 'package:JWHelper/core/constants/config.dart';
 import 'package:JWHelper/infrastructure/network/client.dart';
-import 'package:flutter/rendering.dart';
 
 class AuthService {
   final ApiClient _client = ApiClient();

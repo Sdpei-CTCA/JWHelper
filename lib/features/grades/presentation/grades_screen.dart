@@ -97,8 +97,8 @@ class _GradesScreenState extends State<GradesScreen> {
                   child: DropdownButtonHideUnderline(
                     child: DropdownButton<String>(
                       isExpanded: true,
-                      icon: const Icon(Icons.keyboard_arrow_down_rounded,
-                          color: Color(0xFF409EFF)),
+                      icon: Icon(Icons.keyboard_arrow_down_rounded,
+                          color: Theme.of(context).colorScheme.primary),
                       style: TextStyle(
                           color: Theme.of(context).colorScheme.onSurface,
                           fontSize: 15,
@@ -176,7 +176,7 @@ class _GradesScreenState extends State<GradesScreen> {
                                                   null &&
                                               double.parse(grade.score) < 60
                                           ? Colors.red.withValues(alpha: 0.1)
-                                          : const Color(0xFF409EFF)
+                                          : Theme.of(context).colorScheme.primary
                                               .withValues(alpha: 0.1),
                                       borderRadius: BorderRadius.circular(4),
                                     ),
@@ -187,7 +187,7 @@ class _GradesScreenState extends State<GradesScreen> {
                                                     null &&
                                                 double.parse(grade.score) < 60
                                             ? Colors.red
-                                            : const Color(0xFF409EFF),
+                                            : Theme.of(context).colorScheme.primary,
                                         fontWeight: FontWeight.bold,
                                       ),
                                     ),

@@ -275,12 +275,12 @@ class UpdateService {
     return ValueListenableBuilder<UpdateUiState>(
       valueListenable: updateState,
       builder: (context, state, child) {
-        const icon = Icon(Icons.settings, color: Color(0xFF409EFF));
+        final icon = Icon(Icons.settings, color: Theme.of(context).colorScheme.primary);
         if (!state.hasUpdate) return icon;
-        return const Badge(
-          backgroundColor: Colors.amber,
+        return Badge(
+          backgroundColor: Theme.of(context).colorScheme.tertiary,
           smallSize: 10,
-          offset: Offset(8, -8),
+          offset: const Offset(8, -8),
           child: icon,
         );
       },
@@ -341,7 +341,7 @@ class UpdateService {
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.new_releases, color: Colors.orange),
+                  Icon(Icons.new_releases, color: Theme.of(context).colorScheme.tertiary),
                   const SizedBox(width: 6),
                   Text('发现新版本 v${state.latestVersion ?? ''}'),
                 ],

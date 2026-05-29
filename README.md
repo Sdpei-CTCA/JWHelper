@@ -10,7 +10,7 @@
 ## 项目概览
 
 - 项目名称：JWHelper
-- 当前版本：1.2.2
+- 当前版本：1.3.0
 - 技术栈：Flutter + Provider + Dio + SharedPreferences
 - 支持平台：Android、iOS、Windows、macOS、Linux
 - 主要定位：个人教务信息查询与轻量辅助操作
@@ -18,7 +18,9 @@
 ## 功能特性
 
 - 登录认证：支持教务系统账号登录、记住密码、自动登录、验证码处理。
-- 课表查询：按日期查看课程，支持刷新和本地缓存。
+- 课表查询：支持列表视图和网格视图两种课表展示模式，按日期查看课程，支持刷新和本地缓存。
+- 课表外观自定义：支持设置课表壁纸背景、自动提取主题配色、调整壁纸不透明度，以及独立控制列表/网格模式的课程卡片透明度。
+- 全局主题配色：壁纸提取的主色、辅色、点缀色会自动应用到导航栏、AppBar、按钮、开关、下拉框、标签等全局 UI 元素，并针对浅色/深色模式分别适配亮度和对比度。
 - 考试安排：支持学期、考试批次、校区筛选。
 - 成绩查询：支持按学期筛选成绩并读取缓存。
 - 学业进度：展示培养方案完成度、学分信息和课程明细。
@@ -26,6 +28,7 @@
 - 离线模式：网络异常时优先读取本地缓存数据。
 - 小组件支持：支持 Android 和 iOS 小组件同步课表、学业进度摘要。
 - 更新检查：内置版本检测与下载入口。
+- 主题切换：支持浅色、深色和跟随系统三种外观模式。
 
 ## 界面结构
 
@@ -41,13 +44,13 @@
 - 登录后的数据预加载
 - 教学评价状态检测
 - 小组件点击跳转
-- 关于页与更新检查展示
+- 设置与关于页面（含课表外观自定义、主题切换、校区选择、课前提醒开关、更新检查等）
 
 ## 技术实现
 
 ### 状态管理
 
-项目使用 Provider。全局数据集中在 DataProvider 中，并通过按领域拆分的 mixin 管理不同模块的数据加载逻辑。
+项目使用 Provider。全局数据集中在 DataProvider 中，并通过按领域拆分的 mixin 管理不同模块的数据加载逻辑。主题由 ThemeProvider 和 WallpaperProvider 协同管理。
 
 ### 网络层
 
@@ -56,6 +59,7 @@
 ### 缓存策略
 
 - 成绩、课表、进度、考试信息使用 SharedPreferences 做本地缓存。
+- 壁纸路径、提取的配色、卡片透明度等外观设置同样持久化到 SharedPreferences。
 - 网络失败时优先回退到缓存。
 - 切换账号时会清空当前内存态与对应缓存。
 
@@ -69,14 +73,14 @@ lib/
 ├── core/              # 基础层：配置与异常定义
 ├── features/          # 功能模块：auth / schedule / exam / grades / progress / evaluation
 ├── infrastructure/    # 基础设施：网络客户端、平台小组件服务
-├── shared/            # 共享能力：主题管理
+├── shared/            # 共享能力：主题管理（ThemeProvider / WallpaperProvider）
 └── main.dart          # 应用入口
 ```
 
 ## 环境要求
 
-- Flutter SDK：3.x
-- Dart SDK：>= 3.0.0 < 4.0.0
+- Flutter SDK：3.32.0+
+- Dart SDK：>= 3.9.0 < 4.0.0
 - Android 开发：Android Studio 或可用 Android SDK
 - iOS 开发：macOS + Xcode
 - Windows 桌面开发：Visual Studio C++ 桌面组件
@@ -93,7 +97,7 @@ flutter doctor
 
 ```bash
 git clone https://github.com/Sdpei-CTCA/JWHelper.git
-cd JWHelper/flutter_app
+cd JWHelper
 ```
 
 ### 2. 安装依赖
@@ -152,23 +156,9 @@ flutter build ios --release
 
 # 不签名构建
 flutter build ios --release --no-codesign
-
-
-如需手动打包 ipa，可在生成 Runner.app 后自行封装 Payload 目录。
-# 封装方式
-# 1. 创建一个名为 Payload 的文件夹
-mkdir Payload
-
-# 2. 将生成的 Runner.app 复制到 Payload 文件夹中
-cp -r build/ios/iphoneos/Runner.app Payload/
-
-# 3. 将 Payload 文件夹压缩为 zip
-zip -r -y Payload.zip Payload/
-
-# 4. 将 zip 重命名为 ipa
-mv Payload.zip app-unsigned.ipa
 ```
 
+如需手动打包 ipa，可在生成 Runner.app 后自行封装 Payload 目录。
 
 ### Windows
 
@@ -188,6 +178,7 @@ flutter test
 # 清理构建缓存
 flutter clean
 ```
+
 ## 使用说明
 
 ### 登录
@@ -199,6 +190,16 @@ flutter clean
 ### 离线模式
 
 当网络失败且本地存在历史缓存时，应用会尝试进入离线模式，允许继续查看部分数据。
+
+### 课表外观自定义
+
+在「设置与关于 → 课表外观自定义」中可以：
+
+- 从相册选择壁纸作为课表背景
+- 自动从壁纸中提取主色、辅色、点缀色，应用到全局 UI
+- 调整壁纸不透明度（数值越大壁纸越淡）
+- 独立调整列表模式和网格模式的课程卡片透明度
+- 实时预览两种模式下的卡片效果
 
 ### 教学评价提醒
 

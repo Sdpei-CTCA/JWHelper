@@ -12,6 +12,7 @@ import 'package:JWHelper/shared/theme/theme_provider.dart';
 import 'package:JWHelper/app/update/update_service.dart';
 import 'package:JWHelper/features/evaluation/presentation/evaluation_helper_screen.dart';
 import 'package:JWHelper/features/schedule/presentation/schedule_screen.dart';
+import 'package:JWHelper/features/schedule/presentation/wallpaper_settings_screen.dart';
 import 'package:JWHelper/features/exam/presentation/exam_screen.dart';
 import 'package:JWHelper/features/grades/presentation/grades_screen.dart';
 import 'package:JWHelper/features/progress/presentation/progress_screen.dart';
@@ -93,17 +94,21 @@ class _HomeScreenState extends State<HomeScreen> {
                   children: [
                     const Text("请选择您的所在校区，以便应用能够为您提供准确的上课时间表。您稍后可以在“关于我们”中更改。"),
                     const SizedBox(height: 16),
-                    RadioListTile<String>(
-                      title: const Text('济南校区'),
-                      value: '济南',
+                    RadioGroup<String>(
                       groupValue: selectedCampus,
                       onChanged: (value) => setState(() => selectedCampus = value!),
-                    ),
-                    RadioListTile<String>(
-                      title: const Text('日照校区'),
-                      value: '日照',
-                      groupValue: selectedCampus,
-                      onChanged: (value) => setState(() => selectedCampus = value!),
+                      child: Column(
+                        children: const [
+                          RadioListTile<String>(
+                            title: Text('济南校区'),
+                            value: '济南',
+                          ),
+                          RadioListTile<String>(
+                            title: Text('日照校区'),
+                            value: '日照',
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
@@ -183,11 +188,11 @@ class _HomeScreenState extends State<HomeScreen> {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.orange.withValues(alpha: 0.1),
+                  color: Theme.of(context).colorScheme.tertiary.withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.assignment_late_outlined,
-                    color: Colors.orange, size: 32),
+                child: Icon(Icons.assignment_late_outlined,
+                    color: Theme.of(context).colorScheme.tertiary, size: 32),
               ),
               const SizedBox(height: 16),
               const Text(
@@ -263,7 +268,9 @@ class _HomeScreenState extends State<HomeScreen> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => Container(
+      builder: (context) {
+        final primaryColor = Theme.of(context).colorScheme.primary;
+        return Container(
         decoration: BoxDecoration(
           color: Theme.of(context).scaffoldBackgroundColor,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
@@ -315,7 +322,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               'assets/images/logo.png',
                               fit: BoxFit.cover,
                               errorBuilder: (context, error, stackTrace) => Container(
-                                color: const Color(0xFF409EFF),
+                                color: primaryColor,
                                 child: const Icon(Icons.school, size: 40, color: Colors.white),
                               ),
                             ),
@@ -343,7 +350,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   const SizedBox(height: 24),
                   
-                  const Text("常规设置", style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF409EFF))),
+                  Text("常规设置", style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: primaryColor)),
                   const SizedBox(height: 8),
                   
                   Card(
@@ -371,7 +378,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 break;
                             }
                             return ListTile(
-                              leading: Icon(icon, color: const Color(0xFF409EFF)),
+                              leading: Icon(icon, color: primaryColor),
                               title: const Text("外观主题"),
                               trailing: Row(
                                 mainAxisSize: MainAxisSize.min,
@@ -386,10 +393,23 @@ class _HomeScreenState extends State<HomeScreen> {
                           },
                         ),
                         const Divider(height: 1, indent: 16, endIndent: 16),
+                        ListTile(
+                          leading: Icon(Icons.wallpaper, color: primaryColor),
+                          title: const Text("课表外观自定义"),
+                          subtitle: const Text("自定义课表背景、配色和卡片透明度", style: TextStyle(fontSize: 12)),
+                          trailing: const Icon(Icons.chevron_right, size: 16, color: Colors.grey),
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (context) => const WallpaperSettingsScreen()),
+                            );
+                          },
+                        ),
+                        const Divider(height: 1, indent: 16, endIndent: 16),
                         Consumer<DataProvider>(
                           builder: (context, dataProvider, child) {
                             return ListTile(
-                              leading: const Icon(Icons.location_city, color: Color(0xFF409EFF)),
+                              leading: Icon(Icons.location_city, color: primaryColor),
                               title: const Text("当前校区"),
                               subtitle: const Text("影响作息时间表计算", style: TextStyle(fontSize: 12)),
                               trailing: Row(
@@ -415,11 +435,11 @@ class _HomeScreenState extends State<HomeScreen> {
                               builder: (context, snapshot) {
                                 final isEnabled = snapshot.data ?? true;
                                 return SwitchListTile(
-                                  secondary: const Icon(Icons.notifications_active, color: Color(0xFF409EFF)),
+                                  secondary: Icon(Icons.notifications_active, color: primaryColor),
                                   title: const Text("课前提醒"),
                                   subtitle: const Text("课前10分钟发送本地通知", style: TextStyle(fontSize: 12)),
                                   value: isEnabled,
-                                  activeColor: const Color(0xFF409EFF),
+                                  activeThumbColor: Theme.of(context).colorScheme.secondary,
                                   onChanged: (newValue) async {
                                     if (newValue) {
                                       var status = await Permission.notification.status;
@@ -468,32 +488,12 @@ class _HomeScreenState extends State<HomeScreen> {
                             );
                           },
                         ),
-                        const Divider(height: 1, indent: 16, endIndent: 16),
-                        // ListTile(
-                        //   leading: const Icon(Icons.bug_report, color: Colors.orange),
-                        //   title: const Text("测试课前提醒 (Debug)"),
-                        //   subtitle: const Text("立即发送一条测试通知", style: TextStyle(fontSize: 12)),
-                        //   trailing: const Icon(Icons.chevron_right, size: 16, color: Colors.grey),
-                        //   onTap: () async {
-                        //     final notificationService = NotificationService();
-                        //     await notificationService.showNotification(
-                        //       title: "测试通知",
-                        //       body: "这是一条来自Debug按钮的测试课程提醒！",
-                        //       payload: "debug_test",
-                        //     );
-                        //     if (context.mounted) {
-                        //       ScaffoldMessenger.of(context).showSnackBar(
-                        //         const SnackBar(content: Text('测试通知已触发')),
-                        //       );
-                        //     }
-                        //   },
-                        // ),
                       ],
                     ),
                   ),
                   
                   const SizedBox(height: 24),
-                  const Text("关于", style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF409EFF))),
+                  Text("关于", style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: primaryColor)),
                   const SizedBox(height: 8),
                   Card(
                     elevation: 0,
@@ -502,7 +502,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: Column(
                       children: [
                         ListTile(
-                          leading: const Icon(Icons.update, color: Color(0xFF409EFF)),
+                          leading: Icon(Icons.update, color: primaryColor),
                           title: const Text("检查更新"),
                           trailing: const Icon(Icons.chevron_right, size: 16, color: Colors.grey),
                           onTap: () {
@@ -548,7 +548,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                         const Divider(height: 1, indent: 16, endIndent: 16),
                         ListTile(
-                          leading: const Icon(Icons.code, color: Color(0xFF409EFF)),
+                          leading: Icon(Icons.code, color: primaryColor),
                           title: const Text("开源仓库"),
                           subtitle: const Text("GitHub: Sdpei-CTCA/JWHelper", style: TextStyle(fontSize: 12)),
                           trailing: const Icon(Icons.open_in_new, size: 16, color: Colors.grey),
@@ -572,7 +572,8 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ],
         ),
-      ),
+        );
+      },
     );
   }
 
@@ -628,7 +629,7 @@ class _HomeScreenState extends State<HomeScreen> {
             onPressed: _showSettingsDialog,
           ),
           IconButton(
-            icon: const Icon(Icons.logout, color: Color(0xFF409EFF)),
+            icon: const Icon(Icons.logout),
             tooltip: "退出登录",
             onPressed: () async {
               final auth = Provider.of<AuthProvider>(context, listen: false);

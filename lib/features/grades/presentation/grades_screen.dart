@@ -195,13 +195,13 @@ class _GradesScreenState extends State<GradesScreen> {
                                 ],
                               ),
                               const SizedBox(height: 8),
-                              Row(
+                              Wrap(
+                                spacing: 12,
+                                runSpacing: 4,
                                 children: [
                                   _buildTag(
                                       Icons.calendar_today, grade.semester),
-                                  const SizedBox(width: 12),
                                   _buildTag(Icons.class_, "${grade.credit} 学分"),
-                                  const SizedBox(width: 12),
                                   _buildTag(Icons.grade, "绩点: ${grade.gpa}"),
                                 ],
                               ),

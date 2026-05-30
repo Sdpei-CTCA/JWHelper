@@ -112,6 +112,12 @@ class _WallpaperSettingsScreenState extends State<WallpaperSettingsScreen> {
                   _buildPreviewSection(context, wallpaperProvider),
                   const SizedBox(height: 24),
 
+                  // Pan control (only when wallpaper is set)
+                  if (wallpaperProvider.wallpaperPath != null) ...[
+                    _buildPanControlSection(context, wallpaperProvider),
+                    const SizedBox(height: 24),
+                  ],
+
                   // Card Transparency
                   _buildCardOpacitySection(context, wallpaperProvider),
                   const SizedBox(height: 24),
@@ -123,9 +129,13 @@ class _WallpaperSettingsScreenState extends State<WallpaperSettingsScreen> {
                   // Color Preview
                   _buildColorSection(context, wallpaperProvider),
                   const SizedBox(height: 24),
-                  
+
                   // Action Buttons
                   _buildActionButtons(context),
+                  const SizedBox(height: 24),
+
+                  // Default themes at the bottom
+                  _buildDefaultThemesSection(context, wallpaperProvider),
                 ],
               ),
             ),
@@ -139,6 +149,7 @@ class _WallpaperSettingsScreenState extends State<WallpaperSettingsScreen> {
         ? DecorationImage(
             image: FileImage(File(provider.wallpaperPath!)),
             fit: BoxFit.cover,
+            alignment: provider.wallpaperAlignment,
             onError: (_, __) {},
           )
         : null;
@@ -153,6 +164,63 @@ class _WallpaperSettingsScreenState extends State<WallpaperSettingsScreen> {
     final textColor = isDark ? Colors.white : Colors.black87;
     final subTextColor = isDark ? Colors.white70 : Colors.black54;
 
+    Widget sampleCard({
+      required Color bg,
+      required bool isList,
+    }) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: accent.withValues(alpha: 0.3)),
+        ),
+        child: Row(
+          children: [
+            if (isList) ...[
+              Container(
+                width: 2,
+                height: 24,
+                decoration: BoxDecoration(
+                  color: accent,
+                  borderRadius: BorderRadius.circular(1),
+                ),
+              ),
+              const SizedBox(width: 6),
+            ],
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text('高等数学',
+                      style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: textColor)),
+                  if (isList)
+                    Text('张老师 #A301',
+                        style: TextStyle(fontSize: 8, color: subTextColor)),
+                ],
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+              decoration: BoxDecoration(
+                color: accent.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(isList ? '1-2节' : '',
+                  style: TextStyle(
+                      fontSize: 8,
+                      fontWeight: FontWeight.bold,
+                      color: accent)),
+            ),
+          ],
+        ),
+      );
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -164,7 +232,7 @@ class _WallpaperSettingsScreenState extends State<WallpaperSettingsScreen> {
         ),
         const SizedBox(height: 12),
         Container(
-          height: 260,
+          height: 200,
           width: double.infinity,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
@@ -188,114 +256,59 @@ class _WallpaperSettingsScreenState extends State<WallpaperSettingsScreen> {
                 // ── Left: List mode ──────────────────────
                 Expanded(
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 12, 6, 12),
+                    padding: const EdgeInsets.fromLTRB(10, 10, 5, 10),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
                           children: [
-                            Icon(Icons.view_agenda, size: 14, color: accent),
-                            const SizedBox(width: 4),
-                            Text('列表模式',
+                            Icon(Icons.view_agenda, size: 12, color: accent),
+                            const SizedBox(width: 3),
+                            Text('列表',
                                 style: TextStyle(
-                                    fontSize: 11,
+                                    fontSize: 10,
                                     fontWeight: FontWeight.bold,
                                     color: accent)),
                             const Spacer(),
                             Text('${(provider.listCardOpacity * 100).toInt()}%',
                                 style: TextStyle(
-                                    fontSize: 10,
+                                    fontSize: 9,
                                     fontWeight: FontWeight.bold,
                                     color: accent)),
                           ],
                         ),
-                        const SizedBox(height: 8),
-                        // Simulated list card
+                        const SizedBox(height: 6),
                         Expanded(
-                          child: Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              color: listCardBg,
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                color: accent.withValues(alpha: 0.3),
-                              ),
-                            ),
-                            child: Row(
-                              children: [
-                                // Accent bar
-                                Container(
-                                  width: 3,
+                          child: Column(
+                            children: [
+                              Expanded(child: sampleCard(bg: listCardBg, isList: true)),
+                              const SizedBox(height: 4),
+                              Expanded(
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                                   decoration: BoxDecoration(
-                                    color: accent,
-                                    borderRadius: BorderRadius.circular(2),
+                                    color: (isDark ? const Color(0xFF252525) : Colors.grey[50]!)
+                                        .withValues(alpha: provider.listCardOpacity),
+                                    borderRadius: BorderRadius.circular(6),
+                                    border: Border.all(color: Colors.grey.withValues(alpha: 0.15)),
                                   ),
-                                ),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    mainAxisAlignment: MainAxisAlignment.center,
+                                  child: Row(
                                     children: [
-                                      Text('高等数学',
-                                          style: TextStyle(
-                                              fontSize: 13,
-                                              fontWeight: FontWeight.bold,
-                                              color: textColor)),
-                                      const SizedBox(height: 3),
-                                      Text('张老师 #A301 @1-16周',
-                                          style: TextStyle(
-                                              fontSize: 10, color: subTextColor)),
+                                      Container(
+                                        width: 2,
+                                        height: 24,
+                                        decoration: const BoxDecoration(
+                                          color: Colors.grey,
+                                          borderRadius: BorderRadius.all(Radius.circular(1)),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 6),
+                                      const Text('大学英语',
+                                          style: TextStyle(fontSize: 10, color: Colors.grey)),
                                     ],
                                   ),
                                 ),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 8, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: accent.withValues(alpha: 0.15),
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: Text('1-2节',
-                                      style: TextStyle(
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.bold,
-                                          color: accent)),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        // Second row - smaller
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 8),
-                          decoration: BoxDecoration(
-                            color: (isDark
-                                    ? const Color(0xFF252525)
-                                    : Colors.grey[50]!)
-                                .withValues(alpha: provider.listCardOpacity),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(
-                              color: Colors.grey.withValues(alpha: 0.15),
-                            ),
-                          ),
-                          child: Row(
-                            children: [
-                              Container(
-                                width: 3,
-                                height: 20,
-                                decoration: const BoxDecoration(
-                                  color: Colors.grey,
-                                  borderRadius: BorderRadius.all(Radius.circular(2)),
-                                ),
                               ),
-                              const SizedBox(width: 10),
-                              const Text('大学英语',
-                                  style: TextStyle(
-                                      fontSize: 11,
-                                      color: Colors.grey)),
                             ],
                           ),
                         ),
@@ -307,45 +320,48 @@ class _WallpaperSettingsScreenState extends State<WallpaperSettingsScreen> {
                 // Divider
                 Container(
                   width: 1,
-                  margin: const EdgeInsets.symmetric(vertical: 16),
+                  margin: const EdgeInsets.symmetric(vertical: 14),
                   color: Colors.grey.withValues(alpha: 0.2),
                 ),
 
                 // ── Right: Grid mode ─────────────────────
                 Expanded(
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(6, 12, 12, 12),
+                    padding: const EdgeInsets.fromLTRB(5, 10, 10, 10),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
                           children: [
-                            Icon(Icons.grid_view, size: 14, color: accent),
-                            const SizedBox(width: 4),
-                            Text('网格模式',
+                            Icon(Icons.grid_view, size: 12, color: accent),
+                            const SizedBox(width: 3),
+                            Text('网格',
                                 style: TextStyle(
-                                    fontSize: 11,
+                                    fontSize: 10,
                                     fontWeight: FontWeight.bold,
                                     color: accent)),
                             const Spacer(),
                             Text('${(provider.gridCardOpacity * 100).toInt()}%',
                                 style: TextStyle(
-                                    fontSize: 10,
+                                    fontSize: 9,
                                     fontWeight: FontWeight.bold,
                                     color: accent)),
                           ],
                         ),
-                        const SizedBox(height: 8),
-                        // Simulated grid
+                        const SizedBox(height: 6),
                         Expanded(
                           child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
                               // Time column
-                              Column(
-                                children: [
-                                  _gridCell('1', Colors.transparent, null, 0, isDark),
-                                  _gridCell('2', Colors.transparent, null, 0, isDark),
-                                ],
+                              SizedBox(
+                                width: 18,
+                                child: Column(
+                                  children: [
+                                    _gridCell('1', Colors.transparent, null, 0, isDark),
+                                    _gridCell('2', Colors.transparent, null, 0, isDark),
+                                  ],
+                                ),
                               ),
                               // Mon
                               Expanded(
@@ -638,6 +654,186 @@ class _WallpaperSettingsScreenState extends State<WallpaperSettingsScreen> {
     );
   }
 
+  Widget _buildPanControlSection(BuildContext context, WallpaperProvider provider) {
+    final theme = Theme.of(context);
+    final primary = provider.primaryColor;
+
+    Widget arrowBtn(IconData icon, VoidCallback onPressed) {
+      return Material(
+        color: primary.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(8),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(8),
+          onTap: onPressed,
+          child: SizedBox(
+            width: 44,
+            height: 44,
+            child: Icon(icon, color: primary, size: 20),
+          ),
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '壁纸位置',
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          '调整壁纸图片的显示位置',
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              arrowBtn(Icons.keyboard_arrow_up, () => provider.setPanY(provider.panY - 0.2)),
+              const SizedBox(height: 4),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  arrowBtn(Icons.keyboard_arrow_left, () => provider.setPanX(provider.panX - 0.2)),
+                  const SizedBox(width: 4),
+                  Material(
+                    color: primary.withValues(alpha: 0.05),
+                    borderRadius: BorderRadius.circular(8),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(8),
+                      onTap: () {
+                        provider.setPanX(0);
+                        provider.setPanY(0);
+                      },
+                      child: SizedBox(
+                        width: 44,
+                        height: 44,
+                        child: Icon(Icons.center_focus_strong, color: primary.withValues(alpha: 0.6), size: 18),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  arrowBtn(Icons.keyboard_arrow_right, () => provider.setPanX(provider.panX + 0.2)),
+                ],
+              ),
+              const SizedBox(height: 4),
+              arrowBtn(Icons.keyboard_arrow_down, () => provider.setPanY(provider.panY + 0.2)),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDefaultThemesSection(BuildContext context, WallpaperProvider provider) {
+    final theme = Theme.of(context);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '默认主题',
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          '选择一套预设配色，无需壁纸即可使用',
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: WallpaperProvider.defaultThemes.entries.map((entry) {
+            final key = entry.key;
+            final t = entry.value;
+            final color = t['color'] as Color;
+            final name = t['name'] as String;
+            final icon = t['icon'] as IconData;
+
+            return Material(
+              color: color.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(10),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(10),
+                onTap: () async {
+                  await provider.applyDefaultTheme(key);
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('已应用「$name」主题'),
+                        backgroundColor: color,
+                        duration: const Duration(seconds: 1),
+                      ),
+                    );
+                  }
+                },
+                child: Container(
+                  width: (MediaQuery.of(context).size.width - 32 - 30) / 3,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  child: Column(
+                    children: [
+                      Icon(icon, color: color, size: 28),
+                      const SizedBox(height: 6),
+                      Text(
+                        name,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: color,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+        // Restore wallpaper colors button
+        if (provider.hasExtractedColors) ...[
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () async {
+                await provider.restoreWallpaperColors();
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: const Text('已恢复壁纸原色'),
+                      backgroundColor: provider.primaryColor,
+                      duration: const Duration(seconds: 1),
+                    ),
+                  );
+                }
+              },
+              icon: Icon(Icons.restore, color: provider.primaryColor),
+              label: Text('使用壁纸原色',
+                  style: TextStyle(color: provider.primaryColor)),
+              style: OutlinedButton.styleFrom(
+                side: BorderSide(color: provider.primaryColor.withValues(alpha: 0.4)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
   Widget _buildColorChip(String label, Color color) {
     return Expanded(
       child: Container(
@@ -696,41 +892,7 @@ class _WallpaperSettingsScreenState extends State<WallpaperSettingsScreen> {
             ),
           ),
         ),
-        const SizedBox(height: 12),
-        SizedBox(
-          width: double.infinity,
-          height: 48,
-          child: OutlinedButton.icon(
-            onPressed: () {
-              // Use a default wallpaper
-              _showDefaultWallpaperDialog();
-            },
-            icon: const Icon(Icons.auto_awesome),
-            label: const Text('使用默认壁纸'),
-            style: OutlinedButton.styleFrom(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-          ),
-        ),
       ],
-    );
-  }
-
-  void _showDefaultWallpaperDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('默认壁纸'),
-        content: const Text('默认壁纸功能即将推出，敬请期待！'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('好的'),
-          ),
-        ],
-      ),
     );
   }
 }

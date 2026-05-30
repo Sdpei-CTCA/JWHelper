@@ -653,7 +653,7 @@ class _HomeScreenState extends State<HomeScreen> {
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,
         onDestinationSelected: (index) => setState(() => _currentIndex = index),
-        elevation: 2,
+        elevation: 0,
         destinations: const [
           NavigationDestination(
             icon: Icon(Icons.calendar_today_outlined),

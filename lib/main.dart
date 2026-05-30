@@ -32,7 +32,10 @@ class MyApp extends StatelessWidget {
       ],
       child: Consumer2<ThemeProvider, WallpaperProvider>(
         builder: (context, themeProvider, wallpaperProvider, child) {
-          final hasWallpaper = wallpaperProvider.wallpaperPath != null;
+          final lp = wallpaperProvider.lightPrimary;
+          final dp = wallpaperProvider.darkPrimary;
+          final sc = wallpaperProvider.secondaryColor;
+          final tc = wallpaperProvider.accentColor;
 
           return MaterialApp(
             title: '教务小助手',
@@ -41,40 +44,40 @@ class MyApp extends StatelessWidget {
             // ── Light theme ─────────────────────────────────────
             theme: ThemeData(
               colorScheme: ColorScheme.fromSeed(
-                seedColor: hasWallpaper ? wallpaperProvider.lightPrimary : const Color(0xFF409EFF),
-                primary: hasWallpaper ? wallpaperProvider.lightPrimary : const Color(0xFF409EFF),
-                secondary: hasWallpaper ? wallpaperProvider.secondaryColor : const Color(0xFF67C23A),
-                tertiary: hasWallpaper ? wallpaperProvider.accentColor : const Color(0xFFE6A23C),
-                surface: hasWallpaper ? wallpaperProvider.lightSurface : const Color(0xFFF5F7FA),
+                seedColor: lp,
+                primary: lp,
+                secondary: sc,
+                tertiary: tc,
+                surface: wallpaperProvider.lightSurface,
                 brightness: Brightness.light,
               ),
-              scaffoldBackgroundColor: hasWallpaper ? wallpaperProvider.lightSurface : const Color(0xFFF5F7FA),
+              scaffoldBackgroundColor: wallpaperProvider.lightSurface,
               appBarTheme: AppBarTheme(
-                backgroundColor: hasWallpaper ? wallpaperProvider.lightAppBar : Colors.white,
+                backgroundColor: wallpaperProvider.lightAppBar,
                 surfaceTintColor: Colors.transparent,
-                foregroundColor: hasWallpaper ? wallpaperProvider.lightPrimary : const Color(0xFF409EFF),
-                iconTheme: IconThemeData(color: hasWallpaper ? wallpaperProvider.lightPrimary : const Color(0xFF409EFF)),
-                actionsIconTheme: IconThemeData(color: hasWallpaper ? wallpaperProvider.lightPrimary : const Color(0xFF409EFF)),
+                foregroundColor: lp,
+                iconTheme: IconThemeData(color: lp),
+                actionsIconTheme: IconThemeData(color: lp),
                 titleTextStyle: TextStyle(
-                  color: hasWallpaper ? wallpaperProvider.lightPrimary : const Color(0xFF409EFF),
+                  color: lp,
                   fontWeight: FontWeight.bold,
                   fontSize: 18,
                 ),
               ),
               navigationBarTheme: NavigationBarThemeData(
-                backgroundColor: hasWallpaper ? wallpaperProvider.lightAppBar : Colors.white,
+                backgroundColor: wallpaperProvider.lightAppBar.withValues(alpha: 0.6),
                 surfaceTintColor: Colors.transparent,
-                indicatorColor: (hasWallpaper ? wallpaperProvider.lightPrimary : const Color(0xFF409EFF)).withValues(alpha: 0.15),
+                indicatorColor: lp.withValues(alpha: 0.15),
                 iconTheme: WidgetStateProperty.resolveWith((states) {
                   if (states.contains(WidgetState.selected)) {
-                    return IconThemeData(color: hasWallpaper ? wallpaperProvider.lightPrimary : const Color(0xFF409EFF));
+                    return IconThemeData(color: lp);
                   }
                   return const IconThemeData(color: Colors.grey);
                 }),
                 labelTextStyle: WidgetStateProperty.resolveWith((states) {
                   if (states.contains(WidgetState.selected)) {
                     return TextStyle(
-                      color: hasWallpaper ? wallpaperProvider.lightPrimary : const Color(0xFF409EFF),
+                      color: lp,
                       fontWeight: FontWeight.bold,
                       fontSize: 12,
                     );
@@ -83,11 +86,11 @@ class MyApp extends StatelessWidget {
                 }),
               ),
               cardTheme: CardThemeData(
-                color: hasWallpaper ? wallpaperProvider.lightCard : Colors.white,
+                color: wallpaperProvider.lightCard,
                 surfaceTintColor: Colors.transparent,
               ),
               floatingActionButtonTheme: FloatingActionButtonThemeData(
-                backgroundColor: hasWallpaper ? wallpaperProvider.lightPrimary : const Color(0xFF409EFF),
+                backgroundColor: lp,
                 foregroundColor: Colors.white,
               ),
               dividerColor: Colors.grey.withValues(alpha: 0.15),
@@ -98,40 +101,40 @@ class MyApp extends StatelessWidget {
             // ── Dark theme ──────────────────────────────────────
             darkTheme: ThemeData(
               colorScheme: ColorScheme.fromSeed(
-                seedColor: hasWallpaper ? wallpaperProvider.darkPrimary : const Color(0xFF409EFF),
-                primary: hasWallpaper ? wallpaperProvider.darkPrimary : const Color(0xFF409EFF),
-                secondary: hasWallpaper ? wallpaperProvider.secondaryColor : const Color(0xFF67C23A),
-                tertiary: hasWallpaper ? wallpaperProvider.accentColor : const Color(0xFFE6A23C),
-                surface: hasWallpaper ? wallpaperProvider.darkSurface : const Color(0xFF121212),
+                seedColor: dp,
+                primary: dp,
+                secondary: sc,
+                tertiary: tc,
+                surface: wallpaperProvider.darkSurface,
                 brightness: Brightness.dark,
               ),
-              scaffoldBackgroundColor: hasWallpaper ? wallpaperProvider.darkSurface : const Color(0xFF121212),
+              scaffoldBackgroundColor: wallpaperProvider.darkSurface,
               appBarTheme: AppBarTheme(
-                backgroundColor: hasWallpaper ? wallpaperProvider.darkAppBar : const Color(0xFF1E1E1E),
+                backgroundColor: wallpaperProvider.darkAppBar,
                 surfaceTintColor: Colors.transparent,
-                foregroundColor: hasWallpaper ? wallpaperProvider.darkPrimary : const Color(0xFF409EFF),
-                iconTheme: IconThemeData(color: hasWallpaper ? wallpaperProvider.darkPrimary : const Color(0xFF409EFF)),
-                actionsIconTheme: IconThemeData(color: hasWallpaper ? wallpaperProvider.darkPrimary : const Color(0xFF409EFF)),
+                foregroundColor: dp,
+                iconTheme: IconThemeData(color: dp),
+                actionsIconTheme: IconThemeData(color: dp),
                 titleTextStyle: TextStyle(
-                  color: hasWallpaper ? wallpaperProvider.darkPrimary : const Color(0xFF409EFF),
+                  color: dp,
                   fontWeight: FontWeight.bold,
                   fontSize: 18,
                 ),
               ),
               navigationBarTheme: NavigationBarThemeData(
-                backgroundColor: hasWallpaper ? wallpaperProvider.darkAppBar : const Color(0xFF1E1E1E),
+                backgroundColor: wallpaperProvider.darkAppBar.withValues(alpha: 0.6),
                 surfaceTintColor: Colors.transparent,
-                indicatorColor: (hasWallpaper ? wallpaperProvider.darkPrimary : const Color(0xFF409EFF)).withValues(alpha: 0.2),
+                indicatorColor: dp.withValues(alpha: 0.2),
                 iconTheme: WidgetStateProperty.resolveWith((states) {
                   if (states.contains(WidgetState.selected)) {
-                    return IconThemeData(color: hasWallpaper ? wallpaperProvider.darkPrimary : const Color(0xFF409EFF));
+                    return IconThemeData(color: dp);
                   }
                   return const IconThemeData(color: Colors.grey);
                 }),
                 labelTextStyle: WidgetStateProperty.resolveWith((states) {
                   if (states.contains(WidgetState.selected)) {
                     return TextStyle(
-                      color: hasWallpaper ? wallpaperProvider.darkPrimary : const Color(0xFF409EFF),
+                      color: dp,
                       fontWeight: FontWeight.bold,
                       fontSize: 12,
                     );
@@ -140,11 +143,11 @@ class MyApp extends StatelessWidget {
                 }),
               ),
               cardTheme: CardThemeData(
-                color: hasWallpaper ? wallpaperProvider.darkCard : const Color(0xFF1E1E1E),
+                color: wallpaperProvider.darkCard,
                 surfaceTintColor: Colors.transparent,
               ),
               floatingActionButtonTheme: FloatingActionButtonThemeData(
-                backgroundColor: hasWallpaper ? wallpaperProvider.darkPrimary : const Color(0xFF409EFF),
+                backgroundColor: dp,
                 foregroundColor: Colors.white,
               ),
               dividerColor: Colors.white.withValues(alpha: 0.08),

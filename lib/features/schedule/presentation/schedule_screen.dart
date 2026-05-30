@@ -50,6 +50,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
               child: Image.file(
                 File(wallpaperProvider.wallpaperPath!),
                 fit: BoxFit.cover,
+                alignment: wallpaperProvider.wallpaperAlignment,
                 errorBuilder: (context, error, stackTrace) {
                   return const SizedBox.shrink();
                 },

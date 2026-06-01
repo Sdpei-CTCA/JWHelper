@@ -504,33 +504,35 @@ class _HomeScreenState extends State<HomeScreen> {
                                   onChanged: (newValue) async {
                                     if (newValue) {
                                       var status = await Permission.notification.status;
+                                      // If not granted, try to request
                                       if (!status.isGranted) {
                                         status = await Permission.notification.request();
-                                        if (status.isPermanentlyDenied || !status.isGranted) {
-                                          if (context.mounted) {
-                                            showDialog(
-                                              context: context,
-                                              builder: (context) => AlertDialog(
-                                                title: const Text("需要通知权限"),
-                                                content: const Text("课前提醒功能需要通知权限。请在系统设置中允许通知。"),
-                                                actions: [
-                                                  TextButton(
-                                                    onPressed: () => Navigator.pop(context),
-                                                    child: const Text("取消"),
-                                                  ),
-                                                  TextButton(
-                                                    onPressed: () {
-                                                      openAppSettings();
-                                                      Navigator.pop(context);
-                                                    },
-                                                    child: const Text("去设置"),
-                                                  ),
-                                                ],
-                                              ),
-                                            );
-                                          }
-                                          return;
+                                      }
+                                      // If still not granted after request, prompt user to go to system settings
+                                      if (!status.isGranted && status.isPermanentlyDenied) {
+                                        if (context.mounted) {
+                                          showDialog(
+                                            context: context,
+                                            builder: (context) => AlertDialog(
+                                              title: const Text("需要通知权限"),
+                                              content: const Text("课前提醒功能需要通知权限。请在系统设置中允许通知。"),
+                                              actions: [
+                                                TextButton(
+                                                  onPressed: () => Navigator.pop(context),
+                                                  child: const Text("取消"),
+                                                ),
+                                                TextButton(
+                                                  onPressed: () {
+                                                    openAppSettings();
+                                                    Navigator.pop(context);
+                                                  },
+                                                  child: const Text("去设置"),
+                                                ),
+                                              ],
+                                            ),
+                                          );
                                         }
+                                        return;
                                       }
                                     }
                                     await NotificationService().setEnabled(newValue);

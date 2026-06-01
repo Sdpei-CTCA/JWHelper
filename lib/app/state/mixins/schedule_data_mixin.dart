@@ -6,6 +6,7 @@ extension ScheduleDataMixin on DataProvider {
   bool get scheduleLoaded => _scheduleLoaded;
   int get currentWeek => _currentWeek;
   int get daysUntilStart => _daysUntilStart;
+  String? get scheduleStartDay => _scheduleStartDay;
 
   Map<int, List<ScheduleItem>> get scheduleGroupedByDay {
     final Map<int, List<ScheduleItem>> grouped = {};
@@ -23,6 +24,28 @@ extension ScheduleDataMixin on DataProvider {
 
   String get _scheduleCacheKey => 'schedule_cache_$_username';
   String get _scheduleCacheTimeKey => 'schedule_cache_time_$_username';
+
+  /// Load schedule from cache synchronously (no loading spinner).
+  /// Call this in initState before the first frame.
+  Future<void> loadScheduleFromCache() async {
+    if (_scheduleLoaded || _username.isEmpty) return;
+    try {
+      final result = await ScheduleLoaderUsecase.execute(
+        service: _scheduleService,
+        username: _username,
+        forceRefresh: false,
+      );
+      if (result.schedule.isNotEmpty) {
+        _schedule = result.schedule;
+        if (result.startDay != null) {
+          _scheduleStartDay = result.startDay;
+          _calculateCurrentWeek(result.startDay!);
+        }
+        _scheduleLoaded = result.loaded;
+        notifyStateChanged();
+      }
+    } catch (_) {}
+  }
 
   Future<void> loadSchedule({bool forceRefresh = false}) async {
     if (_scheduleLoaded && !forceRefresh) return;
@@ -49,6 +72,7 @@ extension ScheduleDataMixin on DataProvider {
       String? startDayStr = result.startDay;
 
       if (startDayStr != null) {
+        _scheduleStartDay = startDayStr;
         _calculateCurrentWeek(startDayStr);
         // Trigger notification scheduling
         try {

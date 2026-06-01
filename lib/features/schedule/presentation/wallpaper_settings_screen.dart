@@ -19,9 +19,7 @@ class _WallpaperSettingsScreenState extends State<WallpaperSettingsScreen> {
     try {
       final XFile? image = await _picker.pickImage(
         source: ImageSource.gallery,
-        maxWidth: 1920,
-        maxHeight: 1080,
-        imageQuality: 85,
+        imageQuality: 100,
       );
 
       if (image != null && mounted) {

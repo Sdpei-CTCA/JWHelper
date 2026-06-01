@@ -7,7 +7,8 @@ import 'package:JWHelper/shared/theme/wallpaper_provider.dart';
 
 class ScheduleScreen extends StatefulWidget {
   final ValueNotifier<bool> isGridViewNotifier;
-  const ScheduleScreen({super.key, required this.isGridViewNotifier});
+  final ValueNotifier<int> selectedWeekNotifier;
+  const ScheduleScreen({super.key, required this.isGridViewNotifier, required this.selectedWeekNotifier});
 
   @override
   State<ScheduleScreen> createState() => _ScheduleScreenState();
@@ -76,7 +77,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                 );
               },
               child: isGrid 
-                ? const _WeekScheduleGridView(key: ValueKey('grid'))
+                ? _WeekScheduleGridView(key: const ValueKey('grid'), selectedWeekNotifier: widget.selectedWeekNotifier)
                 : DefaultTabController(
                     key: const ValueKey('list'),
                     length: 7,
@@ -91,15 +92,35 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                             labelColor: theme.colorScheme.primary,
                             unselectedLabelColor: Colors.grey,
                             indicatorColor: theme.colorScheme.primary,
-                            tabs: const [
-                              Tab(text: "周一"),
-                              Tab(text: "周二"),
-                              Tab(text: "周三"),
-                              Tab(text: "周四"),
-                              Tab(text: "周五"),
-                              Tab(text: "周六"),
-                              Tab(text: "周日"),
-                            ],
+                            tabs: List.generate(7, (index) {
+                              String dateStr = '';
+                              final dpStartDay = context.read<DataProvider>().scheduleStartDay;
+                              if (dpStartDay != null) {
+                                try {
+                                  final startDay = DateTime.parse(dpStartDay);
+                                  final currentWeek = context.read<DataProvider>().currentWeek;
+                                  final weekOffset = (currentWeek - 1) * 7;
+                                  final dayDate = startDay.add(Duration(days: weekOffset + index));
+                                  dateStr = '${dayDate.month}/${dayDate.day}';
+                                } catch (_) {}
+                              }
+                              return Tab(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Text(
+                                      ['周一', '周二', '周三', '周四', '周五', '周六', '周日'][index],
+                                      style: const TextStyle(fontSize: 13),
+                                    ),
+                                    if (dateStr.isNotEmpty)
+                                      Text(
+                                        dateStr,
+                                        style: const TextStyle(fontSize: 10),
+                                      ),
+                                  ],
+                                ),
+                              );
+                            }),
                           ),
                         ),
                         Expanded(
@@ -211,7 +232,7 @@ class _DayScheduleView extends StatelessWidget {
   }
 
   Widget _buildSectionHeader(BuildContext context, String title) {
-    final primaryColor = Theme.of(context).colorScheme.primary;
+    final primaryColor = Theme.of(context).colorScheme.tertiary;
     return Padding(
       padding: const EdgeInsets.only(bottom: 12, top: 4, left: 4),
       child: Row(
@@ -345,7 +366,7 @@ class _CourseGroupState extends State<_CourseGroup> {
       textColor = Colors.grey;
     } else {
       bgColor = isDark ? const Color(0xFF1E1E1E) : Colors.white;
-      accentColor = Theme.of(context).colorScheme.primary;
+      accentColor = Theme.of(context).colorScheme.tertiary;
       textColor = isDark ? Colors.white : Colors.black;
     }
 
@@ -397,7 +418,9 @@ class _CourseGroupState extends State<_CourseGroup> {
                   Text(
                     "${item.teacher} #${item.classroom}${item.weekStart > 0 && item.weekEnd > 0 ? ' @${item.weekStart}-${item.weekEnd}周' : ''}",
                     style: TextStyle(
-                        color: isFinished ? Colors.grey : Colors.grey[600]),
+                        color: isFinished
+                            ? (isDark ? Colors.grey[500] : Colors.grey)
+                            : (isDark ? Colors.white70 : Colors.grey[600])),
                   ),
                 ],
               ),
@@ -427,7 +450,8 @@ class _CourseGroupState extends State<_CourseGroup> {
 }
 
 class _WeekScheduleGridView extends StatefulWidget {
-  const _WeekScheduleGridView({super.key});
+  final ValueNotifier<int> selectedWeekNotifier;
+  const _WeekScheduleGridView({super.key, required this.selectedWeekNotifier});
 
   @override
   State<_WeekScheduleGridView> createState() => _WeekScheduleGridViewState();
@@ -435,7 +459,6 @@ class _WeekScheduleGridView extends StatefulWidget {
 
 class _WeekScheduleGridViewState extends State<_WeekScheduleGridView> {
   late PageController _pageController;
-  int _selectedWeek = 1;
   bool _initialized = false;
 
   final List<Color> _courseColors = [
@@ -483,15 +506,29 @@ class _WeekScheduleGridViewState extends State<_WeekScheduleGridView> {
     super.didChangeDependencies();
     if (!_initialized) {
       final currentWeek = context.read<DataProvider>().currentWeek;
-      _selectedWeek = currentWeek > 0 ? currentWeek : 1;
-      // Let's assume max 25 weeks. So initial page is selectedWeek - 1.
-      _pageController = PageController(initialPage: _selectedWeek - 1);
+      final initialWeek = currentWeek > 0 ? currentWeek : 1;
+      widget.selectedWeekNotifier.value = initialWeek;
+      _pageController = PageController(initialPage: initialWeek - 1);
+      // Listen to external week changes (from AppBar) and sync PageView
+      widget.selectedWeekNotifier.addListener(_onWeekChanged);
       _initialized = true;
+    }
+  }
+
+  void _onWeekChanged() {
+    final target = widget.selectedWeekNotifier.value - 1;
+    if (_pageController.hasClients && _pageController.page?.round() != target) {
+      _pageController.animateToPage(
+        target,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
     }
   }
 
   @override
   void dispose() {
+    widget.selectedWeekNotifier.removeListener(_onWeekChanged);
     _pageController.dispose();
     super.dispose();
   }
@@ -577,7 +614,7 @@ class _WeekScheduleGridViewState extends State<_WeekScheduleGridView> {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 20, color: Theme.of(context).colorScheme.primary),
+        Icon(icon, size: 20, color: Theme.of(context).colorScheme.tertiary),
         const SizedBox(width: 8),
         Expanded(child: Text(text, style: const TextStyle(fontSize: 14))),
       ],
@@ -590,6 +627,27 @@ class _WeekScheduleGridViewState extends State<_WeekScheduleGridView> {
     final schedule = dataProvider.schedule;
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    final wallpaperProvider = context.read<WallpaperProvider>();
+
+    // Compute effective background brightness accounting for wallpaper overlay
+    final bool effectiveIsDark;
+    if (wallpaperProvider.wallpaperPath != null) {
+      // Blend: overlay opacity = wallpaperProvider.opacity, rest is wallpaper (assume dark-ish)
+      final overlayLuminance = theme.scaffoldBackgroundColor.computeLuminance();
+      final wallpaperLuminance = wallpaperProvider.primaryColor.computeLuminance();
+      final effectiveLuminance = wallpaperLuminance * (1 - wallpaperProvider.opacity) + overlayLuminance * wallpaperProvider.opacity;
+      effectiveIsDark = effectiveLuminance < 0.5;
+    } else {
+      effectiveIsDark = isDark;
+    }
+
+    // Helper for adaptive text color
+    Color primaryTextColor({double lightAlpha = 1.0, double darkAlpha = 1.0}) =>
+        effectiveIsDark ? Colors.white.withValues(alpha: darkAlpha) : Colors.black.withValues(alpha: lightAlpha);
+    Color secondaryTextColor({double lightAlpha = 0.85, double darkAlpha = 0.7}) =>
+        effectiveIsDark ? Colors.white.withValues(alpha: darkAlpha) : Colors.black.withValues(alpha: lightAlpha);
+    Color tertiaryTextColor({double lightAlpha = 0.55, double darkAlpha = 0.5}) =>
+        effectiveIsDark ? Colors.white.withValues(alpha: darkAlpha) : Colors.black.withValues(alpha: lightAlpha);
 
     int maxPeriod = 12;
     for (var item in schedule) {
@@ -604,59 +662,56 @@ class _WeekScheduleGridViewState extends State<_WeekScheduleGridView> {
     const double cellHeight = 60.0;
     const List<String> weekDays = ['一', '二', '三', '四', '五', '六', '日'];
 
+    return ValueListenableBuilder<int>(
+      valueListenable: widget.selectedWeekNotifier,
+      builder: (context, selectedWeek, _) {
     return Column(
       children: [
-        // Week selector header
-        Container(
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          color: theme.cardTheme.color?.withValues(alpha: 0.9),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              IconButton(
-                icon: const Icon(Icons.chevron_left),
-                onPressed: () {
-                  if (_selectedWeek > 1) {
-                    _pageController.previousPage(duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
-                  }
-                },
-              ),
-              Text(
-                "第 $_selectedWeek 周",
-                style: TextStyle(
-                  fontSize: 16, 
-                  fontWeight: FontWeight.bold,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-              ),
-              IconButton(
-                icon: const Icon(Icons.chevron_right),
-                onPressed: () {
-                  if (_selectedWeek < 25) {
-                    _pageController.nextPage(duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
-                  }
-                },
-              ),
-            ],
-          ),
-        ),
-        
         // Header Days
         Row(
           children: [
             SizedBox(width: timeColumnWidth),
             ...List.generate(7, (index) {
-              final isToday = (DateTime.now().weekday - 1) == index && dataProvider.currentWeek == _selectedWeek;
+              final isToday = (DateTime.now().weekday - 1) == index && dataProvider.currentWeek == selectedWeek;
+              
+              // Calculate date for this weekday in the selected week
+              String dateStr = '';
+              final startDayStr = dataProvider.scheduleStartDay;
+              if (startDayStr != null) {
+                try {
+                  final startDay = DateTime.parse(startDayStr);
+                  final weekOffset = (selectedWeek - 1) * 7;
+                  final dayDate = startDay.add(Duration(days: weekOffset + index));
+                  dateStr = '${dayDate.month}/${dayDate.day}';
+                } catch (_) {}
+              }
+              
               return SizedBox(
                 width: dayCellWidth,
-                height: 40,
+                height: 56,
                 child: Center(
-                  child: Text(
-                    '周${weekDays[index]}',
-                    style: TextStyle(
-                      fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
-                      color: isToday ? Theme.of(context).colorScheme.primary : (isDark ? Colors.white70 : Colors.black87),
-                    ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        '周${weekDays[index]}',
+                        style: TextStyle(
+                          fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
+                          color: isToday ? Theme.of(context).colorScheme.primary : primaryTextColor(),
+                          fontSize: 13,
+                        ),
+                      ),
+                      if (dateStr.isNotEmpty)
+                        Text(
+                          dateStr,
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: isToday
+                                ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.8)
+                                : tertiaryTextColor(),
+                          ),
+                        ),
+                    ],
                   ),
                 ),
               );
@@ -667,144 +722,143 @@ class _WeekScheduleGridViewState extends State<_WeekScheduleGridView> {
         Expanded(
           child: PageView.builder(
             controller: _pageController,
-            itemCount: 25, // Assuming max 25 weeks
+            itemCount: 25,
             onPageChanged: (index) {
-              setState(() {
-                _selectedWeek = index + 1;
-              });
+              final newWeek = index + 1;
+              if (widget.selectedWeekNotifier.value != newWeek) {
+                widget.selectedWeekNotifier.value = newWeek;
+              }
             },
             itemBuilder: (context, pageIndex) {
-              final weekNumber = pageIndex + 1;
-              
-              // Filter schedule for this specific week
-              final weekSchedule = schedule.where((item) => 
-                weekNumber >= item.weekStart && weekNumber <= item.weekEnd
-              ).toList();
+                  final weekNumber = pageIndex + 1;
+                  final weekSchedule = schedule.where((item) => 
+                    weekNumber >= item.weekStart && weekNumber <= item.weekEnd
+                  ).toList();
 
-              return SingleChildScrollView(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Sidebar (Periods and Times)
-                    Column(
-                      children: List.generate(maxPeriod, (index) => SizedBox(
-                        width: timeColumnWidth,
-                        height: cellHeight,
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              '${index + 1}',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.bold,
-                                color: isDark ? Colors.white70 : Colors.black87,
-                              ),
+                  return SingleChildScrollView(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Sidebar (Periods and Times)
+                        Column(
+                          children: List.generate(maxPeriod, (index) => SizedBox(
+                            width: timeColumnWidth,
+                            height: cellHeight,
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  '${index + 1}',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.bold,
+                                    color: secondaryTextColor(),
+                                  ),
+                                ),
+                                Text(
+                                  _getTimeForPeriod(index + 1, dataProvider.campus),
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontSize: 9,
+                                    color: tertiaryTextColor(),
+                                    height: 1.1,
+                                  ),
+                                ),
+                              ],
                             ),
-                            Text(
-                              _getTimeForPeriod(index + 1, dataProvider.campus),
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontSize: 9,
-                                color: isDark ? Colors.white54 : Colors.black54,
-                                height: 1.1,
-                              ),
-                            ),
-                          ],
+                          )),
                         ),
-                      )),
-                    ),
-                    // Schedule Stack
-                    Expanded(
-                      child: SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: SizedBox(
-                          width: dayCellWidth * 7,
-                          height: cellHeight * maxPeriod,
-                          child: Stack(
-                            children: [
-                              // Background grid lines
-                              for (int i = 1; i < maxPeriod; i++)
-                                Positioned(
-                                  top: i * cellHeight,
-                                  left: 0,
-                                  right: 0,
-                                  child: Container(
-                                    height: 1,
-                                    color: isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.05),
-                                  ),
-                                ),
-                              for (int i = 1; i < 7; i++)
-                                Positioned(
-                                  top: 0,
-                                  bottom: 0,
-                                  left: i * dayCellWidth,
-                                  child: Container(
-                                    width: 1,
-                                    color: isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.05),
-                                  ),
-                                ),
-                              // Items
-                              ...weekSchedule.map((item) {
-                                Color bgColor = _getColorForCourse(item.name, isDark);
-                                Color textColor = Colors.white;
-                                final cardOpacity = context.read<WallpaperProvider>().gridCardOpacity;
-
-                                return Positioned(
-                                  left: item.dayIndex * dayCellWidth,
-                                  top: (item.startUnit - 1) * cellHeight,
-                                  width: dayCellWidth,
-                                  height: (item.endUnit - item.startUnit + 1) * cellHeight,
-                                  child: InkWell(
-                                    onTap: () => _showCourseDetails(context, item),
-                                    child: Container(
-                                      margin: const EdgeInsets.all(1),
-                                      decoration: BoxDecoration(
-                                        color: bgColor.withValues(alpha: cardOpacity),
-                                        borderRadius: BorderRadius.circular(4),
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color: Colors.black.withValues(alpha: 0.1),
-                                            blurRadius: 2,
-                                            offset: const Offset(0, 1),
-                                          )
-                                        ],
-                                      ),
-                                      padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            item.name,
-                                            style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: textColor),
-                                            maxLines: ((item.endUnit - item.startUnit + 1) * 2).toInt(),
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                          const SizedBox(height: 2),
-                                          Text(
-                                            "@${item.classroom}",
-                                            style: TextStyle(fontSize: 9, color: textColor),
-                                            maxLines: 2,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                        ],
+                        // Schedule Stack
+                        Expanded(
+                          child: SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: SizedBox(
+                              width: dayCellWidth * 7,
+                              height: cellHeight * maxPeriod,
+                              child: Stack(
+                                children: [
+                                  for (int i = 1; i < maxPeriod; i++)
+                                    Positioned(
+                                      top: i * cellHeight,
+                                      left: 0,
+                                      right: 0,
+                                      child: Container(
+                                        height: 1,
+                                        color: effectiveIsDark ? Colors.white10 : Colors.black.withValues(alpha: 0.05),
                                       ),
                                     ),
-                                  ),
-                                );
-                              }), // End of map
-                            ],
+                                  for (int i = 1; i < 7; i++)
+                                    Positioned(
+                                      top: 0,
+                                      bottom: 0,
+                                      left: i * dayCellWidth,
+                                      child: Container(
+                                        width: 1,
+                                        color: effectiveIsDark ? Colors.white10 : Colors.black.withValues(alpha: 0.05),
+                                      ),
+                                    ),
+                                  ...weekSchedule.map((item) {
+                                    Color bgColor = _getColorForCourse(item.name, isDark);
+                                    Color textColor = Colors.white;
+                                    final cardOpacity = context.read<WallpaperProvider>().gridCardOpacity;
+
+                                    return Positioned(
+                                      left: item.dayIndex * dayCellWidth,
+                                      top: (item.startUnit - 1) * cellHeight,
+                                      width: dayCellWidth,
+                                      height: (item.endUnit - item.startUnit + 1) * cellHeight,
+                                      child: InkWell(
+                                        onTap: () => _showCourseDetails(context, item),
+                                        child: Container(
+                                          margin: const EdgeInsets.all(1),
+                                          decoration: BoxDecoration(
+                                            color: bgColor.withValues(alpha: cardOpacity),
+                                            borderRadius: BorderRadius.circular(4),
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: Colors.black.withValues(alpha: 0.1),
+                                                blurRadius: 2,
+                                                offset: const Offset(0, 1),
+                                              )
+                                            ],
+                                          ),
+                                          padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                item.name,
+                                                style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: textColor),
+                                                maxLines: ((item.endUnit - item.startUnit + 1) * 2).toInt(),
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                              const SizedBox(height: 2),
+                                              Text(
+                                                "@${item.classroom}",
+                                                style: TextStyle(fontSize: 9, color: textColor),
+                                                maxLines: 2,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                  }),
+                                ],
+                              ),
+                            ),
                           ),
                         ),
-                      ),
+                      ],
                     ),
-                  ],
-                ),
-              );
-            },
-          ),
+                  );
+                },
+              ),
         ),
       ],
+    );
+    },
     );
   }
 }

@@ -10,8 +10,8 @@ class WallpaperProvider with ChangeNotifier {
   double _gridCardOpacity = 1.0;
   double _panX = 0.0; // -1.0 ~ 1.0, left/right
   double _panY = 0.0; // -1.0 ~ 1.0, up/down
-  Color _primaryColor = const Color(0xFF409EFF);
-  Color _secondaryColor = const Color(0xFF67C23A);
+  Color _primaryColor = const Color(0xFF67C23A);
+  Color _secondaryColor = const Color(0xFF409EFF);
   Color _accentColor = const Color(0xFFE6A23C);
   bool _isLoaded = false;
 
@@ -238,14 +238,16 @@ class WallpaperProvider with ChangeNotifier {
           maximumColorCount: 20,
         );
 
-      // Extract dominant colors
-      if (paletteGenerator.dominantColor != null) {
+      // Extract dominant colors - swap primary/secondary for better UI fit
+      if (paletteGenerator.vibrantColor != null) {
+        _primaryColor = paletteGenerator.vibrantColor!.color;
+      } else if (paletteGenerator.lightVibrantColor != null) {
+        _primaryColor = paletteGenerator.lightVibrantColor!.color;
+      } else if (paletteGenerator.dominantColor != null) {
         _primaryColor = paletteGenerator.dominantColor!.color;
       }
-      if (paletteGenerator.vibrantColor != null) {
-        _secondaryColor = paletteGenerator.vibrantColor!.color;
-      } else if (paletteGenerator.lightVibrantColor != null) {
-        _secondaryColor = paletteGenerator.lightVibrantColor!.color;
+      if (paletteGenerator.dominantColor != null) {
+        _secondaryColor = paletteGenerator.dominantColor!.color;
       }
       if (paletteGenerator.darkVibrantColor != null) {
         _accentColor = paletteGenerator.darkVibrantColor!.color;
@@ -367,8 +369,8 @@ class WallpaperProvider with ChangeNotifier {
     _gridCardOpacity = 1.0;
     _panX = 0.0;
     _panY = 0.0;
-    _primaryColor = const Color(0xFF409EFF);
-    _secondaryColor = const Color(0xFF67C23A);
+    _primaryColor = const Color(0xFF67C23A);
+    _secondaryColor = const Color(0xFF409EFF);
     _accentColor = const Color(0xFFE6A23C);
     _extractedPrimary = null;
     _extractedSecondary = null;

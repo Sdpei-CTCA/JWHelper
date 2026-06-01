@@ -17,6 +17,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
   final _captchaController = TextEditingController();
+  bool _autoLoginChecking = true;
 
   @override
   void initState() {
@@ -26,10 +27,13 @@ class _LoginScreenState extends State<LoginScreen> {
       auth.init().then((error) async {
         if (mounted) {
           if (auth.isLoggedIn) {
+            // Navigate directly without showing login form
             Navigator.of(context).pushReplacement(
               MaterialPageRoute(builder: (_) => const HomeScreen()),
             );
           } else {
+            // Auto-login failed, show login form
+            setState(() => _autoLoginChecking = false);
             if (error != null) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
@@ -126,6 +130,26 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget build(BuildContext context) {
     final auth = Provider.of<AuthProvider>(context);
     final theme = Theme.of(context);
+
+    if (_autoLoginChecking) {
+      return Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.school_rounded, size: 80, color: theme.colorScheme.primary),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: 24, height: 24,
+                child: CircularProgressIndicator(strokeWidth: 2.5, color: theme.colorScheme.primary),
+              ),
+              const SizedBox(height: 16),
+              Text("正在自动登录...", style: TextStyle(color: theme.colorScheme.onSurface.withValues(alpha: 0.6))),
+            ],
+          ),
+        ),
+      );
+    }
 
     return Scaffold(
       body: Center(

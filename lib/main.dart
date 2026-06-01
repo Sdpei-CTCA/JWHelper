@@ -1,16 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:JWHelper/features/auth/presentation/auth_provider.dart';
 import 'package:JWHelper/app/state/data_provider.dart';
 import 'package:JWHelper/shared/theme/theme_provider.dart';
 import 'package:JWHelper/shared/theme/wallpaper_provider.dart';
-import 'package:JWHelper/features/auth/presentation/login_screen.dart';
+import 'package:JWHelper/app/presentation/home_screen.dart';
 import 'package:JWHelper/infrastructure/platform/widget_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await WidgetService.init();
+  // Pre-warm SharedPreferences so it's ready when HomeScreen reads cache
+  SharedPreferences.getInstance();
+  // WidgetService.init() runs in background, doesn't block app launch
+  WidgetService.init();
   runApp(const MyApp());
 }
 
@@ -154,7 +158,7 @@ class MyApp extends StatelessWidget {
               useMaterial3: true,
               textTheme: GoogleFonts.notoSansTextTheme(ThemeData.dark().textTheme),
             ),
-            home: const LoginScreen(),
+            home: const HomeScreen(),
             debugShowCheckedModeBanner: false,
           );
         },

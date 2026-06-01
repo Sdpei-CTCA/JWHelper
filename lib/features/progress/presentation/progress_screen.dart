@@ -96,7 +96,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
           if (progressInfo.isNotEmpty)
             Card(
               elevation: 0,
-              color: const Color(0xFF409EFF),
+              color: theme.colorScheme.primary,
               margin: const EdgeInsets.only(bottom: 24),
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12)),

@@ -32,18 +32,41 @@ class AuthProvider with ChangeNotifier {
   String get currentUsername => _currentUsername;
   bool get isOfflineMode => _isOfflineMode;
 
-  Future<String?> init() async {
+  /// Load saved user info without initializing API client (fast).
+  /// Used for immediate cache loading on startup.
+  Future<void> loadSavedPreferences() async {
+    await _loadPreferences();
+    if (_savedUsername.isNotEmpty) {
+      _currentUsername = _savedUsername;
+    }
+  }
+
+  /// Load saved user info and initialize API client.
+  /// Call this before making network requests.
+  Future<void> initSavedUser() async {
     await ApiClient().init();
     await _loadPreferences();
-    if (_autoLogin && _savedUsername.isNotEmpty) {
-      var autoLoginPassword = await getSavedPasswordForPrefill();
-      if (autoLoginPassword.isNotEmpty) {
-        final loginError = await login(_savedUsername, autoLoginPassword);
-        autoLoginPassword = "";
-        return loginError;
-      }
+    if (_savedUsername.isNotEmpty) {
+      _currentUsername = _savedUsername;
+    }
+  }
+
+  /// Try auto-login in background. Returns error string or null.
+  Future<String?> performAutoLogin() async {
+    if (!_autoLogin || _savedUsername.isEmpty) return null;
+    var autoLoginPassword = await getSavedPasswordForPrefill();
+    if (autoLoginPassword.isNotEmpty) {
+      final loginError = await login(_savedUsername, autoLoginPassword);
+      autoLoginPassword = "";
+      return loginError;
     }
     return null;
+  }
+
+  /// Legacy init kept for LoginScreen compatibility.
+  Future<String?> init() async {
+    await initSavedUser();
+    return performAutoLogin();
   }
 
   Future<void> _loadPreferences() async {

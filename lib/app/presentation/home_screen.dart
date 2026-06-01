@@ -32,9 +32,14 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
   final ValueNotifier<bool> _isGridSchedule = ValueNotifier(false);
+  final ValueNotifier<int> _selectedWeek = ValueNotifier(1);
   final UpdateService _updateService = UpdateService();
   bool _isEvaluationDialogShowing = false;
   StreamSubscription? _sub;
+
+  // Auto-login state
+  bool _isAutoLoggingIn = false;
+  String? _loginError;
 
   late final List<Widget> _pages;
 
@@ -43,7 +48,7 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     _initScheduleViewMode();
     _pages = [
-      ScheduleScreen(isGridViewNotifier: _isGridSchedule),
+      ScheduleScreen(isGridViewNotifier: _isGridSchedule, selectedWeekNotifier: _selectedWeek),
       const ExamScreen(),
       const GradesScreen(),
       const ProgressScreen(),
@@ -59,14 +64,62 @@ class _HomeScreenState extends State<HomeScreen> {
     final data = context.read<DataProvider>();
     data.addListener(_onDataChanged);
 
-    // Initial check
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _onDataChanged();
-      _checkWidgetLaunch();
-      _checkCampusSetting();
-    });
+    // Load cache synchronously before first frame (no network, no ApiClient)
+    _loadCacheOnly();
 
     _sub = HomeWidget.widgetClicked.listen(_handleWidgetClick);
+  }
+
+  /// Synchronous-ish cache load: just read SharedPreferences, no network.
+  void _loadCacheOnly() {
+    SharedPreferences.getInstance().then((prefs) {
+      final username = prefs.getString('username') ?? '';
+      if (username.isNotEmpty && mounted) {
+        final data = context.read<DataProvider>();
+        data.setUsernameDirectly(username);
+        data.loadScheduleFromCache();
+        data.loadGrades();
+        data.loadProgress();
+      }
+      // Now do the full async init in background
+      _initApp();
+    });
+  }
+
+  Future<void> _initApp() async {
+    final auth = context.read<AuthProvider>();
+    final data = context.read<DataProvider>();
+
+    // Fast: just load saved prefs (no ApiClient init yet)
+    await auth.loadSavedPreferences();
+    if (!mounted) return;
+
+    _onDataChanged();
+    _checkWidgetLaunch();
+
+    // Try auto-login in background (this will init ApiClient when needed)
+    final prefs = await SharedPreferences.getInstance();
+    final hasSavedUser = prefs.getBool('auto_login') ?? false;
+    final savedUsername = prefs.getString('username') ?? '';
+
+    if (hasSavedUser && savedUsername.isNotEmpty) {
+      setState(() => _isAutoLoggingIn = true);
+      final error = await auth.performAutoLogin();
+      if (mounted) {
+        setState(() {
+          _isAutoLoggingIn = false;
+          _loginError = error;
+        });
+        if (error == null && auth.isLoggedIn) {
+          data.prepareOnlineLoginData();
+        }
+      }
+    }
+
+    // Full schedule load (may fetch from network if cache is stale)
+    data.loadSchedule();
+
+    if (mounted) _checkCampusSetting();
   }
 
   void _initScheduleViewMode() async {
@@ -554,7 +607,47 @@ class _HomeScreenState extends State<HomeScreen> {
                           trailing: const Icon(Icons.open_in_new, size: 16, color: Colors.grey),
                           onTap: () => launchUrl(Uri.parse("https://github.com/Sdpei-CTCA/JWHelper")),
                         ),
+                        const Divider(height: 1, indent: 16, endIndent: 16),
+                        ListTile(
+                          leading: Icon(Icons.feedback, color: primaryColor),
+                          title: const Text("反馈与交流"),
+                          subtitle: const Text("加入QQ群反馈问题", style: TextStyle(fontSize: 12)),
+                          trailing: const Icon(Icons.chevron_right, size: 16, color: Colors.grey),
+                          onTap: () => launchUrl(Uri.parse("https://qm.qq.com/q/YOwkJmn3gc")),
+                        ),
                       ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  // Logout Button
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: OutlinedButton.icon(
+                      onPressed: () async {
+                        Navigator.pop(context); // Close settings first
+                        final auth = Provider.of<AuthProvider>(context, listen: false);
+                        final data = Provider.of<DataProvider>(context, listen: false);
+                        await LogoutCoordinator.execute(
+                          logoutAuth: auth.logout,
+                          clearData: data.clearAll,
+                        );
+                        if (context.mounted) {
+                          Navigator.of(context).pushReplacement(
+                            MaterialPageRoute(builder: (_) => const LoginScreen()),
+                          );
+                        }
+                      },
+                      icon: const Icon(Icons.logout, color: Colors.red),
+                      label: const Text('退出登录', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: Colors.red, width: 1.5),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
                     ),
                   ),
 
@@ -614,6 +707,52 @@ class _HomeScreenState extends State<HomeScreen> {
             ValueListenableBuilder<bool>(
               valueListenable: _isGridSchedule,
               builder: (context, isGrid, child) {
+                if (isGrid) {
+                  return ValueListenableBuilder<int>(
+                    valueListenable: _selectedWeek,
+                    builder: (context, week, _) {
+                      final primary = Theme.of(context).colorScheme.primary;
+                      return Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.chevron_left, size: 20),
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                            onPressed: week > 1
+                                ? () => _selectedWeek.value = week - 1
+                                : null,
+                          ),
+                          Text(
+                            '第$week周',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: primary,
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.chevron_right, size: 20),
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                            onPressed: week < 25
+                                ? () => _selectedWeek.value = week + 1
+                                : null,
+                          ),
+                          IconButton(
+                            icon: Icon(isGrid ? Icons.view_agenda : Icons.view_headline, size: 20),
+                            tooltip: "切换视图",
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                            onPressed: () {
+                              _isGridSchedule.value = !isGrid;
+                            },
+                          ),
+                        ],
+                      );
+                    },
+                  );
+                }
                 return IconButton(
                   icon: Icon(isGrid ? Icons.view_agenda : Icons.view_headline),
                   tooltip: "切换视图",
@@ -628,28 +767,159 @@ class _HomeScreenState extends State<HomeScreen> {
             tooltip: "设置",
             onPressed: _showSettingsDialog,
           ),
-          IconButton(
-            icon: const Icon(Icons.logout),
-            tooltip: "退出登录",
-            onPressed: () async {
-              final auth = Provider.of<AuthProvider>(context, listen: false);
-              final data = Provider.of<DataProvider>(context, listen: false);
-
-              await LogoutCoordinator.execute(
-                logoutAuth: auth.logout,
-                clearData: data.clearAll,
+        ],
+      ),
+      body: Stack(
+        children: [
+          _pages[_currentIndex],
+          // Floating login status pill (bottom center)
+          if (_isAutoLoggingIn)
+            Positioned(
+              bottom: 24,
+              left: 0, right: 0,
+              child: Center(
+                child: TweenAnimationBuilder<double>(
+                  tween: Tween(begin: 0.0, end: 1.0),
+                  duration: const Duration(milliseconds: 400),
+                  curve: Curves.easeOutBack,
+                  builder: (context, value, child) => Opacity(
+                    opacity: value.clamp(0.0, 1.0),
+                    child: Transform.translate(
+                      offset: Offset(0, 20 * (1 - value)),
+                      child: child,
+                    ),
+                  ),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.9),
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.1),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        SizedBox(
+                          width: 14, height: 14,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Theme.of(context).colorScheme.primary),
+                        ),
+                        const SizedBox(width: 8),
+                        Text('正在自动登录...', style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.primary)),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            )
+          else if (_loginError != null && !context.read<AuthProvider>().isLoggedIn)
+            Positioned(
+              bottom: 24,
+              left: 0, right: 0,
+              child: Center(
+                child: TweenAnimationBuilder<double>(
+                  tween: Tween(begin: 0.0, end: 1.0),
+                  duration: const Duration(milliseconds: 400),
+                  curve: Curves.easeOutBack,
+                  builder: (context, value, child) => Opacity(
+                    opacity: value.clamp(0.0, 1.0),
+                    child: Transform.translate(
+                      offset: Offset(0, 20 * (1 - value)),
+                      child: child,
+                    ),
+                  ),
+                  child: GestureDetector(
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const LoginScreen()),
+                      );
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.08),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.warning_amber_rounded, size: 14, color: Colors.orange),
+                          const SizedBox(width: 6),
+                          Text('登录失败 · 点击重试', style: TextStyle(fontSize: 12, color: Colors.orange.shade800)),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          // Floating update pill (bottom center, above login pill if both visible)
+          ValueListenableBuilder<UpdateUiState>(
+            valueListenable: _updateService.updateState,
+            builder: (context, state, _) {
+              if (!state.hasUpdate) return const SizedBox.shrink();
+              return Positioned(
+                bottom: _isAutoLoggingIn || (_loginError != null && !context.read<AuthProvider>().isLoggedIn) ? 64 : 24,
+                left: 0, right: 0,
+                child: Center(
+                  child: TweenAnimationBuilder<double>(
+                    tween: Tween(begin: 0.0, end: 1.0),
+                    duration: const Duration(milliseconds: 400),
+                    curve: Curves.easeOutBack,
+                    builder: (context, value, child) => Opacity(
+                      opacity: value.clamp(0.0, 1.0),
+                      child: Transform.translate(
+                        offset: Offset(0, 20 * (1 - value)),
+                        child: child,
+                      ),
+                    ),
+                    child: GestureDetector(
+                      onTap: () => _showSettingsDialog(),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.tertiary.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.08),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.system_update, size: 14, color: Theme.of(context).colorScheme.tertiary),
+                            const SizedBox(width: 6),
+                            Text('发现新版本 v${state.latestVersion ?? ''}',
+                                style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.tertiary, fontWeight: FontWeight.w600)),
+                            const SizedBox(width: 6),
+                            Icon(Icons.chevron_right, size: 14, color: Theme.of(context).colorScheme.tertiary),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
               );
-
-              if (context.mounted) {
-                Navigator.of(context).pushReplacement(
-                  MaterialPageRoute(builder: (_) => const LoginScreen()),
-                );
-              }
             },
           ),
         ],
       ),
-      body: _pages[_currentIndex],
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,
         onDestinationSelected: (index) => setState(() => _currentIndex = index),

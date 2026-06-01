@@ -39,6 +39,7 @@ class DataProvider with ChangeNotifier {
   bool _scheduleLoaded = false;
   int _currentWeek = 1;
   int _daysUntilStart = 0;
+  String? _scheduleStartDay;
 
   List<ProgressGroup> _progressGroups = [];
   List<ProgressInfo> _progressInfo = [];
@@ -61,6 +62,14 @@ class DataProvider with ChangeNotifier {
   String _username = '';
   String _campus = '济南';
   String get campus => _campus;
+
+  /// Set username directly from SharedPreferences (no AuthProvider dependency).
+  /// Used for fast cache loading before AuthProvider initializes.
+  void setUsernameDirectly(String username) {
+    if (_username != username) {
+      _username = username;
+    }
+  }
 
   void notifyStateChanged() {
     notifyListeners();
@@ -139,6 +148,7 @@ class DataProvider with ChangeNotifier {
     _gradesLoaded = false;
     _schedule = [];
     _scheduleLoaded = false;
+    _scheduleStartDay = null;
     _progressGroups = [];
     _progressInfo = [];
     _progressLoaded = false;

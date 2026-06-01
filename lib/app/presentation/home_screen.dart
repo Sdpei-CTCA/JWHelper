@@ -114,6 +114,14 @@ class _HomeScreenState extends State<HomeScreen> {
           data.prepareOnlineLoginData();
         }
       }
+    } else if (!auth.isLoggedIn) {
+      // No saved user (first launch or logged out) — go to login screen
+      if (mounted) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const LoginScreen()),
+        );
+        return;
+      }
     }
 
     // Full schedule load (may fetch from network if cache is stale)

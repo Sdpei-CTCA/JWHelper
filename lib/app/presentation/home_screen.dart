@@ -158,8 +158,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     RadioGroup<String>(
                       groupValue: selectedCampus,
                       onChanged: (value) => setState(() => selectedCampus = value!),
-                      child: Column(
-                        children: const [
+                      child: const Column(
+                        children:  [
                           RadioListTile<String>(
                             title: Text('济南校区'),
                             value: '济南',

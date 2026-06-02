@@ -68,4 +68,7 @@ flutter {
 
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+    implementation("androidx.work:work-runtime-ktx:2.8.1") {
+        because("统一 work-runtime 版本，避免与 glance-appwidget 传递的 2.7.1 冲突")
+    }
 }

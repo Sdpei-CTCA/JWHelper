@@ -8,7 +8,8 @@ class WallpaperSettingsScreen extends StatefulWidget {
   const WallpaperSettingsScreen({super.key});
 
   @override
-  State<WallpaperSettingsScreen> createState() => _WallpaperSettingsScreenState();
+  State<WallpaperSettingsScreen> createState() =>
+      _WallpaperSettingsScreenState();
 }
 
 class _WallpaperSettingsScreenState extends State<WallpaperSettingsScreen> {
@@ -24,10 +25,10 @@ class _WallpaperSettingsScreenState extends State<WallpaperSettingsScreen> {
 
       if (image != null && mounted) {
         setState(() => _isLoading = true);
-        
+
         final wallpaperProvider = context.read<WallpaperProvider>();
         await wallpaperProvider.setWallpaper(image.path);
-        
+
         if (mounted) {
           setState(() => _isLoading = false);
           ScaffoldMessenger.of(context).showSnackBar(
@@ -123,7 +124,7 @@ class _WallpaperSettingsScreenState extends State<WallpaperSettingsScreen> {
                   // Wallpaper Opacity Slider
                   _buildOpacitySection(context, wallpaperProvider),
                   const SizedBox(height: 24),
-                  
+
                   // Color Preview
                   _buildColorSection(context, wallpaperProvider),
                   const SizedBox(height: 24),
@@ -140,9 +141,16 @@ class _WallpaperSettingsScreenState extends State<WallpaperSettingsScreen> {
     );
   }
 
-  Widget _buildPreviewSection(BuildContext context, WallpaperProvider provider) {
+  Widget _buildPreviewSection(
+      BuildContext context, WallpaperProvider provider) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    final screenWidth = MediaQuery.of(context).size.width;
+    // Each phone frame width: (screen - padding 32 - gap 12) / 2, capped
+    final frameWidth = ((screenWidth - 32 - 12) / 2).clamp(140.0, 200.0);
+    // Phone aspect ratio ~19.5:9
+    final frameHeight = frameWidth * (19.5 / 9);
+
     final bgImage = provider.wallpaperPath != null
         ? DecorationImage(
             image: FileImage(File(provider.wallpaperPath!)),
@@ -161,61 +169,381 @@ class _WallpaperSettingsScreenState extends State<WallpaperSettingsScreen> {
     final accent = provider.primaryColor;
     final textColor = isDark ? Colors.white : Colors.black87;
     final subTextColor = isDark ? Colors.white70 : Colors.black54;
+    final tabBg = isDark ? const Color(0xFF1A1A1A) : Colors.white;
+    final appBarBg = isDark ? const Color(0xFF252525) : Colors.white;
+    final dividerColor = Colors.grey.withValues(alpha: 0.15);
 
-    Widget sampleCard({
-      required Color bg,
-      required bool isList,
-    }) {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-        decoration: BoxDecoration(
-          color: bg,
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: accent.withValues(alpha: 0.3)),
-        ),
-        child: Row(
-          children: [
-            if (isList) ...[
-              Container(
-                width: 2,
-                height: 24,
-                decoration: BoxDecoration(
-                  color: accent,
-                  borderRadius: BorderRadius.circular(1),
-                ),
-              ),
-              const SizedBox(width: 6),
-            ],
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text('高等数学',
-                      style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                          color: textColor)),
-                  if (isList)
-                    Text('张老师 #A301',
-                        style: TextStyle(fontSize: 8, color: subTextColor)),
-                ],
-              ),
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-              decoration: BoxDecoration(
-                color: accent.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(isList ? '1-2节' : '',
+    Widget phoneShell(
+        {required String label,
+        required IconData icon,
+        required Widget child}) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Label above the frame
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 14, color: accent),
+              const SizedBox(width: 4),
+              Text(label,
                   style: TextStyle(
-                      fontSize: 8,
-                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
                       color: accent)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          // Phone frame
+          Container(
+            width: frameWidth,
+            height: frameHeight,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                  color: isDark
+                      ? Colors.white.withValues(alpha: 0.12)
+                      : Colors.black.withValues(alpha: 0.1),
+                  width: 1.5),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.1),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
             ),
-          ],
-        ),
+            clipBehavior: Clip.antiAlias,
+            child: Stack(
+              children: [
+                // Wallpaper layer
+                Positioned.fill(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      image: bgImage,
+                      color: bgImage == null
+                          ? (theme.cardTheme.color ?? theme.cardColor)
+                          : null,
+                    ),
+                    child: Container(
+                      decoration: BoxDecoration(color: overlayColor),
+                    ),
+                  ),
+                ),
+                // Content
+                Positioned.fill(child: child),
+                // Status bar
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  child: Container(
+                    padding: const EdgeInsets.fromLTRB(10, 6, 10, 4),
+                    decoration: BoxDecoration(
+                      color: appBarBg.withValues(alpha: 0.85),
+                    ),
+                    child: Text(
+                      '第1周 · 周一',
+                      style: TextStyle(
+                        fontSize: 8,
+                        fontWeight: FontWeight.w600,
+                        color: textColor,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
+
+    // ── List layout phone content ──
+    Widget listContent() {
+      final mockCourses = [
+        _MockCourse('高等数学', '张老师', 'A301', '1-2节', accent),
+        _MockCourse('大学英语', '李老师', 'B205', '3-4节', accent),
+        _MockCourse('数据结构', '王老师', 'C102', '5-6节', accent),
+        _MockCourse('', '', '', '', Colors.grey), // empty placeholder
+        _MockCourse('体育', '', '操场', '9-10节', accent),
+      ];
+
+      return Column(
+        children: [
+          // App bar space
+          const SizedBox(height: 26),
+          // Tab bar mock (周一~周日)
+          Container(
+            height: 24,
+            color: tabBg.withValues(alpha: 0.9),
+            child: Row(
+              children: List.generate(7, (i) {
+                final days = ['一', '二', '三', '四', '五', '六', '日'];
+                final isSelected = i == 0;
+                return Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        days[i],
+                        style: TextStyle(
+                          fontSize: 7,
+                          fontWeight:
+                              isSelected ? FontWeight.bold : FontWeight.normal,
+                          color: isSelected ? accent : subTextColor,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      if (isSelected)
+                        Container(
+                          width: 12,
+                          height: 1.5,
+                          decoration: BoxDecoration(
+                            color: accent,
+                            borderRadius: BorderRadius.circular(1),
+                          ),
+                        ),
+                    ],
+                  ),
+                );
+              }),
+            ),
+          ),
+          // Course list
+          Expanded(
+            child: ListView.builder(
+              padding: const EdgeInsets.fromLTRB(6, 6, 6, 6),
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: mockCourses.length,
+              itemBuilder: (context, index) {
+                final c = mockCourses[index];
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 5),
+                  child: c.name.isEmpty
+                      ? Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: (isDark
+                                    ? const Color(0xFF252525)
+                                    : Colors.grey[50]!)
+                                .withValues(alpha: provider.listCardOpacity),
+                            borderRadius: BorderRadius.circular(5),
+                            border: Border.all(color: dividerColor),
+                          ),
+                          child: const Text(
+                            '暂无课程',
+                            style: TextStyle(fontSize: 7, color: Colors.grey),
+                          ),
+                        )
+                      : Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: listCardBg,
+                            borderRadius: BorderRadius.circular(5),
+                            border: Border.all(
+                                color: accent.withValues(alpha: 0.3)),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 2,
+                                height: 20,
+                                decoration: BoxDecoration(
+                                  color: c.color,
+                                  borderRadius: BorderRadius.circular(1),
+                                ),
+                              ),
+                              const SizedBox(width: 5),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(c.name,
+                                        style: TextStyle(
+                                            fontSize: 8,
+                                            fontWeight: FontWeight.bold,
+                                            color: textColor)),
+                                    if (c.teacher.isNotEmpty ||
+                                        c.location.isNotEmpty)
+                                      Text(
+                                        [c.teacher, c.location]
+                                            .where((s) => s.isNotEmpty)
+                                            .join(' · '),
+                                        style: TextStyle(
+                                            fontSize: 6, color: subTextColor),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 4, vertical: 1.5),
+                                decoration: BoxDecoration(
+                                  color: accent.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Text(c.time,
+                                    style: TextStyle(
+                                        fontSize: 6,
+                                        fontWeight: FontWeight.bold,
+                                        color: accent)),
+                              ),
+                            ],
+                          ),
+                        ),
+                );
+              },
+            ),
+          ),
+        ],
+      );
+    }
+
+    // ── Grid layout phone content ──
+    Widget gridContent() {
+      const days = ['一', '二', '三', '四', '五', '六', '日'];
+      // Preset: 4 rows (sections) x 7 days
+      final gridData = <int, Map<int, _MockCourse>>{
+        0: {
+          0: _MockCourse('高等数学', '张老师', 'A301', '', accent),
+          2: _MockCourse('大学英语', '李老师', 'B205', '', accent),
+        },
+        1: {
+          1: _MockCourse('数据结构', '王老师', 'C102', '', accent),
+          4: _MockCourse('选修课', '', 'D401', '', accent),
+        },
+        2: {
+          0: _MockCourse('高等数学', '张老师', 'A301', '', accent),
+          3: _MockCourse('体育', '', '操场', '', accent),
+        },
+        3: {},
+      };
+
+      return Column(
+        children: [
+          // App bar space
+          const SizedBox(height: 26),
+          // Week header
+          Container(
+            height: 22,
+            color: tabBg.withValues(alpha: 0.9),
+            child: Row(
+              children: [
+                // Time column header
+                SizedBox(
+                  width: 16,
+                  child: Center(
+                    child: Text('节',
+                        style: TextStyle(fontSize: 6, color: subTextColor)),
+                  ),
+                ),
+                ...List.generate(7, (i) {
+                  return Expanded(
+                    child: Center(
+                      child: Text(
+                        days[i],
+                        style: TextStyle(
+                          fontSize: 7,
+                          fontWeight: FontWeight.w600,
+                          color: i == 0 ? accent : subTextColor,
+                        ),
+                      ),
+                    ),
+                  );
+                }),
+              ],
+            ),
+          ),
+          // Grid
+          Expanded(
+            child: Row(
+              children: [
+                // Time column
+                SizedBox(
+                  width: 16,
+                  child: Column(
+                    children: List.generate(4, (row) {
+                      return Expanded(
+                        child: Container(
+                          alignment: Alignment.center,
+                          child: Text(
+                            '${row + 1}',
+                            style: TextStyle(
+                              fontSize: 7,
+                              fontWeight: FontWeight.bold,
+                              color: subTextColor,
+                            ),
+                          ),
+                        ),
+                      );
+                    }),
+                  ),
+                ),
+                // Day columns
+                ...List.generate(7, (dayIdx) {
+                  return Expanded(
+                    child: Column(
+                      children: List.generate(4, (row) {
+                        final course = gridData[row]?[dayIdx];
+                        return Expanded(
+                          child: Container(
+                            margin: const EdgeInsets.all(0.5),
+                            decoration: BoxDecoration(
+                              color: course != null
+                                  ? gridCardBg
+                                  : Colors.transparent,
+                              borderRadius: BorderRadius.circular(3),
+                              border: course != null
+                                  ? Border.all(
+                                      color: accent.withValues(alpha: 0.25))
+                                  : Border.all(
+                                      color:
+                                          Colors.grey.withValues(alpha: 0.06)),
+                            ),
+                            child: course != null && course.name.isNotEmpty
+                                ? Padding(
+                                    padding: const EdgeInsets.all(1),
+                                    child: Column(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        Text(
+                                          course.name,
+                                          style: TextStyle(
+                                            fontSize: 6,
+                                            fontWeight: FontWeight.bold,
+                                            color: textColor,
+                                          ),
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                          textAlign: TextAlign.center,
+                                        ),
+                                        if (course.location.isNotEmpty)
+                                          Text(
+                                            course.location,
+                                            style: TextStyle(
+                                                fontSize: 5,
+                                                color: subTextColor),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                      ],
+                                    ),
+                                  )
+                                : null,
+                          ),
+                        );
+                      }),
+                    ),
+                  );
+                }),
+              ],
+            ),
+          ),
+        ],
       );
     }
 
@@ -228,228 +556,40 @@ class _WallpaperSettingsScreenState extends State<WallpaperSettingsScreen> {
             fontWeight: FontWeight.bold,
           ),
         ),
+        const SizedBox(height: 4),
+        Text(
+          '以下预览为预设示例课表，用于展示外观调整效果',
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+            fontSize: 12,
+          ),
+        ),
         const SizedBox(height: 12),
-        Container(
-          height: 200,
-          width: double.infinity,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            image: bgImage,
-            color: bgImage == null ? (theme.cardTheme.color ?? theme.cardColor) : null,
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.08),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-              color: overlayColor,
+        // Two phone frames side by side
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            phoneShell(
+              label: '列表布局',
+              icon: Icons.view_agenda_rounded,
+              child: listContent(),
             ),
-            child: Row(
-              children: [
-                // ── Left: List mode ──────────────────────
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(10, 10, 5, 10),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Icon(Icons.view_agenda, size: 12, color: accent),
-                            const SizedBox(width: 3),
-                            Text('列表',
-                                style: TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.bold,
-                                    color: accent)),
-                            const Spacer(),
-                            Text('${(provider.listCardOpacity * 100).toInt()}%',
-                                style: TextStyle(
-                                    fontSize: 9,
-                                    fontWeight: FontWeight.bold,
-                                    color: accent)),
-                          ],
-                        ),
-                        const SizedBox(height: 6),
-                        Expanded(
-                          child: Column(
-                            children: [
-                              Expanded(child: sampleCard(bg: listCardBg, isList: true)),
-                              const SizedBox(height: 4),
-                              Expanded(
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                                  decoration: BoxDecoration(
-                                    color: (isDark ? const Color(0xFF252525) : Colors.grey[50]!)
-                                        .withValues(alpha: provider.listCardOpacity),
-                                    borderRadius: BorderRadius.circular(6),
-                                    border: Border.all(color: Colors.grey.withValues(alpha: 0.15)),
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Container(
-                                        width: 2,
-                                        height: 24,
-                                        decoration: const BoxDecoration(
-                                          color: Colors.grey,
-                                          borderRadius: BorderRadius.all(Radius.circular(1)),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 6),
-                                      const Text('大学英语',
-                                          style: TextStyle(fontSize: 10, color: Colors.grey)),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-
-                // Divider
-                Container(
-                  width: 1,
-                  margin: const EdgeInsets.symmetric(vertical: 14),
-                  color: Colors.grey.withValues(alpha: 0.2),
-                ),
-
-                // ── Right: Grid mode ─────────────────────
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(5, 10, 10, 10),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Icon(Icons.grid_view, size: 12, color: accent),
-                            const SizedBox(width: 3),
-                            Text('网格',
-                                style: TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.bold,
-                                    color: accent)),
-                            const Spacer(),
-                            Text('${(provider.gridCardOpacity * 100).toInt()}%',
-                                style: TextStyle(
-                                    fontSize: 9,
-                                    fontWeight: FontWeight.bold,
-                                    color: accent)),
-                          ],
-                        ),
-                        const SizedBox(height: 6),
-                        Expanded(
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              // Time column
-                              SizedBox(
-                                width: 18,
-                                child: Column(
-                                  children: [
-                                    _gridCell('1', Colors.transparent, null, 0, isDark),
-                                    _gridCell('2', Colors.transparent, null, 0, isDark),
-                                  ],
-                                ),
-                              ),
-                              // Mon
-                              Expanded(
-                                child: Column(
-                                  children: [
-                                    _gridCell('', gridCardBg, accent, provider.gridCardOpacity, isDark,
-                                        courseName: '高等数学', isHighlighted: true),
-                                    _gridCell('', gridCardBg, accent, provider.gridCardOpacity, isDark,
-                                        courseName: '', isHighlighted: false),
-                                  ],
-                                ),
-                              ),
-                              // Tue
-                              Expanded(
-                                child: Column(
-                                  children: [
-                                    _gridCell('', Colors.transparent, null, 0, isDark),
-                                    _gridCell('', Colors.transparent, null, 0, isDark),
-                                  ],
-                                ),
-                              ),
-                              // Wed
-                              Expanded(
-                                child: Column(
-                                  children: [
-                                    _gridCell('', gridCardBg, accent, provider.gridCardOpacity, isDark,
-                                        courseName: '大学英语', isHighlighted: true),
-                                    _gridCell('', Colors.transparent, null, 0, isDark),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
+            const SizedBox(width: 12),
+            phoneShell(
+              label: '网格布局',
+              icon: Icons.grid_view_rounded,
+              child: gridContent(),
             ),
-          ),
+          ],
         ),
       ],
     );
   }
 
-  Widget _gridCell(String label, Color? bg, Color? accent, double opacity, bool isDark,
-      {String? courseName, bool isHighlighted = false}) {
-    return Expanded(
-      child: Container(
-        margin: const EdgeInsets.all(1),
-        decoration: BoxDecoration(
-          color: (courseName != null && courseName.isNotEmpty)
-              ? bg
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(3),
-          border: label.isNotEmpty
-              ? null
-              : (courseName != null && courseName.isNotEmpty)
-                  ? Border.all(color: accent!.withValues(alpha: 0.3))
-                  : Border.all(color: Colors.grey.withValues(alpha: 0.08)),
-        ),
-        child: Center(
-          child: label.isNotEmpty
-              ? Text(label,
-                  style: TextStyle(
-                      fontSize: 9,
-                      fontWeight: FontWeight.bold,
-                      color: isDark ? Colors.white54 : Colors.black54))
-              : (courseName != null && courseName.isNotEmpty)
-                  ? Padding(
-                      padding: const EdgeInsets.all(2),
-                      child: Text(courseName,
-                          style: TextStyle(
-                              fontSize: 8,
-                              fontWeight: FontWeight.bold,
-                              color: isDark ? Colors.white : Colors.black87),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          textAlign: TextAlign.center),
-                    )
-                  : null,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildOpacitySection(BuildContext context, WallpaperProvider provider) {
+  Widget _buildOpacitySection(
+      BuildContext context, WallpaperProvider provider) {
     final theme = Theme.of(context);
-    
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -506,9 +646,10 @@ class _WallpaperSettingsScreenState extends State<WallpaperSettingsScreen> {
     );
   }
 
-  Widget _buildCardOpacitySection(BuildContext context, WallpaperProvider provider) {
+  Widget _buildCardOpacitySection(
+      BuildContext context, WallpaperProvider provider) {
     final theme = Theme.of(context);
-    
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -526,16 +667,19 @@ class _WallpaperSettingsScreenState extends State<WallpaperSettingsScreen> {
           ),
         ),
         const SizedBox(height: 16),
-        
+
         // List mode card opacity
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Row(
               children: [
-                Icon(Icons.view_agenda, size: 18, color: theme.colorScheme.primary),
+                Icon(Icons.view_agenda,
+                    size: 18, color: theme.colorScheme.primary),
                 const SizedBox(width: 8),
-                Text('列表模式', style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500)),
+                Text('列表模式',
+                    style: theme.textTheme.bodyMedium
+                        ?.copyWith(fontWeight: FontWeight.w500)),
               ],
             ),
             Text(
@@ -550,7 +694,8 @@ class _WallpaperSettingsScreenState extends State<WallpaperSettingsScreen> {
         SliderTheme(
           data: SliderThemeData(
             activeTrackColor: theme.colorScheme.primary,
-            inactiveTrackColor: theme.colorScheme.primary.withValues(alpha: 0.2),
+            inactiveTrackColor:
+                theme.colorScheme.primary.withValues(alpha: 0.2),
             thumbColor: theme.colorScheme.primary,
             overlayColor: theme.colorScheme.primary.withValues(alpha: 0.1),
             valueIndicatorColor: theme.colorScheme.primary,
@@ -571,16 +716,19 @@ class _WallpaperSettingsScreenState extends State<WallpaperSettingsScreen> {
           ),
         ),
         const SizedBox(height: 8),
-        
+
         // Grid mode card opacity
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Row(
               children: [
-                Icon(Icons.grid_view, size: 18, color: theme.colorScheme.primary),
+                Icon(Icons.grid_view,
+                    size: 18, color: theme.colorScheme.primary),
                 const SizedBox(width: 8),
-                Text('网格模式', style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500)),
+                Text('网格模式',
+                    style: theme.textTheme.bodyMedium
+                        ?.copyWith(fontWeight: FontWeight.w500)),
               ],
             ),
             Text(
@@ -595,7 +743,8 @@ class _WallpaperSettingsScreenState extends State<WallpaperSettingsScreen> {
         SliderTheme(
           data: SliderThemeData(
             activeTrackColor: theme.colorScheme.primary,
-            inactiveTrackColor: theme.colorScheme.primary.withValues(alpha: 0.2),
+            inactiveTrackColor:
+                theme.colorScheme.primary.withValues(alpha: 0.2),
             thumbColor: theme.colorScheme.primary,
             overlayColor: theme.colorScheme.primary.withValues(alpha: 0.1),
             valueIndicatorColor: theme.colorScheme.primary,
@@ -621,7 +770,7 @@ class _WallpaperSettingsScreenState extends State<WallpaperSettingsScreen> {
 
   Widget _buildColorSection(BuildContext context, WallpaperProvider provider) {
     final theme = Theme.of(context);
-    
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -652,7 +801,8 @@ class _WallpaperSettingsScreenState extends State<WallpaperSettingsScreen> {
     );
   }
 
-  Widget _buildPanControlSection(BuildContext context, WallpaperProvider provider) {
+  Widget _buildPanControlSection(
+      BuildContext context, WallpaperProvider provider) {
     final theme = Theme.of(context);
     final primary = provider.primaryColor;
 
@@ -693,12 +843,14 @@ class _WallpaperSettingsScreenState extends State<WallpaperSettingsScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              arrowBtn(Icons.keyboard_arrow_up, () => provider.setPanY(provider.panY - 0.2)),
+              arrowBtn(Icons.keyboard_arrow_up,
+                  () => provider.setPanY(provider.panY - 0.2)),
               const SizedBox(height: 4),
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  arrowBtn(Icons.keyboard_arrow_left, () => provider.setPanX(provider.panX - 0.2)),
+                  arrowBtn(Icons.keyboard_arrow_left,
+                      () => provider.setPanX(provider.panX - 0.2)),
                   const SizedBox(width: 4),
                   Material(
                     color: primary.withValues(alpha: 0.05),
@@ -712,16 +864,19 @@ class _WallpaperSettingsScreenState extends State<WallpaperSettingsScreen> {
                       child: SizedBox(
                         width: 44,
                         height: 44,
-                        child: Icon(Icons.center_focus_strong, color: primary.withValues(alpha: 0.6), size: 18),
+                        child: Icon(Icons.center_focus_strong,
+                            color: primary.withValues(alpha: 0.6), size: 18),
                       ),
                     ),
                   ),
                   const SizedBox(width: 4),
-                  arrowBtn(Icons.keyboard_arrow_right, () => provider.setPanX(provider.panX + 0.2)),
+                  arrowBtn(Icons.keyboard_arrow_right,
+                      () => provider.setPanX(provider.panX + 0.2)),
                 ],
               ),
               const SizedBox(height: 4),
-              arrowBtn(Icons.keyboard_arrow_down, () => provider.setPanY(provider.panY + 0.2)),
+              arrowBtn(Icons.keyboard_arrow_down,
+                  () => provider.setPanY(provider.panY + 0.2)),
             ],
           ),
         ),
@@ -729,7 +884,8 @@ class _WallpaperSettingsScreenState extends State<WallpaperSettingsScreen> {
     );
   }
 
-  Widget _buildDefaultThemesSection(BuildContext context, WallpaperProvider provider) {
+  Widget _buildDefaultThemesSection(
+      BuildContext context, WallpaperProvider provider) {
     final theme = Theme.of(context);
 
     return Column(
@@ -820,7 +976,8 @@ class _WallpaperSettingsScreenState extends State<WallpaperSettingsScreen> {
               label: Text('使用壁纸原色',
                   style: TextStyle(color: provider.primaryColor)),
               style: OutlinedButton.styleFrom(
-                side: BorderSide(color: provider.primaryColor.withValues(alpha: 0.4)),
+                side: BorderSide(
+                    color: provider.primaryColor.withValues(alpha: 0.4)),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
@@ -893,4 +1050,14 @@ class _WallpaperSettingsScreenState extends State<WallpaperSettingsScreen> {
       ],
     );
   }
+}
+
+class _MockCourse {
+  final String name;
+  final String teacher;
+  final String location;
+  final String time;
+  final Color color;
+
+  _MockCourse(this.name, this.teacher, this.location, this.time, this.color);
 }

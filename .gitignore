@@ -70,3 +70,7 @@ app.*.map.json
 /portAppTest/
 #docs
 /docs/
+
+test.md
+*.pu
+docs/

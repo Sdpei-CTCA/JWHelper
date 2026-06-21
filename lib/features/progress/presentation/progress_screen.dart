@@ -24,10 +24,17 @@ class _ProgressScreenState extends State<ProgressScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Only rebuild when progress-related state changes
-    final progressLoading = context.select<DataProvider, bool>((d) => d.progressLoading);
-    final groups = context.select<DataProvider, List<dynamic>>((d) => d.progressGroups);
-    final progressInfo = context.select<DataProvider, List<ProgressInfo>>((d) => d.progressInfo);
+    // Only rebuild when progress-related state changes (revision bumps on in-place course loads)
+    final (progressLoading, _, groups, progressInfo) = context.select<
+        DataProvider,
+        (bool, int, List<dynamic>, List<ProgressInfo>)>(
+      (d) => (
+        d.progressLoading,
+        d.progressRevision,
+        d.progressGroups,
+        d.progressInfo,
+      ),
+    );
     
     final theme = Theme.of(context);
 
@@ -301,7 +308,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
                   ),
                   onExpansionChanged: (expanded) {
                     if (expanded && group.courses == null) {
-                      context.read<DataProvider>().loadGroupCourses(group);
+                      context.read<DataProvider>().loadGroupCoursesById(group.id);
                     }
                   },
                   children: [

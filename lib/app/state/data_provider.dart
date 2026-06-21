@@ -45,6 +45,7 @@ class DataProvider with ChangeNotifier {
   List<ProgressInfo> _progressInfo = [];
   bool _progressLoading = false;
   bool _progressLoaded = false;
+  int _progressRevision = 0;
 
   List<Semester> _examSemesters = [];
   List<ExamRound> _examRounds = [];
@@ -152,6 +153,7 @@ class DataProvider with ChangeNotifier {
     _progressGroups = [];
     _progressInfo = [];
     _progressLoaded = false;
+    _progressRevision = 0;
     _examSemesters = [];
     _examRounds = [];
     _exams = [];

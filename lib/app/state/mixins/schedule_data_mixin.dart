@@ -49,8 +49,12 @@ extension ScheduleDataMixin on DataProvider {
 
   Future<void> loadSchedule({bool forceRefresh = false}) async {
     if (_scheduleLoaded && !forceRefresh) return;
-    if (_scheduleLoading) return;
+    if (_scheduleLoading && !forceRefresh) return;
     if (_username.isEmpty) return;
+
+    if (forceRefresh) {
+      _scheduleLoaded = false;
+    }
 
     _scheduleLoading = true;
     notifyStateChanged();

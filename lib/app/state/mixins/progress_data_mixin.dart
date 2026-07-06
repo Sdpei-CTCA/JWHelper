@@ -16,8 +16,12 @@ extension ProgressDataMixin on DataProvider {
 
   Future<void> loadProgress({bool forceRefresh = false}) async {
     if (_progressLoaded && !forceRefresh) return;
-    if (_progressLoading) return;
+    if (_progressLoading && !forceRefresh) return;
     if (_username.isEmpty) return;
+
+    if (forceRefresh) {
+      _progressLoaded = false;
+    }
 
     _progressLoading = true;
     notifyStateChanged();

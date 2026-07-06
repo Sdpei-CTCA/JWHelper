@@ -71,6 +71,9 @@ app.*.map.json
 #docs
 /docs/
 
+# Local test credentials
+env
+
 test.md
 *.pu
 docs/

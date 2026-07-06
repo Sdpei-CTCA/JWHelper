@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:JWHelper/app/usecases/cache_refresh_policy.dart';
 import 'package:JWHelper/core/errors/exceptions.dart';
 import 'package:JWHelper/features/schedule/data/schedule_service.dart';
 import 'package:JWHelper/features/schedule/domain/schedule_item.dart';
@@ -34,7 +35,7 @@ class ScheduleLoaderUsecase {
   }) async {
     final prefs = await SharedPreferences.getInstance();
 
-    if (!forceRefresh) {
+    if (CacheRefreshPolicy.shouldReadDiskCache(forceRefresh)) {
       final int? lastTime = prefs.getInt(_cacheTimeKey(username));
       final String? cachedData = prefs.getString(_cacheKey(username));
       final String? startDayStr = prefs.getString(_startDayKey(username));
@@ -63,7 +64,8 @@ class ScheduleLoaderUsecase {
       final List<ScheduleItem> schedule = result['items'] as List<ScheduleItem>;
       final String? startDayStr = result['startDay'] as String?;
 
-      if (schedule.isEmpty) {
+      if (schedule.isEmpty &&
+          CacheRefreshPolicy.shouldFallbackOnEmpty(forceRefresh)) {
         final cached = _loadCachedSchedule(prefs, username);
         if (cached != null) {
           return ScheduleLoadResult(

@@ -43,7 +43,13 @@ extension ExamDataMixin on DataProvider {
 
   Future<void> loadExams(String semId, String roundId,
       {bool forceRefresh = false}) async {
+    if (_examsLoaded && !forceRefresh) return;
+    if (_examsLoading && !forceRefresh) return;
     if (_username.isEmpty) return;
+
+    if (forceRefresh) {
+      _examsLoaded = false;
+    }
 
     _examsLoading = true;
     notifyStateChanged();

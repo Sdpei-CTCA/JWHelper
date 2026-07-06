@@ -9,10 +9,13 @@ class LoginDataCoordinator {
     required LoadDataFn loadProgress,
     required LoadDataFn loadExamSemesters,
   }) async {
-    loadGrades(forceRefresh: true);
-    loadSchedule(forceRefresh: true);
-    loadProgress(forceRefresh: true);
-    loadExamSemesters(forceRefresh: true);
+    await clearCache();
+    await Future.wait([
+      loadGrades(forceRefresh: true),
+      loadSchedule(forceRefresh: true),
+      loadProgress(forceRefresh: true),
+      loadExamSemesters(forceRefresh: true),
+    ]);
   }
 
   static void prepareOffline({

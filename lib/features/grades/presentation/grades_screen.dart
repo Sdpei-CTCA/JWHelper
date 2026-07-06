@@ -12,12 +12,16 @@ class GradesScreen extends StatefulWidget {
 class _GradesScreenState extends State<GradesScreen> {
   String? _selectedSemester;
 
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      Provider.of<DataProvider>(context, listen: false).loadGrades();
-    });
+  Future<void> _refreshGrades() async {
+    try {
+      await context.read<DataProvider>().loadGrades(forceRefresh: true);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('刷新失败，请检查网络后重试')),
+        );
+      }
+    }
   }
 
   @override
@@ -40,8 +44,15 @@ class _GradesScreenState extends State<GradesScreen> {
             const SizedBox(height: 16),
             const Text("暂无成绩数据", style: TextStyle(color: Colors.grey)),
             TextButton(
-                onPressed: () => context.read<DataProvider>().loadGrades(forceRefresh: true),
-                child: const Text("刷新"))
+              onPressed: gradesLoading ? null : _refreshGrades,
+              child: gradesLoading
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text("刷新"),
+            ),
           ],
         ),
       );
@@ -69,6 +80,8 @@ class _GradesScreenState extends State<GradesScreen> {
 
     return Column(
       children: [
+        if (gradesLoading)
+          const LinearProgressIndicator(minHeight: 2),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           color: Theme.of(context).cardTheme.color,
@@ -126,7 +139,7 @@ class _GradesScreenState extends State<GradesScreen> {
         ),
         Expanded(
           child: RefreshIndicator(
-            onRefresh: () => context.read<DataProvider>().loadGrades(forceRefresh: true),
+            onRefresh: _refreshGrades,
             child: filteredGrades.isEmpty
                 ? ListView(
                     physics: const AlwaysScrollableScrollPhysics(),

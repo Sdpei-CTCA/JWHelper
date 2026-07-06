@@ -16,8 +16,12 @@ extension GradesDataMixin on DataProvider {
 
   Future<void> loadGrades({bool forceRefresh = false}) async {
     if (_gradesLoaded && !forceRefresh) return;
-    if (_gradesLoading) return;
+    if (_gradesLoading && !forceRefresh) return;
     if (_username.isEmpty) return;
+
+    if (forceRefresh) {
+      _gradesLoaded = false;
+    }
 
     _gradesLoading = true;
     notifyStateChanged();
@@ -39,6 +43,7 @@ extension GradesDataMixin on DataProvider {
       _gradesLoaded = result.loaded;
     } catch (e) {
       debugPrint("Error loading grades: $e");
+      rethrow;
     } finally {
       _gradesLoading = false;
       notifyStateChanged();

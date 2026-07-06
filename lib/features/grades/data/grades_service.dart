@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:html/parser.dart' as parser;
 import 'package:html/dom.dart';
@@ -71,7 +72,12 @@ class GradesService {
 
   Future<List<Grade>> getAllGrades() async {
     try {
-      var response = await _client.dio.get(Config.gradesUrl);
+      final url =
+          '${Config.gradesUrl}?random=${DateTime.now().millisecondsSinceEpoch}';
+      var response = await _client.dio.get(
+        url,
+        options: Options(headers: {'Cache-Control': 'no-cache'}),
+      );
       return await compute(_parseAllGrades, response.data.toString());
     } catch (e) {
       debugPrint("Get all grades failed: $e");

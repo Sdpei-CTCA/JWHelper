@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:JWHelper/app/usecases/cache_refresh_policy.dart';
 import 'package:JWHelper/core/errors/exceptions.dart';
 import 'package:JWHelper/features/grades/data/grades_service.dart';
 import 'package:JWHelper/features/grades/domain/grade.dart';
@@ -30,7 +31,7 @@ class GradesLoaderUsecase {
   }) async {
     final prefs = await SharedPreferences.getInstance();
 
-    if (!forceRefresh) {
+    if (CacheRefreshPolicy.shouldReadDiskCache(forceRefresh)) {
       final int? lastTime = prefs.getInt(_cacheTimeKey(username));
       final String? cachedData = prefs.getString(_cacheKey(username));
 
@@ -50,7 +51,8 @@ class GradesLoaderUsecase {
 
     try {
       final grades = await service.getAllGrades();
-      if (grades.isEmpty) {
+      if (grades.isEmpty &&
+          CacheRefreshPolicy.shouldFallbackOnEmpty(forceRefresh)) {
         final cached = _loadCachedGrades(prefs, username);
         if (cached != null) {
           return GradesLoadResult(

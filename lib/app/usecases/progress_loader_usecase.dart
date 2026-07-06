@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:JWHelper/app/usecases/cache_refresh_policy.dart';
 import 'package:JWHelper/features/progress/data/progress_service.dart';
 import 'package:JWHelper/features/progress/domain/progress_item.dart';
 
@@ -29,7 +30,7 @@ class ProgressLoaderUsecase {
   }) async {
     final prefs = await SharedPreferences.getInstance();
 
-    if (!forceRefresh) {
+    if (CacheRefreshPolicy.shouldReadDiskCache(forceRefresh)) {
       final int? lastTime = prefs.getInt(cacheTimeKey(username));
       final String? cachedData = prefs.getString(cacheKey(username));
 
@@ -56,7 +57,9 @@ class ProgressLoaderUsecase {
       final groups = data['groups'] ?? <ProgressGroup>[];
       final info = data['info'] ?? <ProgressInfo>[];
 
-      if (groups.isEmpty && info.isEmpty) {
+      if (groups.isEmpty &&
+          info.isEmpty &&
+          CacheRefreshPolicy.shouldFallbackOnEmpty(forceRefresh)) {
         final cached = _loadCachedProgress(prefs, username);
         if (cached != null) {
           return ProgressLoadResult(

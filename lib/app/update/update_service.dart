@@ -5,6 +5,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:JWHelper/app/update/release_notes_view.dart';
 
 class UpdateUiState {
   final bool checking;
@@ -348,21 +349,7 @@ class UpdateService {
               ),
               const SizedBox(height: 6),
               if ((state.releaseNotes ?? '').isNotEmpty)
-                Container(
-                  constraints: const BoxConstraints(maxHeight: 180),
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF0F4FF),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: SingleChildScrollView(
-                    child: SelectableText(
-                      state.releaseNotes!,
-                      style:
-                          const TextStyle(fontSize: 13, color: Colors.black87),
-                    ),
-                  ),
-                ),
+                ReleaseNotesView(markdown: state.releaseNotes!),
               const SizedBox(height: 10),
               FilledButton.icon(
                 onPressed: () => performDownload(context),

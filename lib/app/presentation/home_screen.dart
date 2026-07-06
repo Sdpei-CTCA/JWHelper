@@ -354,6 +354,51 @@ class _HomeScreenState extends State<HomeScreen> {
     return _updateService.buildUpdateSection(context);
   }
 
+  void _showUpdateDialog() {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => Dialog(
+        insetPadding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 24.0),
+        child: Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.8,
+            maxWidth: MediaQuery.of(context).size.width * 0.9,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Padding(
+                padding: EdgeInsets.all(16.0),
+                child: Text(
+                  '版本更新',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+              ),
+              Flexible(
+                child: SingleChildScrollView(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                    child: _buildUpdateSection(),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: () => Navigator.pop(dialogContext),
+                    child: const Text('关闭'),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   void _showSettingsDialog() {
     showModalBottomSheet(
       context: context,
@@ -599,44 +644,8 @@ class _HomeScreenState extends State<HomeScreen> {
                           title: const Text("检查更新"),
                           trailing: const Icon(Icons.chevron_right, size: 16, color: Colors.grey),
                           onTap: () {
-                            // Close popup to show update
                             Navigator.pop(context);
-                            showDialog(
-                              context: context, 
-                              builder: (_) => Dialog(
-                                insetPadding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 24.0),
-                                child: Container(
-                                  constraints: BoxConstraints(
-                                    maxHeight: MediaQuery.of(context).size.height * 0.8,
-                                    maxWidth: MediaQuery.of(context).size.width * 0.9,
-                                  ),
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      const Padding(
-                                        padding: EdgeInsets.all(16.0),
-                                        child: Text("版本更新", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                                      ),
-                                      Flexible(
-                                        child: SingleChildScrollView(
-                                          child: Padding(
-                                            padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                                            child: _buildUpdateSection(),
-                                          ),
-                                        ),
-                                      ),
-                                      Padding(
-                                        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                                        child: Align(
-                                          alignment: Alignment.centerRight,
-                                          child: TextButton(onPressed: () => Navigator.pop(_), child: const Text("关闭")),
-                                        ),
-                                      )
-                                    ]
-                                  ),
-                                )
-                              )
-                            );
+                            _showUpdateDialog();
                           },
                         ),
                         const Divider(height: 1, indent: 16, endIndent: 16),
@@ -936,7 +945,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
                     child: GestureDetector(
-                      onTap: () => _showSettingsDialog(),
+                      onTap: _showUpdateDialog,
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                         decoration: BoxDecoration(

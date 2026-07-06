@@ -6,6 +6,7 @@ import 'package:device_info_plus/device_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:JWHelper/app/update/release_notes_view.dart';
+import 'package:JWHelper/app/update/update_release_merger.dart';
 
 class UpdateUiState {
   final bool checking;
@@ -82,6 +83,10 @@ class UpdateService {
 
   static const String _githubLatestApi =
       'https://api.github.com/repos/Sdpei-CTCA/JWHelper/releases/latest';
+  static const String _giteeLatestApi =
+      'https://gitee.com/api/v5/repos/SpongeFun/JWHelper/releases/latest';
+  static const String _giteeReleasesPage =
+      'https://gitee.com/SpongeFun/JWHelper/releases';
 
   final ValueNotifier<UpdateUiState> updateState =
       ValueNotifier(const UpdateUiState());
@@ -149,30 +154,76 @@ class UpdateService {
   Future<UpdateCheckResult> checkUpdate() async {
     final currentVersion = await getCurrentVersion();
 
-    final response = await _dio.get(_githubLatestApi);
-    final data = response.data as Map<String, dynamic>;
+    final results = await Future.wait([
+      _fetchGithubRelease(),
+      _fetchGiteeRelease(),
+    ]);
 
+    final github = results[0];
+    final gitee = results[1];
+    final merged = mergeReleases(github: github, gitee: gitee);
+    final hasNew = isNewerVersion(merged.latestVersion, currentVersion);
+
+    return UpdateCheckResult(
+      hasUpdate: hasNew,
+      latestVersion: merged.latestVersion,
+      currentVersion: currentVersion,
+      releaseNotes: merged.releaseNotes,
+      downloadUrl: merged.downloadUrl ?? _fallbackReleasePage(merged.downloadPlatform),
+    );
+  }
+
+  Future<ParsedRelease?> _fetchGithubRelease() async {
+    try {
+      final response = await _dio.get(_githubLatestApi);
+      return _parseReleaseData(
+        response.data as Map<String, dynamic>,
+        platform: ReleasePlatform.github,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<ParsedRelease?> _fetchGiteeRelease() async {
+    try {
+      final response = await _dio.get(_giteeLatestApi);
+      return _parseReleaseData(
+        response.data as Map<String, dynamic>,
+        platform: ReleasePlatform.gitee,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<ParsedRelease?> _parseReleaseData(
+    Map<String, dynamic> data, {
+    required ReleasePlatform platform,
+  }) async {
     final tag = data['tag_name'] as String?;
     final name = data['name'] as String?;
-    final latest =
+    final version =
         _extractVersionFromText(tag) ?? _extractVersionFromText(name);
 
-    if (latest == null) {
-      throw Exception('未在发布信息中找到版本号');
-    }
+    if (version == null) return null;
 
-    final hasNew = _isNewerVersion(latest, currentVersion);
     final assets = (data['assets'] as List<dynamic>?) ?? [];
     final assetUrl = await _pickAssetUrl(assets);
     final releaseNotes = data['body'] as String? ?? '';
 
-    return UpdateCheckResult(
-      hasUpdate: hasNew,
-      latestVersion: latest,
-      currentVersion: currentVersion,
+    return ParsedRelease(
+      platform: platform,
+      version: version,
       releaseNotes: releaseNotes,
       downloadUrl: assetUrl,
     );
+  }
+
+  String _fallbackReleasePage(ReleasePlatform platform) {
+    return platform == ReleasePlatform.gitee
+        ? _giteeReleasesPage
+        : 'https://github.com/Sdpei-CTCA/JWHelper/releases';
   }
 
   Future<void> downloadAndInstallApk({
@@ -188,10 +239,9 @@ class UpdateService {
     final dir = await getTemporaryDirectory();
     final fileName = 'JWHelper-$version.apk';
     final savePath = '${dir.path}/$fileName';
-    final proxiedUrl = 'https://hk.gh-proxy.org/$url';
 
     await _dio.download(
-      proxiedUrl,
+      url,
       savePath,
       onReceiveProgress: (received, total) {
         if (total <= 0) return;
@@ -217,17 +267,7 @@ class UpdateService {
     return '${match.group(1)}.${match.group(2)}.${match.group(3)}';
   }
 
-  bool _isNewerVersion(String latest, String current) {
-    if (latest.isEmpty) return false;
-    if (current.isEmpty) return true;
-    final latestParts = latest.split('.').map(int.parse).toList();
-    final currentParts = current.split('.').map(int.parse).toList();
-    for (int i = 0; i < 3; i++) {
-      if (latestParts[i] > currentParts[i]) return true;
-      if (latestParts[i] < currentParts[i]) return false;
-    }
-    return false;
-  }
+  bool _isApkAsset(String name) => name.toLowerCase().endsWith('.apk');
 
   Future<String?> _pickAssetUrl(List<dynamic> assets) async {
     if (assets.isEmpty) return null;
@@ -236,6 +276,7 @@ class UpdateService {
       for (final asset in assets) {
         if (asset is Map<String, dynamic>) {
           final name = asset['name'] as String? ?? '';
+          if (!_isApkAsset(name)) continue;
           if (name.toLowerCase().contains(pattern.toLowerCase())) {
             return asset['browser_download_url'] as String?;
           }
@@ -265,6 +306,8 @@ class UpdateService {
 
     for (final asset in assets) {
       if (asset is Map<String, dynamic>) {
+        final name = asset['name'] as String? ?? '';
+        if (!_isApkAsset(name)) continue;
         final url = asset['browser_download_url'] as String?;
         if (url != null) return url;
       }
@@ -300,11 +343,10 @@ class UpdateService {
     }
 
     final url = state.downloadUrl!;
-    final proxiedUrl = 'https://hk.gh-proxy.org/$url';
 
     try {
       await launchUrl(
-        Uri.parse(proxiedUrl),
+        Uri.parse(url),
         mode: LaunchMode.externalApplication,
       );
     } catch (e) {

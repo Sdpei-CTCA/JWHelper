@@ -116,4 +116,32 @@ extension ExamDataMixin on DataProvider {
       etName: etName,
     );
   }
+
+  Future<void> loadDefaultExamsForWidget({bool forceRefresh = false}) async {
+    if (_username.isEmpty) return;
+
+    await loadExamSemesters(forceRefresh: forceRefresh);
+    if (_examSemesters.isEmpty) {
+      await _updateScheduleWidget();
+      return;
+    }
+
+    final campus = await ExamSelectionCoordinator.loadCampus();
+    final semId = _examSemesters.first.id;
+    await loadExamRounds(semId, forceRefresh: forceRefresh);
+
+    final selection = ExamSelectionCoordinator.resolve(
+      semesters: _examSemesters,
+      rounds: _examRounds,
+      campus: campus,
+    );
+    if (selection != null) {
+      await loadExams(
+        selection.semId,
+        selection.roundId,
+        forceRefresh: forceRefresh,
+      );
+    }
+    await _updateScheduleWidget();
+  }
 }

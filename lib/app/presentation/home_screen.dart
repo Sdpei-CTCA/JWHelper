@@ -40,6 +40,8 @@ class _HomeScreenState extends State<HomeScreen> {
   // Auto-login state
   bool _isAutoLoggingIn = false;
   String? _loginError;
+  bool _defaultTabApplied = false;
+  bool _openedFromWidget = false;
 
   late final List<Widget> _pages;
 
@@ -203,6 +205,9 @@ class _HomeScreenState extends State<HomeScreen> {
   void _checkWidgetLaunch() async {
     try {
       final uri = await HomeWidget.initiallyLaunchedFromHomeWidget();
+      if (uri != null) {
+        _openedFromWidget = true;
+      }
       _handleWidgetClick(uri);
     } catch (e) {
       debugPrint("Error checking widget launch: $e");
@@ -218,7 +223,29 @@ class _HomeScreenState extends State<HomeScreen> {
 
     setState(() {
       _currentIndex = nextIndex;
+      _openedFromWidget = true;
+      _defaultTabApplied = true;
     });
+  }
+
+  void _applyDefaultTabIfNeeded() {
+    if (_defaultTabApplied || _openedFromWidget || !mounted) return;
+
+    final data = context.read<DataProvider>();
+    if (!data.scheduleLoaded) return;
+
+    final nextIndex = HomeNavigationCoordinator.resolveDefaultTab(
+      schedule: data.schedule,
+      currentWeek: data.currentWeek,
+    );
+    if (_currentIndex != nextIndex) {
+      setState(() {
+        _currentIndex = nextIndex;
+        _defaultTabApplied = true;
+      });
+    } else {
+      _defaultTabApplied = true;
+    }
   }
 
   void _onDataChanged() {
@@ -230,6 +257,7 @@ class _HomeScreenState extends State<HomeScreen> {
     )) {
       _showEvaluationDialog();
     }
+    _applyDefaultTabIfNeeded();
   }
 
   Future<void> _showEvaluationDialog() async {

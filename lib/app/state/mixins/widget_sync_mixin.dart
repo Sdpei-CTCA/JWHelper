@@ -38,8 +38,12 @@ extension WidgetSyncMixin on DataProvider {
 
   Future<void> _updateScheduleWidget() async {
     try {
-      await WidgetService.updateScheduleWidget(_schedule,
-          currentWeek: _currentWeek);
+      final upcoming = UpcomingExamSelector.select(_exams);
+      await WidgetService.updateScheduleWidget(
+        _schedule,
+        currentWeek: _currentWeek,
+        upcomingExams: upcoming,
+      );
     } catch (e) {
       debugPrint("Error updating schedule widget: $e");
     }

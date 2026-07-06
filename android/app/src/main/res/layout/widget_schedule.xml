@@ -49,6 +49,7 @@
             android:orientation="vertical">
             
             <TextView
+                android:id="@+id/tv_cur_label"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="当前"
@@ -125,6 +126,7 @@
             android:orientation="vertical">
             
             <TextView
+                android:id="@+id/tv_next_label"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="接下来"

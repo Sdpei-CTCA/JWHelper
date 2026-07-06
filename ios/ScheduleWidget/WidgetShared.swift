@@ -15,6 +15,8 @@ enum WidgetKeys {
     static let scheduleDateIso = "schedule_date_iso"
     static let lastUpdated = "widget_last_updated"
     static let debugEnabled = "widget_debug_enabled"
+    static let displayMode = "widget_display_mode"
+    static let upcomingExams = "upcoming_exams"
 }
 
 struct WidgetStore {
@@ -47,6 +49,17 @@ struct WidgetStore {
 
     static func debugEnabled() -> Bool {
         defaults?.bool(forKey: WidgetKeys.debugEnabled) ?? false
+    }
+
+    static func displayMode() -> String {
+        defaults?.string(forKey: WidgetKeys.displayMode) ?? "schedule"
+    }
+
+    static func upcomingExams() -> [ExamItemData] {
+        let jsonString = defaults?.string(forKey: WidgetKeys.upcomingExams) ?? "[]"
+        guard let data = jsonString.data(using: .utf8) else { return [] }
+        guard let decoded = try? JSONDecoder().decode([ExamItemData].self, from: data) else { return [] }
+        return decoded
     }
 }
 

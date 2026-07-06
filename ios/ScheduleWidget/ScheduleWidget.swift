@@ -33,6 +33,8 @@ struct ScheduleProvider: TimelineProvider {
                 ScheduleItemData(name: "高等数学", teacher: "小洁", classroom: "东教楼123", startUnit: 1, endUnit: 2),
                 ScheduleItemData(name: "数据库原理", teacher: "小越", classroom: "文成楼125", startUnit: 3, endUnit: 4)
             ],
+            exams: [],
+            displayMode: "schedule",
             lastUpdated: Date(),
             debugEnabled: false
         )
@@ -45,6 +47,8 @@ struct ScheduleProvider: TimelineProvider {
                 ScheduleItemData(name: "高等数学", teacher: "小洁", classroom: "东教楼123", startUnit: 1, endUnit: 2),
                 ScheduleItemData(name: "数据库原理", teacher: "小越", classroom: "文成楼125", startUnit: 3, endUnit: 4)
             ],
+            exams: [],
+            displayMode: "schedule",
             lastUpdated: Date(),
             debugEnabled: false
         )
@@ -52,6 +56,8 @@ struct ScheduleProvider: TimelineProvider {
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<ScheduleEntry>) -> ()) {
+        let displayMode = WidgetStore.displayMode()
+        let exams = WidgetStore.upcomingExams()
         let items = WidgetStore.scheduleItems()
         let now = Date()
         let displayDate = WidgetStore.scheduleDate() ?? now
@@ -61,6 +67,8 @@ struct ScheduleProvider: TimelineProvider {
         let entry = ScheduleEntry(
             date: displayDate,
             items: validItems.isEmpty && !items.isEmpty ? [] : validItems,
+            exams: exams,
+            displayMode: displayMode,
             lastUpdated: WidgetStore.date(WidgetKeys.lastUpdated),
             debugEnabled: WidgetStore.debugEnabled()
         )
@@ -78,9 +86,17 @@ struct ScheduleItemData: Codable {
     let endUnit: Int
 }
 
+struct ExamItemData: Codable {
+    let courseName: String
+    let time: String
+    let location: String
+}
+
 struct ScheduleEntry: TimelineEntry {
     let date: Date
     let items: [ScheduleItemData]
+    let exams: [ExamItemData]
+    let displayMode: String
     let lastUpdated: Date?
     let debugEnabled: Bool
 }
@@ -92,7 +108,9 @@ struct ScheduleWidgetEntryView: View {
         VStack(alignment: .leading, spacing: 10) {
             header
 
-            if entry.items.isEmpty {
+            if entry.displayMode == "exam" && !entry.exams.isEmpty {
+                ExamTwoColumn(exams: entry.exams)
+            } else if entry.items.isEmpty {
                 emptyState
             } else {
                 ScheduleTwoColumn(items: entry.items)
@@ -111,15 +129,21 @@ struct ScheduleWidgetEntryView: View {
         }
         .padding()
         .widgetBackground(WidgetColors.background)
+        .widgetURL(URL(string: entry.displayMode == "exam" ? "jwhelper://exam" : "jwhelper://schedule"))
     }
 
     private var header: some View {
         HStack(alignment: .lastTextBaseline) {
-            Text(formatDate(entry.date))
-                .font(.system(size: 18, weight: .bold))
-            Text(Config.weekday(entry.date))
-                .font(.system(size: 18, weight: .bold))
-                .foregroundColor(WidgetColors.accent)
+            if entry.displayMode == "exam" {
+                Text("考试周")
+                    .font(.system(size: 18, weight: .bold))
+            } else {
+                Text(formatDate(entry.date))
+                    .font(.system(size: 18, weight: .bold))
+                Text(Config.weekday(entry.date))
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundColor(WidgetColors.accent)
+            }
             Spacer()
             if let time = entry.lastUpdated {
                 Text("更新 \(timeString(time))")
@@ -184,6 +208,72 @@ struct ScheduleRow: View {
         .padding(.horizontal, 8)
         .background(WidgetColors.cardBackground)
         .cornerRadius(10)
+    }
+}
+
+struct ExamTwoColumn: View {
+    let exams: [ExamItemData]
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            ExamColumn(title: "考试科目", exam: exams.first, accent: WidgetColors.accent)
+            Divider()
+                .frame(maxHeight: 90)
+            ExamColumn(
+                title: "下一场",
+                exam: exams.count > 1 ? exams[1] : nil,
+                accent: WidgetColors.primary,
+                emptyText: "无更多考试"
+            )
+        }
+    }
+}
+
+struct ExamColumn: View {
+    let title: String
+    let exam: ExamItemData?
+    let accent: Color
+    var emptyText: String = "无考试"
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(.caption2)
+                .foregroundColor(.secondary)
+
+            if let exam {
+                HStack(alignment: .top, spacing: 8) {
+                    Capsule()
+                        .fill(accent)
+                        .frame(width: 4)
+
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(exam.courseName)
+                            .font(.system(size: 13, weight: .bold))
+                            .lineLimit(1)
+                        Text(exam.location)
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                            .lineLimit(1)
+                        Text(exam.time)
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                            .lineLimit(2)
+                    }
+
+                    Spacer(minLength: 0)
+                }
+                .padding(8)
+                .background(WidgetColors.cardBackground)
+                .cornerRadius(10)
+            } else {
+                Text(emptyText)
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 

@@ -43,6 +43,11 @@ extension ScheduleDataMixin on DataProvider {
         }
         _scheduleLoaded = result.loaded;
         notifyStateChanged();
+        if (ScheduleWeekContext.isExamPeriod(_schedule, _currentWeek)) {
+          loadDefaultExamsForWidget();
+        } else {
+          _updateScheduleWidget();
+        }
       }
     } catch (_) {}
   }
@@ -91,7 +96,11 @@ extension ScheduleDataMixin on DataProvider {
       }
 
       _scheduleLoaded = result.loaded;
-      _updateScheduleWidget();
+      if (ScheduleWeekContext.isExamPeriod(_schedule, _currentWeek)) {
+        await loadDefaultExamsForWidget();
+      } else {
+        await _updateScheduleWidget();
+      }
     } catch (e) {
       debugPrint("Error loading schedule: $e");
     } finally {

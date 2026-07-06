@@ -16,6 +16,9 @@ import 'package:JWHelper/app/usecases/schedule_loader_usecase.dart';
 import 'package:JWHelper/app/usecases/progress_loader_usecase.dart';
 import 'package:JWHelper/app/usecases/exam_loader_usecase.dart';
 import 'package:JWHelper/app/coordinators/login_data_coordinator.dart';
+import 'package:JWHelper/app/coordinators/exam_selection_coordinator.dart';
+import 'package:JWHelper/app/domain/schedule_week_context.dart';
+import 'package:JWHelper/app/domain/upcoming_exam_selector.dart';
 import 'package:JWHelper/infrastructure/notifications/notification_service.dart';
 
 part 'mixins/grades_data_mixin.dart';
@@ -110,7 +113,7 @@ class DataProvider with ChangeNotifier {
       loadGrades: loadGrades,
       loadSchedule: loadSchedule,
       loadProgress: loadProgress,
-      loadExamSemesters: loadExamSemesters,
+      loadExamSemesters: loadDefaultExamsForWidget,
     );
   }
 
@@ -119,7 +122,7 @@ class DataProvider with ChangeNotifier {
       loadGrades: loadGrades,
       loadSchedule: loadSchedule,
       loadProgress: loadProgress,
-      loadExamSemesters: loadExamSemesters,
+      loadExamSemesters: loadDefaultExamsForWidget,
     );
   }
 

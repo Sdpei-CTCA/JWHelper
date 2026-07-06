@@ -1,12 +1,18 @@
 import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:home_widget/home_widget.dart';
+import 'package:JWHelper/app/domain/schedule_week_context.dart';
+import 'package:JWHelper/features/exam/domain/exam.dart';
 import 'package:JWHelper/features/schedule/domain/schedule_item.dart';
 
 class WidgetService {
   // Use group ID for iOS if needed, usually configured in Xcode
   static const String appGroupId = 'group.com.jwhelper.shared';
+  static const String displayModeSchedule = 'schedule';
+  static const String displayModeExam = 'exam';
+
   static const Map<int, int> _periodEndMinutes = {
     1: 8 * 60 + 45,
     2: 9 * 60 + 30,
@@ -24,6 +30,16 @@ class WidgetService {
     if (kIsWeb) return false;
     return defaultTargetPlatform == TargetPlatform.android ||
         defaultTargetPlatform == TargetPlatform.iOS;
+  }
+
+  static List<Map<String, String>> examsToWidgetPayload(List<Exam> exams) {
+    return exams
+        .map((exam) => {
+              'courseName': exam.courseName,
+              'time': exam.time,
+              'location': exam.location,
+            })
+        .toList();
   }
 
   static Future<void> init() async {
@@ -76,13 +92,65 @@ class WidgetService {
     );
   }
 
-  static Future<void> updateScheduleWidget(List<ScheduleItem> allItems,
-      {int currentWeek = 0}) async {
+  static Future<void> updateScheduleWidget(
+    List<ScheduleItem> allItems, {
+    int currentWeek = 0,
+    List<Exam> upcomingExams = const [],
+  }) async {
     if (!_isHomeWidgetSupported) return;
+
+    final isExamPeriod =
+        ScheduleWeekContext.isExamPeriod(allItems, currentWeek);
+    if (isExamPeriod && upcomingExams.isNotEmpty) {
+      await _saveExamWidgetData(upcomingExams);
+      await HomeWidget.updateWidget(
+        name: 'ScheduleWidgetProvider',
+        iOSName: 'ScheduleWidget',
+      );
+      return;
+    }
+
+    await _saveScheduleWidgetData(
+      allItems: allItems,
+      currentWeek: currentWeek,
+    );
+    await HomeWidget.updateWidget(
+      name: 'ScheduleWidgetProvider',
+      iOSName: 'ScheduleWidget',
+    );
+  }
+
+  static Future<void> _saveExamWidgetData(List<Exam> upcomingExams) async {
+    final payload = examsToWidgetPayload(upcomingExams);
+    await HomeWidget.saveWidgetData<String>(
+      'widget_display_mode',
+      displayModeExam,
+    );
+    await HomeWidget.saveWidgetData<String>(
+      'upcoming_exams',
+      jsonEncode(payload),
+    );
+    final now = DateTime.now();
+    await HomeWidget.saveWidgetData<String>(
+      'today_date',
+      '考试周',
+    );
+    await HomeWidget.saveWidgetData<String>(
+      'schedule_date_iso',
+      _toIsoDate(DateTime(now.year, now.month, now.day)),
+    );
+    await HomeWidget.saveWidgetData<String>(
+      'widget_last_updated',
+      now.toIso8601String(),
+    );
+  }
+
+  static Future<void> _saveScheduleWidgetData({
+    required List<ScheduleItem> allItems,
+    required int currentWeek,
+  }) async {
     final now = DateTime.now();
     final todayDate = DateTime(now.year, now.month, now.day);
-    // ScheduleItem dayIndex: 0=Mon, 6=Sun
-    // DateTime.weekday: 1=Mon, 7=Sun
     final todayIndex = now.weekday - 1;
 
     final todayItems =
@@ -99,28 +167,40 @@ class WidgetService {
       displayDate = todayDate.add(const Duration(days: 1));
       displayDayIndex = (todayIndex + 1) % 7;
       if (todayIndex == 6 && currentWeek > 0) {
-        // Sunday -> Monday crosses into next academic week.
         displayWeek = currentWeek + 1;
       }
-      displayItems = _itemsForDay(allItems, dayIndex: displayDayIndex, currentWeek: displayWeek);
+      displayItems = _itemsForDay(
+        allItems,
+        dayIndex: displayDayIndex,
+        currentWeek: displayWeek,
+      );
     }
 
-    // Serialize to JSON
     final jsonString = jsonEncode(displayItems.map((e) => e.toJson()).toList());
+    await HomeWidget.saveWidgetData<String>(
+      'widget_display_mode',
+      displayModeSchedule,
+    );
     await HomeWidget.saveWidgetData<String>('today_schedule', jsonString);
     await HomeWidget.saveWidgetData<String>(
-        'today_date', "${displayDate.month}月${displayDate.day}日");
+      'upcoming_exams',
+      '[]',
+    );
     await HomeWidget.saveWidgetData<String>(
-        'schedule_date_iso', _toIsoDate(displayDate));
-    await HomeWidget.saveWidgetData<String>('current_week', "第$displayWeek周");
+      'today_date',
+      '${displayDate.month}月${displayDate.day}日',
+    );
+    await HomeWidget.saveWidgetData<String>(
+      'schedule_date_iso',
+      _toIsoDate(displayDate),
+    );
+    await HomeWidget.saveWidgetData<String>(
+      'current_week',
+      '第$displayWeek周',
+    );
     await HomeWidget.saveWidgetData<String>(
       'widget_last_updated',
       DateTime.now().toIso8601String(),
-    );
-
-    await HomeWidget.updateWidget(
-      name: 'ScheduleWidgetProvider',
-      iOSName: 'ScheduleWidget',
     );
   }
 

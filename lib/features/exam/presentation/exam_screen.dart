@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:JWHelper/app/coordinators/exam_selection_coordinator.dart';
 import 'package:JWHelper/app/state/data_provider.dart';
 import 'package:JWHelper/features/exam/domain/exam.dart';
 
@@ -38,14 +39,11 @@ class _ExamScreenState extends State<ExamScreen> {
 
   Future<void> _loadSavedCampus() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final saved = prefs.getString('exam_selected_campus');
-      if (saved != null && (saved == '济南' || saved == '日照')) {
-        if (mounted) {
-          setState(() {
-            _selectedCampus = saved;
-          });
-        }
+      final campus = await ExamSelectionCoordinator.loadCampus();
+      if (mounted) {
+        setState(() {
+          _selectedCampus = campus;
+        });
       }
     } catch (e) {
       debugPrint("Error loading saved campus: $e");
@@ -77,35 +75,11 @@ class _ExamScreenState extends State<ExamScreen> {
   }
 
   List<ExamRound> _getSortedRounds(List<ExamRound> rounds) {
-    if (rounds.isEmpty) return [];
-    final sorted = List<ExamRound>.from(rounds);
-    sorted.sort((a, b) {
-      final aIsCurrent = a.name.contains(_selectedCampus);
-      final bIsCurrent = b.name.contains(_selectedCampus);
-      if (aIsCurrent && !bIsCurrent) return -1;
-      if (!aIsCurrent && bIsCurrent) return 1;
-      return 0; // Keep original order for same priority
-    });
-    return sorted;
+    return ExamSelectionCoordinator.sortRounds(rounds, _selectedCampus);
   }
 
   void _autoSelectRound(List<ExamRound> rounds) {
-    if (rounds.isEmpty) {
-      _selectedRound = null;
-      return;
-    }
-
-    final sorted = _getSortedRounds(rounds);
-
-    // Try to find "Current Campus" + "Final Exam"
-    try {
-      _selectedRound = sorted.firstWhere(
-        (r) => r.name.contains(_selectedCampus) && r.name.contains("期末考试"),
-      );
-    } catch (_) {
-      // Fallback: First of sorted (which should be current campus if available)
-      _selectedRound = sorted.first;
-    }
+    _selectedRound = ExamSelectionCoordinator.selectRound(rounds, _selectedCampus);
   }
 
   Future<void> _loadRounds() async {

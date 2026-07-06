@@ -30,6 +30,12 @@ class ScheduleWidgetProvider : HomeWidgetProvider() {
         10 to "19:45-20:30"
     )
 
+    private data class ExamItem(
+        val courseName: String,
+        val time: String,
+        val location: String,
+    )
+
     // Helper to get time range string
     private fun getTimeRange(start: Int, end: Int): String {
         val startStr = timeMap[start]?.split("-")?.get(0) ?: "00:00"
@@ -72,44 +78,99 @@ class ScheduleWidgetProvider : HomeWidgetProvider() {
             left.get(Calendar.DAY_OF_YEAR) == right.get(Calendar.DAY_OF_YEAR)
     }
 
+    private fun parseUpcomingExams(jsonString: String?): List<ExamItem> {
+        if (jsonString.isNullOrBlank()) return emptyList()
+        return try {
+            val jsonArray = JSONArray(jsonString)
+            val result = ArrayList<ExamItem>()
+            for (i in 0 until jsonArray.length()) {
+                val obj = jsonArray.getJSONObject(i)
+                result.add(
+                    ExamItem(
+                        courseName = obj.optString("courseName"),
+                        time = obj.optString("time"),
+                        location = obj.optString("location"),
+                    )
+                )
+            }
+            result
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
+    private fun bindExamColumn(
+        views: RemoteViews,
+        exam: ExamItem?,
+        nameId: Int,
+        infoId: Int,
+        timeId: Int,
+        emptyName: String,
+    ) {
+        if (exam != null) {
+            views.setTextViewText(nameId, exam.courseName)
+            views.setTextViewText(infoId, exam.location)
+            views.setTextViewText(timeId, exam.time)
+        } else {
+            views.setTextViewText(nameId, emptyName)
+            views.setTextViewText(infoId, "")
+            views.setTextViewText(timeId, "")
+        }
+    }
+
+    private fun setDeepLink(views: RemoteViews, context: Context, host: String) {
+        val intent = Intent(context, MainActivity::class.java).apply {
+            action = Intent.ACTION_VIEW
+            data = Uri.parse("jwhelper://$host")
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        val pendingIntent = PendingIntent.getActivity(
+            context,
+            0,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        views.setOnClickPendingIntent(android.R.id.background, pendingIntent)
+    }
+
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray, widgetData: SharedPreferences) {
         appWidgetIds.forEach { widgetId ->
             val views = RemoteViews(context.packageName, R.layout.widget_schedule).apply {
+                val displayMode = widgetData.getString("widget_display_mode", "schedule") ?: "schedule"
+                val exams = parseUpcomingExams(widgetData.getString("upcoming_exams", "[]"))
+
+                if (displayMode == "exam" && exams.isNotEmpty()) {
+                    setTextViewText(R.id.tv_date_num, "考试周")
+                    setTextViewText(R.id.tv_weekday, "")
+                    setTextViewText(R.id.tv_cur_label, "考试科目")
+                    setTextViewText(R.id.tv_next_label, "下一场")
+                    bindExamColumn(this, exams.getOrNull(0), R.id.tv_cur_name, R.id.tv_cur_info, R.id.tv_cur_time, "无考试")
+                    bindExamColumn(this, exams.getOrNull(1), R.id.tv_next_name, R.id.tv_next_info, R.id.tv_next_time, "无更多考试")
+                    setDeepLink(this, context, "exam")
+                    return@apply
+                }
+
                 val nowCal = Calendar.getInstance()
                 val scheduleCal = parseIsoDate(widgetData.getString("schedule_date_iso", null)) ?: nowCal
                 val date = widgetData.getString(
                     "today_date",
                     "${scheduleCal.get(Calendar.MONTH) + 1}月${scheduleCal.get(Calendar.DAY_OF_MONTH)}日"
                 ) ?: "1月1日"
-                val week = widgetData.getString("current_week", "") ?: "" // No longer used in main layout, but maybe debug
                 val jsonString = widgetData.getString("today_schedule", "[]")
                 val isDisplayToday = isSameDay(scheduleCal, nowCal)
                 
                 // Parse Date "X月X日" -> "X.X"
                 val dateNum = date.replace("月", ".").replace("日", "")
                 
-                // Get Weekday (Android Calendar) for "周X"
-                // Actually Flutter passes "today_date" static string.
-                // It's better to compute weekday here.
                 val weekDayMap = arrayOf("", "周日", "周一", "周二", "周三", "周四", "周五", "周六")
                 val weekDayStr = weekDayMap[scheduleCal.get(Calendar.DAY_OF_WEEK)]
 
                 setTextViewText(R.id.tv_date_num, dateNum)
                 setTextViewText(R.id.tv_weekday, weekDayStr)
+                setTextViewText(R.id.tv_cur_label, "当前")
+                setTextViewText(R.id.tv_next_label, "接下来")
 
-                // Click Intent
-                val intent = Intent(context, MainActivity::class.java).apply {
-                    action = Intent.ACTION_VIEW
-                    data = Uri.parse("jwhelper://schedule")
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-                }
-                val pendingIntent = PendingIntent.getActivity(
-                    context,
-                    0,
-                    intent,
-                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-                )
-                setOnClickPendingIntent(android.R.id.background, pendingIntent)
+                setDeepLink(this, context, "schedule")
 
                 try {
                     val jsonArray = JSONArray(jsonString)
@@ -118,10 +179,8 @@ class ScheduleWidgetProvider : HomeWidgetProvider() {
                         allItems.add(jsonArray.getJSONObject(i))
                     }
 
-                    // Sort by startUnit just in case
                     allItems.sortBy { it.optInt("startUnit") }
                     
-                    // Filter: Find first item that is NOT passed
                     var currentIdx = -1
                     if (isDisplayToday) {
                         for (i in allItems.indices) {
@@ -134,17 +193,12 @@ class ScheduleWidgetProvider : HomeWidgetProvider() {
                         currentIdx = 0
                     }
                     
-                    // If all passed, maybe show nothing or just the last one?
-                    // Design: Current (Left), Next (Right)
-                    
-                    // Current Item
                     if (currentIdx != -1) {
                          val curr = allItems[currentIdx]
                          setTextViewText(R.id.tv_cur_name, curr.optString("name"))
                          setTextViewText(R.id.tv_cur_info, "${curr.optString("classroom")} ${curr.optString("teacher")}")
                          setTextViewText(R.id.tv_cur_time, getTimeRange(curr.optInt("startUnit"), curr.optInt("endUnit")))
                          
-                         // Next Item
                          if (currentIdx + 1 < allItems.size) {
                              val next = allItems[currentIdx + 1]
                              setTextViewText(R.id.tv_next_name, next.optString("name"))
@@ -156,7 +210,6 @@ class ScheduleWidgetProvider : HomeWidgetProvider() {
                              setTextViewText(R.id.tv_next_time, "")
                          }
                     } else if (allItems.isNotEmpty()) {
-                        // All classes passed for today
                         setTextViewText(R.id.tv_cur_name, "今日课程已结束")
                         setTextViewText(R.id.tv_cur_info, "")
                         setTextViewText(R.id.tv_cur_time, "")
@@ -165,7 +218,6 @@ class ScheduleWidgetProvider : HomeWidgetProvider() {
                         setTextViewText(R.id.tv_next_info, "")
                         setTextViewText(R.id.tv_next_time, "")
                     } else {
-                        // No classes today
                          setTextViewText(R.id.tv_cur_name, if (isDisplayToday) "今天没有课" else "无课程")
                          setTextViewText(R.id.tv_cur_info, if (isDisplayToday) "好好休息吧" else "下一天暂无课程")
                          setTextViewText(R.id.tv_cur_time, "")

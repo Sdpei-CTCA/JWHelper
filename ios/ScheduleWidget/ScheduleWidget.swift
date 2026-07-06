@@ -129,7 +129,7 @@ struct ScheduleWidgetEntryView: View {
         }
         .padding()
         .widgetBackground(WidgetColors.background)
-        .widgetURL(URL(string: entry.displayMode == "exam" ? "jwhelper://exam" : "jwhelper://schedule"))
+        .widgetURL(URL(string: entry.displayMode == "exam" ? "jwhelper://exam?homeWidget=1" : "jwhelper://schedule?homeWidget=1"))
     }
 
     private var header: some View {

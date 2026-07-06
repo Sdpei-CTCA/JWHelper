@@ -2,11 +2,10 @@ package edu.sdpei.JWSystem
 
 import android.appwidget.AppWidgetManager
 import android.content.Context
-import android.content.Intent
-import android.app.PendingIntent
 import android.net.Uri
 import android.content.SharedPreferences
 import android.widget.RemoteViews
+import es.antonborri.home_widget.HomeWidgetLaunchIntent
 import es.antonborri.home_widget.HomeWidgetProvider
 
 class ProgressWidgetProvider : HomeWidgetProvider() {
@@ -19,17 +18,10 @@ class ProgressWidgetProvider : HomeWidgetProvider() {
                 setTextViewText(R.id.tv_earned, widgetData.getString("earned_credits", "--"))
                 setTextViewText(R.id.tv_required, widgetData.getString("required_credits", "--"))
 
-                // Click Intent
-                val intent = Intent(context, MainActivity::class.java).apply {
-                    action = Intent.ACTION_VIEW
-                    data = Uri.parse("jwhelper://progress")
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-                }
-                val pendingIntent = PendingIntent.getActivity(
+                val pendingIntent = HomeWidgetLaunchIntent.getActivity(
                     context,
-                    0,
-                    intent,
-                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                    MainActivity::class.java,
+                    Uri.parse("jwhelper://progress?homeWidget=1"),
                 )
                 setOnClickPendingIntent(android.R.id.background, pendingIntent)
             }

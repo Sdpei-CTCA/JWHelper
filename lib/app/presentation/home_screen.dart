@@ -221,6 +221,8 @@ class _HomeScreenState extends State<HomeScreen> {
         HomeNavigationCoordinator.tabIndexFromWidgetHost(uri.host);
     if (nextIndex == null) return;
 
+    Navigator.of(context).popUntil((route) => route.isFirst);
+
     setState(() {
       _currentIndex = nextIndex;
       _openedFromWidget = true;
@@ -722,7 +724,16 @@ class _HomeScreenState extends State<HomeScreen> {
               "教务小助手",
               style: TextStyle(fontWeight: FontWeight.bold),
             ),
-            if (dataProvider.daysUntilStart > 0)
+            if (_currentIndex == HomeNavigationCoordinator.examTab)
+              const Text(
+                "考试安排",
+                style: TextStyle(
+                  color: Colors.grey,
+                  fontSize: 12,
+                  fontWeight: FontWeight.normal,
+                ),
+              )
+            else if (dataProvider.daysUntilStart > 0)
               Text(
                 "距新学期还有${dataProvider.daysUntilStart}天",
                 style: const TextStyle(

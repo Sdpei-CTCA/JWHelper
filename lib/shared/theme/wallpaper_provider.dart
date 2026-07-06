@@ -4,14 +4,16 @@ import 'package:palette_generator/palette_generator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class WallpaperProvider with ChangeNotifier {
+  static const String defaultThemeKey = 'classic_light';
+
   String? _wallpaperPath;
   double _opacity = 0.3;
   double _listCardOpacity = 1.0;
   double _gridCardOpacity = 1.0;
   double _panX = 0.0; // -1.0 ~ 1.0, left/right
   double _panY = 0.0; // -1.0 ~ 1.0, up/down
-  Color _primaryColor = const Color(0xFF67C23A);
-  Color _secondaryColor = const Color(0xFF409EFF);
+  Color _primaryColor = const Color(0xFF409EFF);
+  Color _secondaryColor = const Color(0xFF67C23A);
   Color _accentColor = const Color(0xFFE6A23C);
   bool _isLoaded = false;
 
@@ -54,20 +56,29 @@ class WallpaperProvider with ChangeNotifier {
     
     // Check if a default theme was applied
     final themeKey = prefs.getString('defaultThemeKey');
-    if (themeKey != null && _wallpaperPath == null) {
-      // Apply default theme only when no wallpaper is set
-      final theme = defaultThemes[themeKey];
-      if (theme != null) {
-        _primaryColor = theme['primary'] as Color;
-        _secondaryColor = theme['secondary'] as Color;
-        _accentColor = theme['accent'] as Color;
+    if (_wallpaperPath == null) {
+      if (themeKey != null) {
+        _applyThemeColors(themeKey);
+      } else {
+        final primaryValue = prefs.getInt('wallpaperPrimaryColor');
+        if (primaryValue != null) {
+          final secondaryValue = prefs.getInt('wallpaperSecondaryColor');
+          final accentValue = prefs.getInt('wallpaperAccentColor');
+          _primaryColor = Color(primaryValue);
+          if (secondaryValue != null) {
+            _secondaryColor = Color(secondaryValue);
+          }
+          if (accentValue != null) _accentColor = Color(accentValue);
+        } else {
+          _applyThemeColors(defaultThemeKey);
+          await _persistThemeColors(defaultThemeKey);
+        }
       }
     } else {
-      // Load saved colors (wallpaper-extracted or last used)
       final primaryValue = prefs.getInt('wallpaperPrimaryColor');
       final secondaryValue = prefs.getInt('wallpaperSecondaryColor');
       final accentValue = prefs.getInt('wallpaperAccentColor');
-      
+
       if (primaryValue != null) _primaryColor = Color(primaryValue);
       if (secondaryValue != null) _secondaryColor = Color(secondaryValue);
       if (accentValue != null) _accentColor = Color(accentValue);
@@ -192,17 +203,25 @@ class WallpaperProvider with ChangeNotifier {
     final theme = defaultThemes[themeKey];
     if (theme == null) return;
 
+    _applyThemeColors(themeKey);
+    await _persistThemeColors(themeKey);
+    notifyListeners();
+  }
+
+  void _applyThemeColors(String themeKey) {
+    final theme = defaultThemes[themeKey];
+    if (theme == null) return;
     _primaryColor = theme['primary'] as Color;
     _secondaryColor = theme['secondary'] as Color;
     _accentColor = theme['accent'] as Color;
+  }
 
+  Future<void> _persistThemeColors(String themeKey) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt('wallpaperPrimaryColor', _primaryColor.toARGB32());
     await prefs.setInt('wallpaperSecondaryColor', _secondaryColor.toARGB32());
     await prefs.setInt('wallpaperAccentColor', _accentColor.toARGB32());
     await prefs.setString('defaultThemeKey', themeKey);
-
-    notifyListeners();
   }
 
   bool get hasExtractedColors =>
@@ -369,9 +388,7 @@ class WallpaperProvider with ChangeNotifier {
     _gridCardOpacity = 1.0;
     _panX = 0.0;
     _panY = 0.0;
-    _primaryColor = const Color(0xFF67C23A);
-    _secondaryColor = const Color(0xFF409EFF);
-    _accentColor = const Color(0xFFE6A23C);
+    _applyThemeColors(defaultThemeKey);
     _extractedPrimary = null;
     _extractedSecondary = null;
     _extractedAccent = null;
@@ -391,6 +408,9 @@ class WallpaperProvider with ChangeNotifier {
     await prefs.remove('wallpaperExtractedPrimary');
     await prefs.remove('wallpaperExtractedSecondary');
     await prefs.remove('wallpaperExtractedAccent');
-    await prefs.remove('defaultThemeKey');
+    await prefs.setString('defaultThemeKey', defaultThemeKey);
+    await prefs.setInt('wallpaperPrimaryColor', _primaryColor.toARGB32());
+    await prefs.setInt('wallpaperSecondaryColor', _secondaryColor.toARGB32());
+    await prefs.setInt('wallpaperAccentColor', _accentColor.toARGB32());
   }
 }

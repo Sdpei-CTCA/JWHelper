@@ -2,11 +2,10 @@ package edu.sdpei.JWSystem
 
 import android.appwidget.AppWidgetManager
 import android.content.Context
-import android.content.Intent
-import android.app.PendingIntent
 import android.net.Uri
 import android.content.SharedPreferences
 import android.widget.RemoteViews
+import es.antonborri.home_widget.HomeWidgetLaunchIntent
 import es.antonborri.home_widget.HomeWidgetProvider
 import org.json.JSONArray
 import org.json.JSONObject
@@ -119,16 +118,10 @@ class ScheduleWidgetProvider : HomeWidgetProvider() {
     }
 
     private fun setDeepLink(views: RemoteViews, context: Context, host: String) {
-        val intent = Intent(context, MainActivity::class.java).apply {
-            action = Intent.ACTION_VIEW
-            data = Uri.parse("jwhelper://$host")
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-        }
-        val pendingIntent = PendingIntent.getActivity(
+        val pendingIntent = HomeWidgetLaunchIntent.getActivity(
             context,
-            0,
-            intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            MainActivity::class.java,
+            Uri.parse("jwhelper://$host?homeWidget=1"),
         )
         views.setOnClickPendingIntent(android.R.id.background, pendingIntent)
     }

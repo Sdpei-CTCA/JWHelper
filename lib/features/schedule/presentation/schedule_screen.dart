@@ -2,6 +2,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:JWHelper/app/state/data_provider.dart';
+import 'package:JWHelper/features/schedule/data/schedule_conflict_store.dart';
+import 'package:JWHelper/features/schedule/domain/schedule_conflict.dart';
 import 'package:JWHelper/features/schedule/domain/schedule_item.dart';
 import 'package:JWHelper/shared/theme/wallpaper_provider.dart';
 
@@ -15,11 +17,35 @@ class ScheduleScreen extends StatefulWidget {
 }
 
 class _ScheduleScreenState extends State<ScheduleScreen> {
+  Map<String, String> _primarySelections = {};
+
   @override
   void initState() {
     super.initState();
+    _loadConflictSelections();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Provider.of<DataProvider>(context, listen: false).loadSchedule();
+    });
+  }
+
+  Future<void> _loadConflictSelections() async {
+    final saved = await ScheduleConflictStore.loadAll();
+    if (!mounted) return;
+    setState(() => _primarySelections = saved);
+  }
+
+  Future<void> _updatePrimarySelection({
+    required String groupKey,
+    required String itemKey,
+  }) async {
+    await ScheduleConflictStore.savePrimary(
+      groupKey: groupKey,
+      itemKey: itemKey,
+    );
+    if (!mounted) return;
+    setState(() {
+      _primarySelections = Map<String, String>.from(_primarySelections)
+        ..[groupKey] = itemKey;
     });
   }
 
@@ -77,7 +103,12 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                 );
               },
               child: isGrid 
-                ? _WeekScheduleGridView(key: const ValueKey('grid'), selectedWeekNotifier: widget.selectedWeekNotifier)
+                ? _WeekScheduleGridView(
+                    key: const ValueKey('grid'),
+                    selectedWeekNotifier: widget.selectedWeekNotifier,
+                    primarySelections: _primarySelections,
+                    onPrimaryChanged: _updatePrimarySelection,
+                  )
                 : DefaultTabController(
                     key: const ValueKey('list'),
                     length: 7,
@@ -126,7 +157,11 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                         Expanded(
                           child: TabBarView(
                             children: List.generate(7, (dayIndex) {
-                              return _DayScheduleView(dayIndex: dayIndex);
+                              return _DayScheduleView(
+                                dayIndex: dayIndex,
+                                primarySelections: _primarySelections,
+                                onPrimaryChanged: _updatePrimarySelection,
+                              );
                             }),
                           ),
                         ),
@@ -141,10 +176,83 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
   }
 }
 
+Future<ScheduleItem?> _showConflictCoursePicker(
+  BuildContext context, {
+  required List<ScheduleItem> group,
+  required ScheduleItem primary,
+  required String subtitle,
+}) {
+  final currentPrimaryKey = ScheduleConflict.itemKey(primary);
+  return showModalBottomSheet<ScheduleItem>(
+    context: context,
+    showDragHandle: true,
+    builder: (context) {
+      return SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '该时段有 ${group.length} 门课程',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                subtitle,
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+                  fontSize: 13,
+                ),
+              ),
+              const SizedBox(height: 12),
+              ...group.map((item) {
+                final itemKey = ScheduleConflict.itemKey(item);
+                final isSelected = itemKey == currentPrimaryKey;
+                return ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(
+                    isSelected ? Icons.check_circle : Icons.circle_outlined,
+                    color: isSelected
+                        ? Theme.of(context).colorScheme.primary
+                        : Colors.grey,
+                  ),
+                  title: Text(
+                    item.name,
+                    style: TextStyle(
+                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                    ),
+                  ),
+                  subtitle: Text(
+                    '${item.teacher} · ${item.classroom} · 第${item.startUnit}-${item.endUnit}节',
+                  ),
+                  onTap: () => Navigator.of(context).pop(item),
+                );
+              }),
+            ],
+          ),
+        ),
+      );
+    },
+  );
+}
+
 class _DayScheduleView extends StatelessWidget {
   final int dayIndex;
+  final Map<String, String> primarySelections;
+  final Future<void> Function({
+    required String groupKey,
+    required String itemKey,
+  }) onPrimaryChanged;
 
-  const _DayScheduleView({required this.dayIndex});
+  const _DayScheduleView({
+    required this.dayIndex,
+    required this.primarySelections,
+    required this.onPrimaryChanged,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -169,38 +277,42 @@ class _DayScheduleView extends StatelessWidget {
       );
     }
 
-    // Group items by start unit to handle overlaps
-    Map<int, List<ScheduleItem>> groupedItems = {};
-    for (var item in dayItems) {
-      if (!groupedItems.containsKey(item.startUnit)) {
-        groupedItems[item.startUnit] = [];
-      }
-      groupedItems[item.startUnit]!.add(item);
-    }
-
-    // Sort groups by start unit
-    var sortedKeys = groupedItems.keys.toList()..sort();
-
-    // Helper to process a group
-    Widget processGroup(int startUnit) {
-      var group = groupedItems[startUnit]!;
-      return _CourseGroup(
-        items: group, 
-        currentWeek: currentWeek,
+    // Group overlapping courses on this day
+    final conflictGroups = ScheduleConflict.groupOverlapping(dayItems);
+    conflictGroups.sort((a, b) {
+      final aPrimary = ScheduleConflict.resolvePrimary(
+        group: a,
+        weekNumber: currentWeek,
+        savedItemKey: primarySelections[ScheduleConflict.groupKey(a)],
       );
-    }
+      final bPrimary = ScheduleConflict.resolvePrimary(
+        group: b,
+        weekNumber: currentWeek,
+        savedItemKey: primarySelections[ScheduleConflict.groupKey(b)],
+      );
+      return aPrimary.startUnit.compareTo(bPrimary.startUnit);
+    });
 
     List<Widget> morningWidgets = [];
     List<Widget> afternoonWidgets = [];
     List<Widget> eveningWidgets = [];
 
-    for (var key in sortedKeys) {
-      var item = groupedItems[key]!.first; // Representative for time check
-      var widget = processGroup(key);
+    for (final group in conflictGroups) {
+      final primary = ScheduleConflict.resolvePrimary(
+        group: group,
+        weekNumber: currentWeek,
+        savedItemKey: primarySelections[ScheduleConflict.groupKey(group)],
+      );
+      final widget = _CourseGroup(
+        items: group,
+        currentWeek: currentWeek,
+        primarySelections: primarySelections,
+        onPrimaryChanged: onPrimaryChanged,
+      );
 
-      if (item.startPeriod <= 4) {
+      if (primary.startPeriod <= 4) {
         morningWidgets.add(widget);
-      } else if (item.startPeriod <= 8) {
+      } else if (primary.startPeriod <= 8) {
         afternoonWidgets.add(widget);
       } else {
         eveningWidgets.add(widget);
@@ -263,10 +375,17 @@ class _DayScheduleView extends StatelessWidget {
 class _CourseGroup extends StatefulWidget {
   final List<ScheduleItem> items;
   final int currentWeek;
+  final Map<String, String> primarySelections;
+  final Future<void> Function({
+    required String groupKey,
+    required String itemKey,
+  }) onPrimaryChanged;
 
   const _CourseGroup({
-    required this.items, 
+    required this.items,
     required this.currentWeek,
+    required this.primarySelections,
+    required this.onPrimaryChanged,
   });
 
   @override
@@ -276,25 +395,51 @@ class _CourseGroup extends StatefulWidget {
 class _CourseGroupState extends State<_CourseGroup> {
   bool _isExpanded = false;
 
+  Future<void> _pickPrimaryCourse() async {
+    final groupKey = ScheduleConflict.groupKey(widget.items);
+    final primary = ScheduleConflict.resolvePrimary(
+      group: widget.items,
+      weekNumber: widget.currentWeek,
+      savedItemKey: widget.primarySelections[groupKey],
+    );
+    final picked = await _showConflictCoursePicker(
+      context,
+      group: widget.items,
+      primary: primary,
+      subtitle: '选择要在每日课表中默认显示的课程',
+    );
+    if (picked == null || !mounted) return;
+    await widget.onPrimaryChanged(
+      groupKey: groupKey,
+      itemKey: ScheduleConflict.itemKey(picked),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    // Sort: Current -> Upcoming -> Finished
-    var sortedItems = List<ScheduleItem>.from(widget.items);
-    sortedItems.sort((a, b) {
-      int getScore(ScheduleItem item) {
-        if (widget.currentWeek >= item.weekStart &&
-            widget.currentWeek <= item.weekEnd) {
-          return 0; // Current
+    final groupKey = ScheduleConflict.groupKey(widget.items);
+    final primaryItem = ScheduleConflict.resolvePrimary(
+      group: widget.items,
+      weekNumber: widget.currentWeek,
+      savedItemKey: widget.primarySelections[groupKey],
+    );
+    final otherItems = widget.items
+        .where((item) => ScheduleConflict.itemKey(item) != ScheduleConflict.itemKey(primaryItem))
+        .toList()
+      ..sort((a, b) {
+        int score(ScheduleItem item) {
+          if (widget.currentWeek >= item.weekStart &&
+              widget.currentWeek <= item.weekEnd) {
+            return 0;
+          }
+          if (widget.currentWeek < item.weekStart) return 1;
+          return 2;
         }
-        if (widget.currentWeek < item.weekStart) return 1; // Upcoming
-        return 2; // Finished
-      }
 
-      return getScore(a).compareTo(getScore(b));
-    });
-
-    final primaryItem = sortedItems.first;
-    final otherItems = sortedItems.skip(1).toList();
+        final scoreCompare = score(a).compareTo(score(b));
+        if (scoreCompare != 0) return scoreCompare;
+        return ScheduleConflict.itemKey(a).compareTo(ScheduleConflict.itemKey(b));
+      });
 
     if (otherItems.isEmpty) {
       return _buildCourseCard(primaryItem);
@@ -304,34 +449,64 @@ class _CourseGroupState extends State<_CourseGroup> {
       children: [
         Stack(
           children: [
-            _buildCourseCard(primaryItem),
+            InkWell(
+              onTap: _pickPrimaryCourse,
+              borderRadius: BorderRadius.circular(12),
+              child: _buildCourseCard(primaryItem),
+            ),
             Positioned(
               right: 8,
               top: 8,
-              child: InkWell(
-                onTap: () => setState(() => _isExpanded = !_isExpanded),
-                child: Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(
-                      color: Theme.of(context)
-                              .cardTheme
-                              .color
-                              ?.withValues(alpha: 0.8) ??
-                          Colors.white.withValues(alpha: 0.8),
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.12),
-                            blurRadius: 2)
-                      ]),
-                  child: Icon(
-                    _isExpanded
-                        ? Icons.keyboard_arrow_up
-                        : Icons.keyboard_arrow_down,
-                    size: 20,
-                    color: Colors.blue,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  InkWell(
+                    onTap: _pickPrimaryCourse,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.primary,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        '${widget.items.length}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
                   ),
-                ),
+                  const SizedBox(width: 4),
+                  InkWell(
+                    onTap: () => setState(() => _isExpanded = !_isExpanded),
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context)
+                                .cardTheme
+                                .color
+                                ?.withValues(alpha: 0.8) ??
+                            Colors.white.withValues(alpha: 0.8),
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.12),
+                            blurRadius: 2,
+                          ),
+                        ],
+                      ),
+                      child: Icon(
+                        _isExpanded
+                            ? Icons.keyboard_arrow_up
+                            : Icons.keyboard_arrow_down,
+                        size: 20,
+                        color: Colors.blue,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -451,7 +626,18 @@ class _CourseGroupState extends State<_CourseGroup> {
 
 class _WeekScheduleGridView extends StatefulWidget {
   final ValueNotifier<int> selectedWeekNotifier;
-  const _WeekScheduleGridView({super.key, required this.selectedWeekNotifier});
+  final Map<String, String> primarySelections;
+  final Future<void> Function({
+    required String groupKey,
+    required String itemKey,
+  }) onPrimaryChanged;
+
+  const _WeekScheduleGridView({
+    super.key,
+    required this.selectedWeekNotifier,
+    required this.primarySelections,
+    required this.onPrimaryChanged,
+  });
 
   @override
   State<_WeekScheduleGridView> createState() => _WeekScheduleGridViewState();
@@ -509,7 +695,6 @@ class _WeekScheduleGridViewState extends State<_WeekScheduleGridView> {
       final initialWeek = currentWeek > 0 ? currentWeek : 1;
       widget.selectedWeekNotifier.value = initialWeek;
       _pageController = PageController(initialPage: initialWeek - 1);
-      // Listen to external week changes (from AppBar) and sync PageView
       widget.selectedWeekNotifier.addListener(_onWeekChanged);
       _initialized = true;
     }
@@ -608,6 +793,33 @@ class _WeekScheduleGridViewState extends State<_WeekScheduleGridView> {
         );
       },
     );
+  }
+
+  Future<void> _handleGridCellTap({
+    required BuildContext context,
+    required List<ScheduleItem> group,
+    required ScheduleItem primary,
+  }) async {
+    if (group.length == 1) {
+      _showCourseDetails(context, primary);
+      return;
+    }
+
+    final groupKey = ScheduleConflict.groupKey(group);
+    final picked = await _showConflictCoursePicker(
+      context,
+      group: group,
+      primary: primary,
+      subtitle: '选择要在每周课表格子中显示的课程',
+    );
+    if (picked == null || !mounted) return;
+
+    await widget.onPrimaryChanged(
+      groupKey: groupKey,
+      itemKey: ScheduleConflict.itemKey(picked),
+    );
+    if (!context.mounted) return;
+    _showCourseDetails(context, picked);
   }
 
   Widget _detailRow(IconData icon, String text) {
@@ -734,6 +946,7 @@ class _WeekScheduleGridViewState extends State<_WeekScheduleGridView> {
                   final weekSchedule = schedule.where((item) => 
                     weekNumber >= item.weekStart && weekNumber <= item.weekEnd
                   ).toList();
+                  final conflictGroups = ScheduleConflict.groupOverlapping(weekSchedule);
 
                   return SingleChildScrollView(
                     child: Row(
@@ -797,18 +1010,29 @@ class _WeekScheduleGridViewState extends State<_WeekScheduleGridView> {
                                         color: effectiveIsDark ? Colors.white10 : Colors.black.withValues(alpha: 0.05),
                                       ),
                                     ),
-                                  ...weekSchedule.map((item) {
-                                    Color bgColor = _getColorForCourse(item.name, isDark);
-                                    Color textColor = Colors.white;
+                                  ...conflictGroups.map((group) {
+                                    final groupKey = ScheduleConflict.groupKey(group);
+                                    final primary = ScheduleConflict.resolvePrimary(
+                                      group: group,
+                                      weekNumber: weekNumber,
+                                      savedItemKey: widget.primarySelections[groupKey],
+                                    );
+                                    Color bgColor = _getColorForCourse(primary.name, isDark);
+                                    const textColor = Colors.white;
                                     final cardOpacity = context.read<WallpaperProvider>().gridCardOpacity;
+                                    final hasConflict = group.length > 1;
 
                                     return Positioned(
-                                      left: item.dayIndex * dayCellWidth,
-                                      top: (item.startUnit - 1) * cellHeight,
+                                      left: primary.dayIndex * dayCellWidth,
+                                      top: (primary.startUnit - 1) * cellHeight,
                                       width: dayCellWidth,
-                                      height: (item.endUnit - item.startUnit + 1) * cellHeight,
+                                      height: (primary.endUnit - primary.startUnit + 1) * cellHeight,
                                       child: InkWell(
-                                        onTap: () => _showCourseDetails(context, item),
+                                        onTap: () => _handleGridCellTap(
+                                          context: context,
+                                          group: group,
+                                          primary: primary,
+                                        ),
                                         child: Container(
                                           margin: const EdgeInsets.all(1),
                                           decoration: BoxDecoration(
@@ -823,22 +1047,46 @@ class _WeekScheduleGridViewState extends State<_WeekScheduleGridView> {
                                             ],
                                           ),
                                           padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
-                                          child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                          child: Stack(
                                             children: [
-                                              Text(
-                                                item.name,
-                                                style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: textColor),
-                                                maxLines: ((item.endUnit - item.startUnit + 1) * 2).toInt(),
-                                                overflow: TextOverflow.ellipsis,
+                                              Column(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    primary.name,
+                                                    style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: textColor),
+                                                    maxLines: ((primary.endUnit - primary.startUnit + 1) * 2).toInt(),
+                                                    overflow: TextOverflow.ellipsis,
+                                                  ),
+                                                  const SizedBox(height: 2),
+                                                  Text(
+                                                    "@${primary.classroom}",
+                                                    style: const TextStyle(fontSize: 9, color: textColor),
+                                                    maxLines: 2,
+                                                    overflow: TextOverflow.ellipsis,
+                                                  ),
+                                                ],
                                               ),
-                                              const SizedBox(height: 2),
-                                              Text(
-                                                "@${item.classroom}",
-                                                style: TextStyle(fontSize: 9, color: textColor),
-                                                maxLines: 2,
-                                                overflow: TextOverflow.ellipsis,
-                                              ),
+                                              if (hasConflict)
+                                                Positioned(
+                                                  right: 0,
+                                                  top: 0,
+                                                  child: Container(
+                                                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                                                    decoration: BoxDecoration(
+                                                      color: Colors.black.withValues(alpha: 0.35),
+                                                      borderRadius: BorderRadius.circular(8),
+                                                    ),
+                                                    child: Text(
+                                                      '${group.length}',
+                                                      style: const TextStyle(
+                                                        color: Colors.white,
+                                                        fontSize: 9,
+                                                        fontWeight: FontWeight.bold,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ),
                                             ],
                                           ),
                                         ),

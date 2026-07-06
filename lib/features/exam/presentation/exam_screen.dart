@@ -173,79 +173,19 @@ class _ExamScreenState extends State<ExamScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Scaffold(
-      appBar: AppBar(
-        title:
-            Text("考试安排", style: TextStyle(color: theme.colorScheme.onSurface)),
-        elevation: 0,
-        centerTitle: true,
-        actions: [
-          Container(
-            margin: const EdgeInsets.only(right: 16),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: theme.brightness == Brightness.dark
-                  ? theme.colorScheme.primary.withValues(alpha: 0.2)
-                  : theme.colorScheme.primary.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                  color: theme.brightness == Brightness.dark
-                      ? theme.colorScheme.primary.withValues(alpha: 0.3)
-                      : theme.colorScheme.primary.withValues(alpha: 0.2)),
-            ),
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<String>(
-                value: _selectedCampus,
-                isDense: true,
-                icon: Icon(Icons.keyboard_arrow_down_rounded,
-                    color: theme.colorScheme.primary, size: 18),
-                style: TextStyle(
-                    color: theme.colorScheme.primary,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14),
-                borderRadius: BorderRadius.circular(12),
-                dropdownColor: theme.cardTheme.color,
-                items: [
-                  DropdownMenuItem(
-                      value: "济南",
-                      child: Text("济南校区",
-                          style:
-                              TextStyle(color: theme.colorScheme.onSurface))),
-                  DropdownMenuItem(
-                      value: "日照",
-                      child: Text("日照校区",
-                          style:
-                              TextStyle(color: theme.colorScheme.onSurface))),
-                ],
-                onChanged: (value) {
-                  if (value != null && value != _selectedCampus) {
-                    setState(() {
-                      _selectedCampus = value;
-                      _saveCampus(value);
-                      // Re-sort and auto-select when campus changes
-                      final provider =
-                          Provider.of<DataProvider>(context, listen: false);
-                      if (provider.examRounds.isNotEmpty) {
-                        _autoSelectRound(provider.examRounds);
-                      }
-                    });
-                    // Reload exams for the new selection
-                    _loadExams();
-                  }
-                },
+    return Column(
+      children: [
+        // Filters
+        Container(
+          padding: const EdgeInsets.all(16),
+          color: theme.cardTheme.color,
+          child: Column(
+            children: [
+              Align(
+                alignment: Alignment.centerRight,
+                child: _buildCampusSelector(theme),
               ),
-            ),
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          // Filters
-          Container(
-            padding: const EdgeInsets.all(16),
-            color: theme.cardTheme.color,
-            child: Column(
-              children: [
+              const SizedBox(height: 12),
                 // Semester Dropdown
                 Selector<DataProvider, List<Semester>>(
                     selector: (_, p) => p.examSemesters,
@@ -417,6 +357,67 @@ class _ExamScreenState extends State<ExamScreen> {
             ),
           ),
         ],
+    );
+  }
+
+  Widget _buildCampusSelector(ThemeData theme) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: theme.brightness == Brightness.dark
+            ? theme.colorScheme.primary.withValues(alpha: 0.2)
+            : theme.colorScheme.primary.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: theme.brightness == Brightness.dark
+              ? theme.colorScheme.primary.withValues(alpha: 0.3)
+              : theme.colorScheme.primary.withValues(alpha: 0.2),
+        ),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: _selectedCampus,
+          isDense: true,
+          icon: Icon(Icons.keyboard_arrow_down_rounded,
+              color: theme.colorScheme.primary, size: 18),
+          style: TextStyle(
+            color: theme.colorScheme.primary,
+            fontWeight: FontWeight.bold,
+            fontSize: 14,
+          ),
+          borderRadius: BorderRadius.circular(12),
+          dropdownColor: theme.cardTheme.color,
+          items: [
+            DropdownMenuItem(
+              value: '济南',
+              child: Text(
+                '济南校区',
+                style: TextStyle(color: theme.colorScheme.onSurface),
+              ),
+            ),
+            DropdownMenuItem(
+              value: '日照',
+              child: Text(
+                '日照校区',
+                style: TextStyle(color: theme.colorScheme.onSurface),
+              ),
+            ),
+          ],
+          onChanged: (value) {
+            if (value != null && value != _selectedCampus) {
+              setState(() {
+                _selectedCampus = value;
+                _saveCampus(value);
+                final provider =
+                    Provider.of<DataProvider>(context, listen: false);
+                if (provider.examRounds.isNotEmpty) {
+                  _autoSelectRound(provider.examRounds);
+                }
+              });
+              _loadExams();
+            }
+          },
+        ),
       ),
     );
   }

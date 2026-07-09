@@ -3,17 +3,14 @@ import 'package:JWHelper/app/coordinators/login_data_coordinator.dart';
 
 void main() {
   group('LoginDataCoordinator', () {
-    test('prepareOnline clears cache and force refreshes all modules', () async {
-      var clearCalled = false;
+    test('prepareOnline force refreshes all modules without clearing cache',
+        () async {
       var gradesForceRefresh = false;
       var scheduleForceRefresh = false;
       var progressForceRefresh = false;
       var examForceRefresh = false;
 
       await LoginDataCoordinator.prepareOnline(
-        clearCache: () async {
-          clearCalled = true;
-        },
         loadGrades: ({bool forceRefresh = false}) async {
           if (forceRefresh) gradesForceRefresh = true;
         },
@@ -28,7 +25,6 @@ void main() {
         },
       );
 
-      expect(clearCalled, isTrue);
       expect(gradesForceRefresh, isTrue);
       expect(scheduleForceRefresh, isTrue);
       expect(progressForceRefresh, isTrue);

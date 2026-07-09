@@ -3,25 +3,13 @@ import SwiftUI
 
 // Time helper
 struct TimeHelper {
-    static let map: [Int: String] = [
-        1 : "08:00-08:45",
-        2 : "08:55-09:40",
-        3 : "10:00-10:45",
-        4 : "10:55-11:40",
-        5 : "13:30-14:15",
-        6 : "14:25-15:10",
-        7 : "15:20-16:05",
-        8 : "16:25-17:10",
-        9 : "17:20-18:05",
-        10 : "18:30-19:15",
-        11 : "19:25-20:10",
-        12 : "20:20-21:05"
-    ]
-    
-    static func getTimeRange(start: Int, end: Int) -> String {
-        let startStr = map[start]?.components(separatedBy: "-")[0] ?? "00:00"
-        let endStr = map[end]?.components(separatedBy: "-")[1] ?? "00:00"
-        return "\(startStr) - \(endStr)"
+    static func getTimeRange(start: Int, end: Int, campus: String, date: Date) -> String {
+        WidgetTimeTable.formatTimeRange(
+            startPeriod: start,
+            endPeriod: end,
+            campus: campus,
+            date: date
+        )
     }
 }
 
@@ -56,25 +44,55 @@ struct ScheduleProvider: TimelineProvider {
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<ScheduleEntry>) -> ()) {
+        WidgetStore.refreshTodayScheduleIfNeeded()
+
         let displayMode = WidgetStore.displayMode()
         let exams = WidgetStore.upcomingExams()
-        let items = WidgetStore.scheduleItems()
+        let campus = WidgetStore.campus()
         let now = Date()
         let displayDate = WidgetStore.scheduleDate() ?? now
-        let isDisplayToday = Calendar.current.isDate(displayDate, inSameDayAs: now)
+        let allItems = WidgetStore.scheduleItems()
+        let lastUpdated = WidgetStore.date(WidgetKeys.lastUpdated)
+        let debugEnabled = WidgetStore.debugEnabled()
 
-        let validItems = isDisplayToday ? ScheduleFilter.filterUpcoming(items: items, now: now) : items
-        let entry = ScheduleEntry(
-            date: displayDate,
-            items: validItems.isEmpty && !items.isEmpty ? [] : validItems,
-            exams: exams,
-            displayMode: displayMode,
-            lastUpdated: WidgetStore.date(WidgetKeys.lastUpdated),
-            debugEnabled: WidgetStore.debugEnabled()
+        if displayMode == "exam" {
+            let entry = ScheduleEntry(
+                date: now,
+                items: [],
+                exams: exams,
+                displayMode: displayMode,
+                lastUpdated: lastUpdated,
+                debugEnabled: debugEnabled
+            )
+            completion(Timeline(entries: [entry], policy: .after(now.addingTimeInterval(1800))))
+            return
+        }
+
+        let refreshDates = WidgetRefreshTimes.upcomingRefreshDates(
+            items: allItems,
+            campus: campus,
+            now: now
         )
 
-        let timeline = Timeline(entries: [entry], policy: .atEnd)
-        completion(timeline)
+        let entries: [ScheduleEntry] = refreshDates.map { entryDate in
+            let resolved = ScheduleTimelineResolver.resolve(
+                refreshDate: entryDate,
+                storedItems: allItems,
+                displayDate: displayDate,
+                campus: campus
+            )
+            return ScheduleEntry(
+                date: resolved.headerDate,
+                items: resolved.items,
+                exams: exams,
+                displayMode: displayMode,
+                lastUpdated: lastUpdated,
+                debugEnabled: debugEnabled
+            )
+        }
+
+        let policyDate = refreshDates.last?.addingTimeInterval(60) ?? now.addingTimeInterval(1800)
+        completion(Timeline(entries: entries, policy: .after(policyDate)))
     }
 }
 
@@ -82,8 +100,43 @@ struct ScheduleItemData: Codable {
     let name: String
     let teacher: String
     let classroom: String
+    let dayIndex: Int
     let startUnit: Int
     let endUnit: Int
+    let weekStart: Int
+    let weekEnd: Int
+
+    init(
+        name: String,
+        teacher: String,
+        classroom: String,
+        dayIndex: Int = 0,
+        startUnit: Int,
+        endUnit: Int,
+        weekStart: Int = 0,
+        weekEnd: Int = 0
+    ) {
+        self.name = name
+        self.teacher = teacher
+        self.classroom = classroom
+        self.dayIndex = dayIndex
+        self.startUnit = startUnit
+        self.endUnit = endUnit
+        self.weekStart = weekStart
+        self.weekEnd = weekEnd
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        name = try container.decode(String.self, forKey: .name)
+        teacher = try container.decode(String.self, forKey: .teacher)
+        classroom = try container.decode(String.self, forKey: .classroom)
+        dayIndex = try container.decodeIfPresent(Int.self, forKey: .dayIndex) ?? 0
+        startUnit = try container.decodeIfPresent(Int.self, forKey: .startUnit) ?? 0
+        endUnit = try container.decodeIfPresent(Int.self, forKey: .endUnit) ?? 0
+        weekStart = try container.decodeIfPresent(Int.self, forKey: .weekStart) ?? 0
+        weekEnd = try container.decodeIfPresent(Int.self, forKey: .weekEnd) ?? 0
+    }
 }
 
 struct ExamItemData: Codable {
@@ -113,7 +166,11 @@ struct ScheduleWidgetEntryView: View {
             } else if entry.items.isEmpty {
                 emptyState
             } else {
-                ScheduleTwoColumn(items: entry.items)
+                ScheduleTwoColumn(
+                    items: entry.items,
+                    campus: WidgetStore.campus(),
+                    displayDate: entry.date
+                )
             }
 
             if entry.debugEnabled {
@@ -180,6 +237,8 @@ struct ScheduleWidgetEntryView: View {
 struct ScheduleRow: View {
     let item: ScheduleItemData
     let index: Int
+    let campus: String
+    let displayDate: Date
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
@@ -197,7 +256,12 @@ struct ScheduleRow: View {
                     .foregroundColor(.secondary)
                     .lineLimit(1)
 
-                Text(TimeHelper.getTimeRange(start: item.startUnit, end: item.endUnit))
+                Text(TimeHelper.getTimeRange(
+                    start: item.startUnit,
+                    end: item.endUnit,
+                    campus: campus,
+                    date: displayDate
+                ))
                     .font(.caption2)
                     .foregroundColor(.secondary)
             }
@@ -279,15 +343,29 @@ struct ExamColumn: View {
 
 struct ScheduleTwoColumn: View {
     let items: [ScheduleItemData]
+    let campus: String
+    let displayDate: Date
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
-            ScheduleColumn(title: "第一节", item: items.first, accent: WidgetColors.accent)
+            ScheduleColumn(
+                title: "第一节",
+                item: items.first,
+                accent: WidgetColors.accent,
+                campus: campus,
+                displayDate: displayDate
+            )
 
             Divider()
                 .frame(maxHeight: 90)
 
-            ScheduleColumn(title: "第二节", item: items.count > 1 ? items[1] : nil, accent: WidgetColors.primary)
+            ScheduleColumn(
+                title: "第二节",
+                item: items.count > 1 ? items[1] : nil,
+                accent: WidgetColors.primary,
+                campus: campus,
+                displayDate: displayDate
+            )
         }
     }
 }
@@ -296,6 +374,8 @@ struct ScheduleColumn: View {
     let title: String
     let item: ScheduleItemData?
     let accent: Color
+    let campus: String
+    let displayDate: Date
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -319,7 +399,12 @@ struct ScheduleColumn: View {
                             .foregroundColor(.secondary)
                             .lineLimit(1)
 
-                        Text(TimeHelper.getTimeRange(start: item.startUnit, end: item.endUnit))
+                        Text(TimeHelper.getTimeRange(
+                            start: item.startUnit,
+                            end: item.endUnit,
+                            campus: campus,
+                            date: displayDate
+                        ))
                             .font(.caption2)
                             .foregroundColor(.secondary)
                     }
@@ -341,21 +426,61 @@ struct ScheduleColumn: View {
 }
 
 enum ScheduleFilter {
-    static func filterUpcoming(items: [ScheduleItemData], now: Date) -> [ScheduleItemData] {
+    static func filterUpcoming(
+        items: [ScheduleItemData],
+        at date: Date,
+        campus: String
+    ) -> [ScheduleItemData] {
         let calendar = Calendar.current
-        let hour = calendar.component(.hour, from: now)
-        let minute = calendar.component(.minute, from: now)
+        let hour = calendar.component(.hour, from: date)
+        let minute = calendar.component(.minute, from: date)
         let nowMinutes = hour * 60 + minute
 
-        let validItems = items.filter { item in
-            let endRange = TimeHelper.map[item.endUnit] ?? "23:59-23:59"
-            let endTimeStr = endRange.components(separatedBy: "-")[1]
-            let parts = endTimeStr.split(separator: ":").map { Int($0) ?? 0 }
-            let endMinutes = parts[0] * 60 + parts[1]
+        return items.filter { item in
+            let endMinutes = WidgetTimeTable.endMinutesForUnit(item.endUnit, campus: campus, date: date)
             return endMinutes > nowMinutes
         }
+    }
+}
 
-        return validItems
+enum ScheduleTimelineResolver {
+    static func resolve(
+        refreshDate: Date,
+        storedItems: [ScheduleItemData],
+        displayDate: Date,
+        campus: String
+    ) -> (headerDate: Date, items: [ScheduleItemData]) {
+        let calendar = Calendar.current
+        let weekItems = WidgetStore.weekScheduleItems()
+        let savedDate = WidgetStore.scheduleDate() ?? displayDate
+
+        let dayItems: [ScheduleItemData]
+        let headerDate: Date
+
+        if calendar.isDate(refreshDate, inSameDayAs: displayDate) {
+            dayItems = storedItems
+            headerDate = displayDate
+        } else if !weekItems.isEmpty {
+            let resolved = WidgetDayResolver.resolveTodayFromCache(
+                allItems: weekItems,
+                storedWeek: WidgetStore.currentWeekValue(),
+                savedDate: savedDate,
+                now: refreshDate
+            )
+            dayItems = resolved.displayItems
+            headerDate = resolved.displayDate
+        } else {
+            dayItems = storedItems
+            headerDate = displayDate
+        }
+
+        let filtered = ScheduleFilter.filterUpcoming(
+            items: dayItems,
+            at: refreshDate,
+            campus: campus
+        )
+        let items = filtered.isEmpty && !dayItems.isEmpty ? [] : filtered
+        return (headerDate, items)
     }
 }
 

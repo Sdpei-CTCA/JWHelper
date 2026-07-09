@@ -5,6 +5,7 @@ import 'package:JWHelper/features/grades/data/grades_service.dart';
 import 'package:JWHelper/features/schedule/data/schedule_service.dart';
 import 'package:JWHelper/features/progress/data/progress_service.dart';
 import 'package:JWHelper/features/exam/data/exam_service.dart';
+import 'package:JWHelper/app/domain/schedule_term_state.dart';
 
 import '../helpers/test_env.dart';
 
@@ -64,6 +65,15 @@ void main() {
       await loginIfNeeded();
 
       final result = await ScheduleService().getSchedule();
+      final items = result['items'] as List;
+      final startDay = result['startDay'] as String?;
+      if (ScheduleTermState.isTermUnavailable(
+        schedule: items,
+        startDay: startDay,
+      )) {
+        // ignore: avoid_print
+        print('提醒: ${ScheduleTermState.unavailableMessage}');
+      }
       expect(result['items'], isA<List>());
     }, timeout: const Timeout(Duration(seconds: 30)));
 

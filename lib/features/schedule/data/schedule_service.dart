@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:JWHelper/core/constants/config.dart';
 import 'package:JWHelper/infrastructure/network/client.dart';
 import 'package:JWHelper/features/schedule/domain/schedule_item.dart';
+import 'package:JWHelper/app/domain/schedule_term_state.dart';
 
 class ScheduleService {
   final ApiClient _client = ApiClient();
@@ -257,6 +258,12 @@ class ScheduleService {
         }
       }
       debugPrint("Parsed Items Count: ${items.length}");
+      if (ScheduleTermState.isTermUnavailable(
+        schedule: items,
+        startDay: startDayStr,
+      )) {
+        debugPrint('提醒: ${ScheduleTermState.unavailableMessage}');
+      }
       return {'items': items, 'startDay': startDayStr};
     } catch (e) {
       debugPrint("Get schedule failed: $e");

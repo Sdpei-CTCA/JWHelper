@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:JWHelper/app/domain/schedule_term_state.dart';
 import 'package:JWHelper/app/usecases/cache_refresh_policy.dart';
 import 'package:JWHelper/core/errors/exceptions.dart';
 import 'package:JWHelper/features/schedule/data/schedule_service.dart';
@@ -49,6 +50,14 @@ class ScheduleLoaderUsecase {
           final List<dynamic> decoded = jsonDecode(cachedData);
           final schedule =
               decoded.map((e) => ScheduleItem.fromJson(e)).toList();
+          if (schedule.isEmpty) {
+            return const ScheduleLoadResult(
+              schedule: [],
+              startDay: null,
+              loaded: true,
+              evaluationRequired: false,
+            );
+          }
           return ScheduleLoadResult(
             schedule: schedule,
             startDay: startDayStr,
@@ -136,7 +145,9 @@ class ScheduleLoaderUsecase {
       await prefs.setString(_cacheKey(username), encoded);
       await prefs.setInt(
           _cacheTimeKey(username), DateTime.now().millisecondsSinceEpoch);
-      if (startDay != null) {
+      if (schedule.isEmpty) {
+        await prefs.remove(_startDayKey(username));
+      } else if (startDay != null) {
         await prefs.setString(_startDayKey(username), startDay);
       }
     } catch (e) {

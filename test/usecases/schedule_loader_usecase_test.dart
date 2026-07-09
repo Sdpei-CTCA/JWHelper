@@ -105,4 +105,29 @@ void main() {
     expect(result.schedule.first.name, 'Cached Course');
     expect(result.startDay, '2024-09-01');
   });
+
+  test('empty disk cache ignores stale start day', () async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      'schedule_cache_$username',
+      '[]',
+    );
+    await prefs.setInt(
+      'schedule_cache_time_$username',
+      DateTime.now().millisecondsSinceEpoch,
+    );
+    await prefs.setString('schedule_start_day_$username', '2024-09-01');
+
+    final service = FakeScheduleService([networkItem]);
+
+    final result = await ScheduleLoaderUsecase.execute(
+      service: service,
+      username: username,
+      forceRefresh: false,
+    );
+
+    expect(service.callCount, 0);
+    expect(result.schedule, isEmpty);
+    expect(result.startDay, isNull);
+  });
 }

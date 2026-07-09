@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:JWHelper/app/coordinators/exam_selection_coordinator.dart';
 import 'package:JWHelper/app/state/data_provider.dart';
 import 'package:JWHelper/features/exam/domain/exam.dart';
@@ -14,49 +13,52 @@ class ExamScreen extends StatefulWidget {
 }
 
 class _ExamScreenState extends State<ExamScreen> {
-  // Selections
   Semester? _selectedSemester;
   ExamRound? _selectedRound;
-  String _selectedCampus = '济南';
   bool _initLoading = false;
   bool _roundsLoading = false;
   bool _refreshingFilters = false;
+  DataProvider? _dataProvider;
+  String? _trackedCampus;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      _dataProvider = context.read<DataProvider>();
+      _trackedCampus = _dataProvider!.campus;
+      _dataProvider!.addListener(_onProviderUpdate);
       _initData();
     });
   }
 
+  @override
+  void dispose() {
+    _dataProvider?.removeListener(_onProviderUpdate);
+    super.dispose();
+  }
+
+  void _onProviderUpdate() {
+    if (!mounted || _dataProvider == null) return;
+    final campus = _dataProvider!.campus;
+    if (campus == _trackedCampus) return;
+    _trackedCampus = campus;
+    _applyCampusSelection();
+  }
+
+  Future<void> _applyCampusSelection() async {
+    final provider = _dataProvider;
+    if (provider == null || provider.examRounds.isEmpty) return;
+    setState(() {
+      _autoSelectRound(provider.examRounds, provider.campus);
+    });
+    await _loadExams();
+  }
+
   Future<void> _initData() async {
     setState(() => _initLoading = true);
-    await _loadSavedCampus();
     await _loadSemesters();
     setState(() => _initLoading = false);
-  }
-
-  Future<void> _loadSavedCampus() async {
-    try {
-      final campus = await ExamSelectionCoordinator.loadCampus();
-      if (mounted) {
-        setState(() {
-          _selectedCampus = campus;
-        });
-      }
-    } catch (e) {
-      debugPrint("Error loading saved campus: $e");
-    }
-  }
-
-  Future<void> _saveCampus(String campus) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('exam_selected_campus', campus);
-    } catch (e) {
-      debugPrint("Error saving campus: $e");
-    }
   }
 
   Future<void> _loadSemesters() async {
@@ -74,12 +76,12 @@ class _ExamScreenState extends State<ExamScreen> {
     }
   }
 
-  List<ExamRound> _getSortedRounds(List<ExamRound> rounds) {
-    return ExamSelectionCoordinator.sortRounds(rounds, _selectedCampus);
+  List<ExamRound> _getSortedRounds(List<ExamRound> rounds, String campus) {
+    return ExamSelectionCoordinator.sortRounds(rounds, campus);
   }
 
-  void _autoSelectRound(List<ExamRound> rounds) {
-    _selectedRound = ExamSelectionCoordinator.selectRound(rounds, _selectedCampus);
+  void _autoSelectRound(List<ExamRound> rounds, String campus) {
+    _selectedRound = ExamSelectionCoordinator.selectRound(rounds, campus);
   }
 
   Future<void> _loadRounds() async {
@@ -96,7 +98,7 @@ class _ExamScreenState extends State<ExamScreen> {
       setState(() => _roundsLoading = false);
       if (provider.examRounds.isNotEmpty) {
         setState(() {
-          _autoSelectRound(provider.examRounds);
+          _autoSelectRound(provider.examRounds, provider.campus);
         });
         _loadExams();
       } else {
@@ -139,13 +141,9 @@ class _ExamScreenState extends State<ExamScreen> {
 
         if (mounted) {
           if (provider.examRounds.isNotEmpty) {
-            // Re-run auto select logic if current selection is invalid or just to be safe?
-            // If we want to keep user selection if valid, we check contains.
-            // But user asked for "Default display current campus final exam", maybe on refresh too?
-            // Let's stick to: if invalid, auto select.
             if (_selectedRound == null ||
                 !provider.examRounds.contains(_selectedRound)) {
-              _autoSelectRound(provider.examRounds);
+              _autoSelectRound(provider.examRounds, provider.campus);
             }
           } else {
             _selectedRound = null;
@@ -181,11 +179,6 @@ class _ExamScreenState extends State<ExamScreen> {
           color: theme.cardTheme.color,
           child: Column(
             children: [
-              Align(
-                alignment: Alignment.centerRight,
-                child: _buildCampusSelector(theme),
-              ),
-              const SizedBox(height: 12),
                 // Semester Dropdown
                 Selector<DataProvider, List<Semester>>(
                     selector: (_, p) => p.examSemesters,
@@ -264,17 +257,19 @@ class _ExamScreenState extends State<ExamScreen> {
                 const SizedBox(height: 12),
 
                 // Round Dropdown
-                Selector<DataProvider, List<ExamRound>>(
-                    selector: (_, p) => p.examRounds,
-                    builder: (context, roundsRaw, _) {
-                      final rounds = _getSortedRounds(roundsRaw);
+                Selector<DataProvider, (List<ExamRound>, String)>(
+                    selector: (_, p) => (p.examRounds, p.campus),
+                    builder: (context, data, _) {
+                      final roundsRaw = data.$1;
+                      final campus = data.$2;
+                      final rounds = _getSortedRounds(roundsRaw, campus);
                       final effectiveSelectedRound =
                           rounds.contains(_selectedRound)
                               ? _selectedRound
                               : null;
 
                       return DropdownButtonFormField<ExamRound>(
-                        key: ValueKey("rounds_$_selectedCampus"),
+                        key: ValueKey('rounds_$campus'),
                         initialValue: effectiveSelectedRound,
                         menuMaxHeight: 300,
                         hint: Text("请选择考试批次",
@@ -357,68 +352,6 @@ class _ExamScreenState extends State<ExamScreen> {
             ),
           ),
         ],
-    );
-  }
-
-  Widget _buildCampusSelector(ThemeData theme) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: theme.brightness == Brightness.dark
-            ? theme.colorScheme.primary.withValues(alpha: 0.2)
-            : theme.colorScheme.primary.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: theme.brightness == Brightness.dark
-              ? theme.colorScheme.primary.withValues(alpha: 0.3)
-              : theme.colorScheme.primary.withValues(alpha: 0.2),
-        ),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          value: _selectedCampus,
-          isDense: true,
-          icon: Icon(Icons.keyboard_arrow_down_rounded,
-              color: theme.colorScheme.primary, size: 18),
-          style: TextStyle(
-            color: theme.colorScheme.primary,
-            fontWeight: FontWeight.bold,
-            fontSize: 14,
-          ),
-          borderRadius: BorderRadius.circular(12),
-          dropdownColor: theme.cardTheme.color,
-          items: [
-            DropdownMenuItem(
-              value: '济南',
-              child: Text(
-                '济南校区',
-                style: TextStyle(color: theme.colorScheme.onSurface),
-              ),
-            ),
-            DropdownMenuItem(
-              value: '日照',
-              child: Text(
-                '日照校区',
-                style: TextStyle(color: theme.colorScheme.onSurface),
-              ),
-            ),
-          ],
-          onChanged: (value) {
-            if (value != null && value != _selectedCampus) {
-              setState(() {
-                _selectedCampus = value;
-                _saveCampus(value);
-                final provider =
-                    Provider.of<DataProvider>(context, listen: false);
-                if (provider.examRounds.isNotEmpty) {
-                  _autoSelectRound(provider.examRounds);
-                }
-              });
-              _loadExams();
-            }
-          },
-        ),
-      ),
     );
   }
 

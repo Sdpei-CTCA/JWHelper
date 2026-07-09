@@ -65,6 +65,23 @@
             <meta-data android:name="android.appwidget.provider"
                 android:resource="@xml/schedule_widget_info" />
         </receiver>
+
+        <receiver
+            android:name=".ScheduleWidgetRefreshReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="edu.sdpei.JWSystem.action.SCHEDULE_WIDGET_REFRESH" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
+            android:name=".ScheduleWidgetBootReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

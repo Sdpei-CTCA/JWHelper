@@ -15,120 +15,48 @@ import java.text.SimpleDateFormat
 
 class ScheduleWidgetProvider : HomeWidgetProvider() {
 
-    // Simple time mapping for periods 1-10
-    private val timeMap = mapOf(
-        1 to "08:00-08:45",
-        2 to "08:45-09:30",
-        3 to "10:00-10:45",
-        4 to "10:45-11:30",
-        5 to "13:30-14:15",
-        6 to "14:15-15:00",
-        7 to "15:30-16:15",
-        8 to "16:15-17:00",
-        9 to "19:00-19:45",
-        10 to "19:45-20:30"
-    )
-
     private data class ExamItem(
         val courseName: String,
         val time: String,
         val location: String,
     )
 
-    // Helper to get time range string
-    private fun getTimeRange(start: Int, end: Int): String {
-        val startStr = timeMap[start]?.split("-")?.get(0) ?: "00:00"
-        val endStr = timeMap[end]?.split("-")?.get(1) ?: "00:00"
-        return "$startStr - $endStr"
-    }
-    
-    // Helper to check if a class is "passed" based on current time
-    // Returning true if the class end time is before now
-    private fun isClassPassed(end: Int): Boolean {
-        val now = Calendar.getInstance()
-        val currentHour = now.get(Calendar.HOUR_OF_DAY)
-        val currentMinute = now.get(Calendar.MINUTE)
-        val endStr = timeMap[end]?.split("-")?.get(1) ?: return true
-        val parts = endStr.split(":")
-        if (parts.size != 2) return true
-        
-        val endH = parts[0].toInt()
-        val endM = parts[1].toInt()
-        
-        if (currentHour > endH) return true
-        if (currentHour == endH && currentMinute >= endM) return true
-        return false
-    }
-
-    private fun parseIsoDate(raw: String?): Calendar? {
-        if (raw.isNullOrBlank()) return null
-        return try {
-            val formatter = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-            formatter.isLenient = false
-            val date = formatter.parse(raw) ?: return null
-            Calendar.getInstance().apply { time = date }
-        } catch (_: Exception) {
-            null
-        }
-    }
-
-    private fun isSameDay(left: Calendar, right: Calendar): Boolean {
-        return left.get(Calendar.YEAR) == right.get(Calendar.YEAR) &&
-            left.get(Calendar.DAY_OF_YEAR) == right.get(Calendar.DAY_OF_YEAR)
-    }
-
-    private fun parseUpcomingExams(jsonString: String?): List<ExamItem> {
-        if (jsonString.isNullOrBlank()) return emptyList()
-        return try {
-            val jsonArray = JSONArray(jsonString)
-            val result = ArrayList<ExamItem>()
-            for (i in 0 until jsonArray.length()) {
-                val obj = jsonArray.getJSONObject(i)
-                result.add(
-                    ExamItem(
-                        courseName = obj.optString("courseName"),
-                        time = obj.optString("time"),
-                        location = obj.optString("location"),
-                    )
-                )
-            }
-            result
-        } catch (_: Exception) {
-            emptyList()
-        }
-    }
-
-    private fun bindExamColumn(
-        views: RemoteViews,
-        exam: ExamItem?,
-        nameId: Int,
-        infoId: Int,
-        timeId: Int,
-        emptyName: String,
+    override fun onUpdate(
+        context: Context,
+        appWidgetManager: AppWidgetManager,
+        appWidgetIds: IntArray,
+        widgetData: SharedPreferences,
     ) {
-        if (exam != null) {
-            views.setTextViewText(nameId, exam.courseName)
-            views.setTextViewText(infoId, exam.location)
-            views.setTextViewText(timeId, exam.time)
-        } else {
-            views.setTextViewText(nameId, emptyName)
-            views.setTextViewText(infoId, "")
-            views.setTextViewText(timeId, "")
+        ScheduleWidgetDayResolver.refreshIfNeeded(context, widgetData)
+        updateWidgets(context, appWidgetManager, appWidgetIds, widgetData)
+        ScheduleWidgetAlarmScheduler.schedule(context, widgetData)
+    }
+
+    override fun onEnabled(context: Context) {
+        val prefs = ScheduleWidgetDayResolver.prefs(context)
+        ScheduleWidgetAlarmScheduler.schedule(context, prefs)
+    }
+
+    override fun onDisabled(context: Context) {
+        ScheduleWidgetAlarmScheduler.cancelAll(context)
+    }
+
+    companion object {
+        fun updateWidgets(
+            context: Context,
+            appWidgetManager: AppWidgetManager,
+            appWidgetIds: IntArray,
+            widgetData: SharedPreferences,
+        ) {
+            appWidgetIds.forEach { widgetId ->
+                val views = buildRemoteViews(context, widgetData)
+                appWidgetManager.updateAppWidget(widgetId, views)
+            }
         }
-    }
 
-    private fun setDeepLink(views: RemoteViews, context: Context, host: String) {
-        val pendingIntent = HomeWidgetLaunchIntent.getActivity(
-            context,
-            MainActivity::class.java,
-            Uri.parse("jwhelper://$host?homeWidget=1"),
-        )
-        views.setOnClickPendingIntent(android.R.id.background, pendingIntent)
-    }
-
-    override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray, widgetData: SharedPreferences) {
-        appWidgetIds.forEach { widgetId ->
-            val views = RemoteViews(context.packageName, R.layout.widget_schedule).apply {
+        private fun buildRemoteViews(context: Context, widgetData: SharedPreferences): RemoteViews {
+            val campus = widgetData.getString("widget_campus", "济南") ?: "济南"
+            return RemoteViews(context.packageName, R.layout.widget_schedule).apply {
                 val displayMode = widgetData.getString("widget_display_mode", "schedule") ?: "schedule"
                 val exams = parseUpcomingExams(widgetData.getString("upcoming_exams", "[]"))
 
@@ -147,14 +75,12 @@ class ScheduleWidgetProvider : HomeWidgetProvider() {
                 val scheduleCal = parseIsoDate(widgetData.getString("schedule_date_iso", null)) ?: nowCal
                 val date = widgetData.getString(
                     "today_date",
-                    "${scheduleCal.get(Calendar.MONTH) + 1}月${scheduleCal.get(Calendar.DAY_OF_MONTH)}日"
+                    "${scheduleCal.get(Calendar.MONTH) + 1}月${scheduleCal.get(Calendar.DAY_OF_MONTH)}日",
                 ) ?: "1月1日"
                 val jsonString = widgetData.getString("today_schedule", "[]")
                 val isDisplayToday = isSameDay(scheduleCal, nowCal)
-                
-                // Parse Date "X月X日" -> "X.X"
+
                 val dateNum = date.replace("月", ".").replace("日", "")
-                
                 val weekDayMap = arrayOf("", "周日", "周一", "周二", "周三", "周四", "周五", "周六")
                 val weekDayStr = weekDayMap[scheduleCal.get(Calendar.DAY_OF_WEEK)]
 
@@ -162,7 +88,6 @@ class ScheduleWidgetProvider : HomeWidgetProvider() {
                 setTextViewText(R.id.tv_weekday, weekDayStr)
                 setTextViewText(R.id.tv_cur_label, "当前")
                 setTextViewText(R.id.tv_next_label, "接下来")
-
                 setDeepLink(this, context, "schedule")
 
                 try {
@@ -171,60 +96,131 @@ class ScheduleWidgetProvider : HomeWidgetProvider() {
                     for (i in 0 until jsonArray.length()) {
                         allItems.add(jsonArray.getJSONObject(i))
                     }
-
                     allItems.sortBy { it.optInt("startUnit") }
-                    
+
                     var currentIdx = -1
                     if (isDisplayToday) {
                         for (i in allItems.indices) {
-                             if (!isClassPassed(allItems[i].optInt("endUnit"))) {
-                                 currentIdx = i
-                                 break
-                             }
+                            if (!isClassPassed(allItems[i].optInt("endUnit"), campus, nowCal)) {
+                                currentIdx = i
+                                break
+                            }
                         }
                     } else if (allItems.isNotEmpty()) {
                         currentIdx = 0
                     }
-                    
+
                     if (currentIdx != -1) {
-                         val curr = allItems[currentIdx]
-                         setTextViewText(R.id.tv_cur_name, curr.optString("name"))
-                         setTextViewText(R.id.tv_cur_info, "${curr.optString("classroom")} ${curr.optString("teacher")}")
-                         setTextViewText(R.id.tv_cur_time, getTimeRange(curr.optInt("startUnit"), curr.optInt("endUnit")))
-                         
-                         if (currentIdx + 1 < allItems.size) {
-                             val next = allItems[currentIdx + 1]
-                             setTextViewText(R.id.tv_next_name, next.optString("name"))
-                             setTextViewText(R.id.tv_next_info, "${next.optString("classroom")} ${next.optString("teacher")}")
-                             setTextViewText(R.id.tv_next_time, getTimeRange(next.optInt("startUnit"), next.optInt("endUnit")))
-                         } else {
-                             setTextViewText(R.id.tv_next_name, "无课程")
-                             setTextViewText(R.id.tv_next_info, "")
-                             setTextViewText(R.id.tv_next_time, "")
-                         }
+                        val curr = allItems[currentIdx]
+                        setTextViewText(R.id.tv_cur_name, curr.optString("name"))
+                        setTextViewText(R.id.tv_cur_info, "${curr.optString("classroom")} ${curr.optString("teacher")}")
+                         setTextViewText(R.id.tv_cur_time, getTimeRange(curr.optInt("startUnit"), curr.optInt("endUnit"), campus, nowCal))
+
+                        if (currentIdx + 1 < allItems.size) {
+                            val next = allItems[currentIdx + 1]
+                            setTextViewText(R.id.tv_next_name, next.optString("name"))
+                            setTextViewText(R.id.tv_next_info, "${next.optString("classroom")} ${next.optString("teacher")}")
+                             setTextViewText(R.id.tv_next_time, getTimeRange(next.optInt("startUnit"), next.optInt("endUnit"), campus, nowCal))
+                        } else {
+                            setTextViewText(R.id.tv_next_name, "无课程")
+                            setTextViewText(R.id.tv_next_info, "")
+                            setTextViewText(R.id.tv_next_time, "")
+                        }
                     } else if (allItems.isNotEmpty()) {
                         setTextViewText(R.id.tv_cur_name, "今日课程已结束")
                         setTextViewText(R.id.tv_cur_info, "")
                         setTextViewText(R.id.tv_cur_time, "")
-                        
                         setTextViewText(R.id.tv_next_name, "")
                         setTextViewText(R.id.tv_next_info, "")
                         setTextViewText(R.id.tv_next_time, "")
                     } else {
-                         setTextViewText(R.id.tv_cur_name, if (isDisplayToday) "今天没有课" else "无课程")
-                         setTextViewText(R.id.tv_cur_info, if (isDisplayToday) "好好休息吧" else "下一天暂无课程")
-                         setTextViewText(R.id.tv_cur_time, "")
-                         
-                         setTextViewText(R.id.tv_next_name, "")
-                         setTextViewText(R.id.tv_next_info, "")
-                         setTextViewText(R.id.tv_next_time, "")
+                        setTextViewText(R.id.tv_cur_name, if (isDisplayToday) "今天没有课" else "无课程")
+                        setTextViewText(R.id.tv_cur_info, if (isDisplayToday) "好好休息吧" else "下一天暂无课程")
+                        setTextViewText(R.id.tv_cur_time, "")
+                        setTextViewText(R.id.tv_next_name, "")
+                        setTextViewText(R.id.tv_next_info, "")
+                        setTextViewText(R.id.tv_next_time, "")
                     }
-
-                } catch (e: Exception) {
+                } catch (_: Exception) {
                     setTextViewText(R.id.tv_cur_name, "加载失败")
                 }
             }
-            appWidgetManager.updateAppWidget(widgetId, views)
+        }
+
+        private fun getTimeRange(start: Int, end: Int, campus: String, date: Calendar): String {
+            return ScheduleWidgetTimeTable.formatTimeRange(start, end, campus, date)
+        }
+
+        private fun isClassPassed(end: Int, campus: String, now: Calendar): Boolean {
+            val endMinutes = ScheduleWidgetTimeTable.endMinutesForUnit(end, campus, now)
+            val currentMinutes = now.get(Calendar.HOUR_OF_DAY) * 60 + now.get(Calendar.MINUTE)
+            return currentMinutes >= endMinutes
+        }
+
+        private fun parseIsoDate(raw: String?): Calendar? {
+            if (raw.isNullOrBlank()) return null
+            return try {
+                val formatter = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+                formatter.isLenient = false
+                val date = formatter.parse(raw) ?: return null
+                Calendar.getInstance().apply { time = date }
+            } catch (_: Exception) {
+                null
+            }
+        }
+
+        private fun isSameDay(left: Calendar, right: Calendar): Boolean {
+            return left.get(Calendar.YEAR) == right.get(Calendar.YEAR) &&
+                left.get(Calendar.DAY_OF_YEAR) == right.get(Calendar.DAY_OF_YEAR)
+        }
+
+        private fun parseUpcomingExams(jsonString: String?): List<ExamItem> {
+            if (jsonString.isNullOrBlank()) return emptyList()
+            return try {
+                val jsonArray = JSONArray(jsonString)
+                val result = ArrayList<ExamItem>()
+                for (i in 0 until jsonArray.length()) {
+                    val obj = jsonArray.getJSONObject(i)
+                    result.add(
+                        ExamItem(
+                            courseName = obj.optString("courseName"),
+                            time = obj.optString("time"),
+                            location = obj.optString("location"),
+                        ),
+                    )
+                }
+                result
+            } catch (_: Exception) {
+                emptyList()
+            }
+        }
+
+        private fun bindExamColumn(
+            views: RemoteViews,
+            exam: ExamItem?,
+            nameId: Int,
+            infoId: Int,
+            timeId: Int,
+            emptyName: String,
+        ) {
+            if (exam != null) {
+                views.setTextViewText(nameId, exam.courseName)
+                views.setTextViewText(infoId, exam.location)
+                views.setTextViewText(timeId, exam.time)
+            } else {
+                views.setTextViewText(nameId, emptyName)
+                views.setTextViewText(infoId, "")
+                views.setTextViewText(timeId, "")
+            }
+        }
+
+        private fun setDeepLink(views: RemoteViews, context: Context, host: String) {
+            val pendingIntent = HomeWidgetLaunchIntent.getActivity(
+                context,
+                MainActivity::class.java,
+                Uri.parse("jwhelper://$host?homeWidget=1"),
+            )
+            views.setOnClickPendingIntent(android.R.id.background, pendingIntent)
         }
     }
 }

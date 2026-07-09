@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:JWHelper/core/constants/period_time_table.dart';
 import 'package:JWHelper/app/state/data_provider.dart';
 import 'package:JWHelper/features/schedule/data/schedule_conflict_store.dart';
 import 'package:JWHelper/features/schedule/domain/schedule_conflict.dart';
@@ -57,9 +58,40 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
     // Only rebuild when these specific properties change, avoiding unnecessary rebuilds when other data points (grades, exam etc.) change.
     final scheduleLoading = context.select<DataProvider, bool>((d) => d.scheduleLoading);
     final scheduleIsEmpty = context.select<DataProvider, bool>((d) => d.schedule.isEmpty);
+    final termUnavailable = context.select<DataProvider, bool>((d) => d.isScheduleTermUnavailable);
+    final termHint = context.select<DataProvider, String?>((d) => d.scheduleTermHint);
 
     if (scheduleLoading && scheduleIsEmpty) {
       return const Center(child: CircularProgressIndicator());
+    }
+
+    if (termUnavailable && termHint != null) {
+      return RefreshIndicator(
+        onRefresh: () =>
+            Provider.of<DataProvider>(context, listen: false)
+                .loadSchedule(forceRefresh: true),
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          children: [
+            const SizedBox(height: 120),
+            Icon(Icons.event_busy_outlined,
+                size: 48, color: theme.colorScheme.outline),
+            const SizedBox(height: 16),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 32),
+              child: Text(
+                termHint,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                  fontSize: 15,
+                  height: 1.5,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
     }
 
     // Simple Grid View for Schedule
@@ -719,49 +751,11 @@ class _WeekScheduleGridViewState extends State<_WeekScheduleGridView> {
   }
 
   String _getTimeForPeriod(int period, String campus) {
-    if (campus == '济南') {
-      switch (period) {
-        case 1: return "8:00\n8:45";
-        case 2: return "8:50\n9:35";
-        case 3: return "10:00\n10:45";
-        case 4: return "10:50\n11:35";
-        case 5: return "13:30\n14:15";
-        case 6: return "14:20\n15:05";
-        case 7: return "15:30\n16:15";
-        case 8: return "16:20\n17:05";
-        case 9: return "18:00\n18:45";
-        case 10: return "18:50\n19:35";
-        case 11: return "20:00\n20:45";
-        case 12: return "20:50\n21:35";
-        default: return "";
-      }
-    } else {
-      // 日照校区
-      final now = DateTime.now();
-      // 判断是否夏令时: 5月1日至10月1日
-      bool isSummer = false;
-      if (now.month > 5 && now.month < 10) {
-        isSummer = true;
-      } else if (now.month == 5 || now.month == 10) {
-        isSummer = now.month == 5; // 5月1日及之后，10月1日也是最后一天，粗略按月份即可：5,6,7,8,9是夏季
-      }
-
-      switch (period) {
-        case 1: return "8:00\n8:45";
-        case 2: return "8:50\n9:35";
-        case 3: return "10:00\n10:45";
-        case 4: return "10:50\n11:35";
-        case 5: return isSummer ? "14:30\n15:15" : "14:00\n14:45";
-        case 6: return isSummer ? "15:20\n16:05" : "14:50\n15:35";
-        case 7: return isSummer ? "16:30\n17:15" : "16:00\n16:45";
-        case 8: return isSummer ? "17:20\n18:05" : "16:50\n17:35";
-        case 9: return "19:00\n19:45";
-        case 10: return "19:50\n20:35";
-        case 11: return "20:40\n21:25";
-        case 12: return "21:30\n22:15";
-        default: return "";
-      }
-    }
+    return PeriodTimeTable.formatScheduleCell(
+      period,
+      campus: campus,
+      date: DateTime.now(),
+    );
   }
 
   void _showCourseDetails(BuildContext context, ScheduleItem item) {

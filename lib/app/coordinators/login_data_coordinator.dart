@@ -1,15 +1,12 @@
 typedef LoadDataFn = Future<void> Function({bool forceRefresh});
-typedef ClearCacheFn = Future<void> Function();
 
 class LoginDataCoordinator {
   static Future<void> prepareOnline({
-    required ClearCacheFn clearCache,
     required LoadDataFn loadGrades,
     required LoadDataFn loadSchedule,
     required LoadDataFn loadProgress,
     required LoadDataFn loadExamSemesters,
   }) async {
-    await clearCache();
     await Future.wait([
       loadGrades(forceRefresh: true),
       loadSchedule(forceRefresh: true),

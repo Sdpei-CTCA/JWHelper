@@ -16,10 +16,16 @@ class ExamSelection {
 class ExamSelectionCoordinator {
   static const defaultCampus = '济南';
 
-  static Future<String> loadCampus() async {
+  static Future<String> loadCampus({String? username}) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final saved = prefs.getString('exam_selected_campus');
+      if (username != null && username.isNotEmpty) {
+        final userCampus = prefs.getString('campus_$username');
+        if (userCampus == '济南' || userCampus == '日照') {
+          return userCampus!;
+        }
+      }
+      final saved = prefs.getString('campus');
       if (saved == '济南' || saved == '日照') {
         return saved!;
       }

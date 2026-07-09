@@ -15,9 +15,11 @@ import 'package:JWHelper/app/usecases/grades_loader_usecase.dart';
 import 'package:JWHelper/app/usecases/schedule_loader_usecase.dart';
 import 'package:JWHelper/app/usecases/progress_loader_usecase.dart';
 import 'package:JWHelper/app/usecases/exam_loader_usecase.dart';
+import 'package:JWHelper/app/cache/offline_cache_keys.dart';
 import 'package:JWHelper/app/coordinators/login_data_coordinator.dart';
 import 'package:JWHelper/app/coordinators/exam_selection_coordinator.dart';
 import 'package:JWHelper/app/domain/schedule_week_context.dart';
+import 'package:JWHelper/app/domain/schedule_term_state.dart';
 import 'package:JWHelper/app/domain/upcoming_exam_selector.dart';
 import 'package:JWHelper/infrastructure/notifications/notification_service.dart';
 
@@ -55,6 +57,8 @@ class DataProvider with ChangeNotifier {
   List<Exam> _exams = [];
   bool _examsLoading = false;
   bool _examsLoaded = false;
+  String? _loadedExamSemId;
+  String? _loadedExamRoundId;
 
   bool _evaluationRequired = false;
   bool get evaluationRequired => _evaluationRequired;
@@ -109,7 +113,6 @@ class DataProvider with ChangeNotifier {
 
   Future<void> prepareOnlineLoginData() async {
     await LoginDataCoordinator.prepareOnline(
-      clearCache: clearCache,
       loadGrades: loadGrades,
       loadSchedule: loadSchedule,
       loadProgress: loadProgress,
@@ -127,6 +130,8 @@ class DataProvider with ChangeNotifier {
   }
 
   Future<void> clearCache() async {
+    if (_username.isEmpty) return;
+
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_gradesCacheKey);
     await prefs.remove(_gradesCacheTimeKey);
@@ -135,14 +140,11 @@ class DataProvider with ChangeNotifier {
     await prefs.remove(_progressCacheKey);
     await prefs.remove(_progressCacheTimeKey);
 
-    // Clear exam caches - this is harder because keys are dynamic
-    // We can iterate all keys and remove those starting with exam_
-    final keys = prefs.getKeys();
-    for (String key in keys) {
-      if (key.startsWith('exam_') || key.startsWith('exams_')) {
-        if (key.contains(_username)) {
-          await prefs.remove(key);
-        }
+    final keys = prefs.getKeys().toList();
+    for (final key in keys) {
+      if (OfflineCacheKeys.isExamCacheKey(key) &&
+          OfflineCacheKeys.belongsToUser(key, _username)) {
+        await prefs.remove(key);
       }
     }
   }
@@ -161,6 +163,8 @@ class DataProvider with ChangeNotifier {
     _examRounds = [];
     _exams = [];
     _examsLoaded = false;
+    _loadedExamSemId = null;
+    _loadedExamRoundId = null;
     notifyListeners();
   }
 }

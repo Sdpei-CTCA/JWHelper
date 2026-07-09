@@ -8,6 +8,39 @@ extension ScheduleDataMixin on DataProvider {
   int get daysUntilStart => _daysUntilStart;
   String? get scheduleStartDay => _scheduleStartDay;
 
+  bool get isScheduleTermUnavailable =>
+      _scheduleLoaded &&
+      ScheduleTermState.isTermUnavailable(
+        schedule: _schedule,
+        startDay: _scheduleStartDay,
+      );
+
+  String? get scheduleTermSubtitle =>
+      isScheduleTermUnavailable ? ScheduleTermState.unavailableSubtitle : null;
+
+  String? get scheduleTermHint =>
+      isScheduleTermUnavailable ? ScheduleTermState.unavailableMessage : null;
+
+  void _applyScheduleResult({
+    required List<ScheduleItem> schedule,
+    required String? startDay,
+    required bool loaded,
+  }) {
+    _schedule = schedule;
+    if (ScheduleTermState.isTermUnavailable(
+      schedule: schedule,
+      startDay: startDay,
+    )) {
+      _scheduleStartDay = null;
+      _currentWeek = 0;
+      _daysUntilStart = 0;
+    } else if (startDay != null) {
+      _scheduleStartDay = startDay;
+      _calculateCurrentWeek(startDay);
+    }
+    _scheduleLoaded = loaded;
+  }
+
   Map<int, List<ScheduleItem>> get scheduleGroupedByDay {
     final Map<int, List<ScheduleItem>> grouped = {};
     for (var item in _schedule) {
@@ -35,19 +68,25 @@ extension ScheduleDataMixin on DataProvider {
         username: _username,
         forceRefresh: false,
       );
-      if (result.schedule.isNotEmpty) {
-        _schedule = result.schedule;
-        if (result.startDay != null) {
-          _scheduleStartDay = result.startDay;
-          _calculateCurrentWeek(result.startDay!);
-        }
-        _scheduleLoaded = result.loaded;
-        notifyStateChanged();
-        if (ScheduleWeekContext.isExamPeriod(_schedule, _currentWeek)) {
-          loadDefaultExamsForWidget();
-        } else {
-          _updateScheduleWidget();
-        }
+      if (!result.loaded) return;
+
+      final shouldApply = result.schedule.isNotEmpty ||
+          ScheduleTermState.isTermUnavailable(
+            schedule: result.schedule,
+            startDay: result.startDay,
+          );
+      if (!shouldApply) return;
+
+      _applyScheduleResult(
+        schedule: result.schedule,
+        startDay: result.startDay,
+        loaded: result.loaded,
+      );
+      notifyStateChanged();
+      if (ScheduleWeekContext.isExamPeriod(_schedule, _currentWeek)) {
+        loadDefaultExamsForWidget();
+      } else {
+        _updateScheduleWidget();
       }
     } catch (_) {}
   }
@@ -77,17 +116,19 @@ extension ScheduleDataMixin on DataProvider {
         return;
       }
 
-      _schedule = result.schedule;
-      String? startDayStr = result.startDay;
+      _applyScheduleResult(
+        schedule: result.schedule,
+        startDay: result.startDay,
+        loaded: result.loaded,
+      );
 
-      if (startDayStr != null) {
-        _scheduleStartDay = startDayStr;
-        _calculateCurrentWeek(startDayStr);
-        // Trigger notification scheduling
+      if (!isScheduleTermUnavailable &&
+          result.startDay != null &&
+          result.schedule.isNotEmpty) {
         try {
           NotificationService().scheduleClassReminders(
             schedule: _schedule,
-            startDay: DateTime.parse(startDayStr),
+            startDay: DateTime.parse(result.startDay!),
             campus: _campus,
           );
         } catch (e) {
@@ -95,7 +136,6 @@ extension ScheduleDataMixin on DataProvider {
         }
       }
 
-      _scheduleLoaded = result.loaded;
       if (ScheduleWeekContext.isExamPeriod(_schedule, _currentWeek)) {
         await loadDefaultExamsForWidget();
       } else {

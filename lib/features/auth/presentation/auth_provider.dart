@@ -4,6 +4,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:JWHelper/features/auth/data/auth_service.dart';
 import 'package:JWHelper/infrastructure/network/client.dart';
+import 'package:JWHelper/app/cache/offline_cache_keys.dart';
 
 class AuthProvider with ChangeNotifier {
   final AuthService _authService = AuthService();
@@ -115,8 +116,9 @@ class AuthProvider with ChangeNotifier {
     // Check for maintenance time (00:00 - 06:00)
     final now = DateTime.now();
     if (now.hour >= 0 && now.hour < 6) {
-      if (await _matchesRememberedCredentials(username, password)) {
-        final hasCache = await _hasOfflineCache(username);
+      if (await _canEnterOfflineMode(username, password)) {
+        final prefs = await SharedPreferences.getInstance();
+        final hasCache = OfflineCacheKeys.hasOfflineCache(prefs, username);
         if (!hasCache) {
           _isLoading = false;
           notifyListeners();
@@ -164,8 +166,9 @@ class AuthProvider with ChangeNotifier {
       // Check for offline login possibility
       String msg = result['message'].toString();
       if (_canUseOfflineFallback(msg, result)) {
-        if (await _matchesRememberedCredentials(username, password)) {
-          final hasCache = await _hasOfflineCache(username);
+        if (await _canEnterOfflineMode(username, password)) {
+          final prefs = await SharedPreferences.getInstance();
+          final hasCache = OfflineCacheKeys.hasOfflineCache(prefs, username);
           if (!hasCache) {
             notifyListeners();
             return "当前无法从教务系统获取有效数据，且未检测到本地离线缓存，请联网成功登录一次后再试";
@@ -230,31 +233,18 @@ class AuthProvider with ChangeNotifier {
     return "";
   }
 
-  Future<bool> _hasOfflineCache(String username) async {
-    final prefs = await SharedPreferences.getInstance();
-    final fixedKeys = <String>[
-      'grades_cache_$username',
-      'schedule_cache_$username',
-      'progress_cache_$username',
-      'exam_semesters_$username',
-    ];
-
-    for (final key in fixedKeys) {
-      final value = prefs.getString(key);
-      if (value != null && value.isNotEmpty) {
-        return true;
-      }
+  Future<bool> _canEnterOfflineMode(
+      String username, String password) async {
+    if (await _matchesRememberedCredentials(username, password)) {
+      return true;
     }
 
-    final allKeys = prefs.getKeys();
-    for (final key in allKeys) {
-      if ((key.startsWith('exams_') || key.startsWith('exam_rounds_')) &&
-          key.endsWith('_$username')) {
-        final value = prefs.getString(key);
-        if (value != null && value.isNotEmpty) {
-          return true;
-        }
-      }
+    if (_autoLogin && _savedUsername == username) {
+      var autoLoginPassword = await getSavedPasswordForPrefill();
+      final matched =
+          autoLoginPassword.isNotEmpty && autoLoginPassword == password;
+      autoLoginPassword = "";
+      return matched;
     }
 
     return false;

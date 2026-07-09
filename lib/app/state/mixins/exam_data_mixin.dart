@@ -27,6 +27,14 @@ extension ExamDataMixin on DataProvider {
   Future<void> loadExamRounds(String semId, {bool forceRefresh = false}) async {
     if (_username.isEmpty) return;
 
+    if (_loadedExamSemId != semId) {
+      _exams = [];
+      _examsLoaded = false;
+      _loadedExamSemId = null;
+      _loadedExamRoundId = null;
+      notifyStateChanged();
+    }
+
     try {
       final result = await ExamLoaderUsecase.loadRounds(
         service: _examService,
@@ -43,9 +51,17 @@ extension ExamDataMixin on DataProvider {
 
   Future<void> loadExams(String semId, String roundId,
       {bool forceRefresh = false}) async {
-    if (_examsLoaded && !forceRefresh) return;
-    if (_examsLoading && !forceRefresh) return;
     if (_username.isEmpty) return;
+
+    final sameSelection =
+        _loadedExamSemId == semId && _loadedExamRoundId == roundId;
+    if (_examsLoaded && sameSelection && !forceRefresh) return;
+    if (_examsLoading && sameSelection && !forceRefresh) return;
+
+    if (!sameSelection) {
+      _exams = [];
+      _examsLoaded = false;
+    }
 
     if (forceRefresh) {
       _examsLoaded = false;
@@ -64,6 +80,8 @@ extension ExamDataMixin on DataProvider {
       );
       _exams = result.exams;
       _examsLoaded = result.loaded;
+      _loadedExamSemId = semId;
+      _loadedExamRoundId = roundId;
     } catch (e) {
       debugPrint("Error loading exams: $e");
     } finally {
@@ -94,6 +112,8 @@ extension ExamDataMixin on DataProvider {
       );
       _exams = result.exams;
       _examsLoaded = result.loaded;
+      _loadedExamSemId = semId;
+      _loadedExamRoundId = etId;
     } catch (e) {
       debugPrint("Error loading exams fallback: $e");
       rethrow;
@@ -126,7 +146,7 @@ extension ExamDataMixin on DataProvider {
       return;
     }
 
-    final campus = await ExamSelectionCoordinator.loadCampus();
+    final campus = _campus;
     final semId = _examSemesters.first.id;
     await loadExamRounds(semId, forceRefresh: forceRefresh);
 

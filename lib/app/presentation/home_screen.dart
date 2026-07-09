@@ -113,7 +113,11 @@ class _HomeScreenState extends State<HomeScreen> {
           _loginError = error;
         });
         if (error == null && auth.isLoggedIn) {
-          data.prepareOnlineLoginData();
+          if (auth.isOfflineMode) {
+            data.prepareOfflineLoginData();
+          } else {
+            await data.prepareOnlineLoginData();
+          }
         }
       }
     } else if (!auth.isLoggedIn) {
@@ -547,7 +551,6 @@ class _HomeScreenState extends State<HomeScreen> {
                             return ListTile(
                               leading: Icon(Icons.location_city, color: primaryColor),
                               title: const Text("当前校区"),
-                              subtitle: const Text("影响作息时间表计算", style: TextStyle(fontSize: 12)),
                               trailing: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
@@ -733,14 +736,13 @@ class _HomeScreenState extends State<HomeScreen> {
               "教务小助手",
               style: TextStyle(fontWeight: FontWeight.bold),
             ),
-            if (_currentIndex == HomeNavigationCoordinator.examTab)
-              const Text(
-                "考试安排",
-                style: TextStyle(
-                  color: Colors.grey,
-                  fontSize: 12,
-                  fontWeight: FontWeight.normal,
-                ),
+            if (dataProvider.isScheduleTermUnavailable)
+              Text(
+                dataProvider.scheduleTermSubtitle ?? '假期或未发课表',
+                style: const TextStyle(
+                    color: Colors.grey,
+                    fontSize: 12,
+                    fontWeight: FontWeight.normal),
               )
             else if (dataProvider.daysUntilStart > 0)
               Text(
@@ -767,6 +769,19 @@ class _HomeScreenState extends State<HomeScreen> {
               valueListenable: _isGridSchedule,
               builder: (context, isGrid, child) {
                 if (isGrid) {
+                  final termUnavailable = context
+                      .select<DataProvider, bool>((d) => d.isScheduleTermUnavailable);
+                  if (termUnavailable) {
+                    return IconButton(
+                      icon: Icon(isGrid ? Icons.view_agenda : Icons.view_headline, size: 20),
+                      tooltip: "切换视图",
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                      onPressed: () {
+                        _isGridSchedule.value = !isGrid;
+                      },
+                    );
+                  }
                   return ValueListenableBuilder<int>(
                     valueListenable: _selectedWeek,
                     builder: (context, week, _) {

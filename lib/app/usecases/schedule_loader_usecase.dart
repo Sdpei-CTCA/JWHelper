@@ -14,12 +14,14 @@ class ScheduleLoadResult {
   final String? startDay;
   final bool loaded;
   final bool evaluationRequired;
+  final bool keptLocalCacheOnEmpty;
 
   const ScheduleLoadResult({
     required this.schedule,
     required this.startDay,
     required this.loaded,
     required this.evaluationRequired,
+    this.keptLocalCacheOnEmpty = false,
   });
 }
 
@@ -51,6 +53,7 @@ class ScheduleLoaderUsecase {
           final schedule =
               decoded.map((e) => ScheduleItem.fromJson(e)).toList();
           if (schedule.isEmpty) {
+            await prefs.remove(_startDayKey(username));
             return const ScheduleLoadResult(
               schedule: [],
               startDay: null,
@@ -73,15 +76,20 @@ class ScheduleLoaderUsecase {
       final List<ScheduleItem> schedule = result['items'] as List<ScheduleItem>;
       final String? startDayStr = result['startDay'] as String?;
 
-      if (schedule.isEmpty &&
-          CacheRefreshPolicy.shouldFallbackOnEmpty(forceRefresh)) {
+      if (schedule.isEmpty) {
         final cached = _loadCachedSchedule(prefs, username);
-        if (cached != null) {
+        final shouldKeepCache = forceRefresh
+            ? cached != null && cached.$1.isNotEmpty
+            : CacheRefreshPolicy.shouldFallbackOnEmpty(forceRefresh) &&
+                cached != null;
+
+        if (shouldKeepCache) {
           return ScheduleLoadResult(
             schedule: cached.$1,
             startDay: cached.$2,
             loaded: true,
             evaluationRequired: false,
+            keptLocalCacheOnEmpty: forceRefresh,
           );
         }
       }
@@ -145,7 +153,11 @@ class ScheduleLoaderUsecase {
       await prefs.setString(_cacheKey(username), encoded);
       await prefs.setInt(
           _cacheTimeKey(username), DateTime.now().millisecondsSinceEpoch);
-      if (schedule.isEmpty) {
+      if (schedule.isEmpty ||
+          ScheduleTermState.isTermUnavailable(
+            schedule: schedule,
+            startDay: startDay,
+          )) {
         await prefs.remove(_startDayKey(username));
       } else if (startDay != null) {
         await prefs.setString(_startDayKey(username), startDay);
@@ -166,6 +178,9 @@ class ScheduleLoaderUsecase {
     }
     final List<dynamic> decoded = jsonDecode(cachedData);
     final schedule = decoded.map((e) => ScheduleItem.fromJson(e)).toList();
+    if (schedule.isEmpty) {
+      return null;
+    }
     return (schedule, startDayStr);
   }
 }

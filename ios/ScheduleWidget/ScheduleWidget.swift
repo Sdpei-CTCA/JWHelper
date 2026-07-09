@@ -463,8 +463,9 @@ enum ScheduleTimelineResolver {
         } else if !weekItems.isEmpty {
             let resolved = WidgetDayResolver.resolveTodayFromCache(
                 allItems: weekItems,
-                storedWeek: WidgetStore.currentWeekValue(),
-                savedDate: savedDate,
+                anchorWeek: WidgetStore.currentWeekValue(),
+                anchorDate: WidgetStore.weekAnchorDate() ?? savedDate,
+                startDay: WidgetStore.scheduleStartDay(),
                 now: refreshDate
             )
             dayItems = resolved.displayItems

@@ -15,6 +15,8 @@ enum WidgetKeys {
     static let weekSchedule = "week_schedule"
     static let scheduleDateIso = "schedule_date_iso"
     static let widgetCurrentWeek = "widget_current_week"
+    static let widgetWeekAnchorDate = "widget_week_anchor_date"
+    static let scheduleStartDay = "schedule_start_day"
     static let widgetCampus = "widget_campus"
     static let lastUpdated = "widget_last_updated"
     static let debugEnabled = "widget_debug_enabled"
@@ -73,6 +75,22 @@ struct WidgetStore {
         Int(defaults?.string(forKey: WidgetKeys.widgetCurrentWeek) ?? "0") ?? 0
     }
 
+    static func weekAnchorDate() -> Date? {
+        guard let raw = defaults?.string(forKey: WidgetKeys.widgetWeekAnchorDate) else {
+            return scheduleDate()
+        }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone.current
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.date(from: raw)
+    }
+
+    static func scheduleStartDay() -> String? {
+        let raw = defaults?.string(forKey: WidgetKeys.scheduleStartDay) ?? ""
+        return raw.isEmpty ? nil : raw
+    }
+
     static func weekScheduleItems() -> [ScheduleItemData] {
         let jsonString = defaults?.string(forKey: WidgetKeys.weekSchedule) ?? "[]"
         guard let data = jsonString.data(using: .utf8) else { return [] }
@@ -91,8 +109,9 @@ struct WidgetStore {
 
         let resolved = WidgetDayResolver.resolveTodayFromCache(
             allItems: weekScheduleItems(),
-            storedWeek: currentWeekValue(),
-            savedDate: savedDate,
+            anchorWeek: currentWeekValue(),
+            anchorDate: weekAnchorDate() ?? savedDate,
+            startDay: scheduleStartDay(),
             now: now
         )
 
@@ -112,6 +131,7 @@ struct WidgetStore {
         defaults?.set("\(calendar.component(.month, from: resolved.displayDate))月\(calendar.component(.day, from: resolved.displayDate))日", forKey: "today_date")
         defaults?.set(String(resolved.displayWeek), forKey: WidgetKeys.widgetCurrentWeek)
         defaults?.set("第\(resolved.displayWeek)周", forKey: "current_week")
+        defaults?.set(formatter.string(from: resolved.displayDate), forKey: WidgetKeys.widgetWeekAnchorDate)
     }
 }
 
@@ -123,32 +143,65 @@ enum WidgetDayResolver {
 
     static func resolveTodayFromCache(
         allItems: [ScheduleItemData],
-        storedWeek: Int,
-        savedDate: Date,
+        anchorWeek: Int,
+        anchorDate: Date,
+        startDay: String?,
         now: Date
     ) -> ResolvedWidgetDay {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: now)
-        let week = resolveWeekForDate(storedWeek: storedWeek, savedDate: savedDate, targetDate: today)
+        let week = resolveWeek(
+            targetDate: today,
+            anchorWeek: anchorWeek,
+            anchorDate: anchorDate,
+            startDay: startDay
+        )
         let dayIndex = calendarDayIndex(now)
         let items = itemsForDay(allItems: allItems, dayIndex: dayIndex, currentWeek: week)
         return ResolvedWidgetDay(displayDate: today, displayWeek: week, displayItems: items)
     }
 
-    static func resolveWeekForDate(storedWeek: Int, savedDate: Date, targetDate: Date) -> Int {
-        if storedWeek <= 0 { return storedWeek }
-        let calendar = Calendar.current
-        let savedDay = calendar.startOfDay(for: savedDate)
-        let targetDay = calendar.startOfDay(for: targetDate)
-        if targetDay <= savedDay { return storedWeek }
-
-        let daysBetween = calendar.dateComponents([.day], from: savedDay, to: targetDay).day ?? 0
-        let savedWeekday = calendar.component(.weekday, from: savedDate)
-        let targetWeekday = calendar.component(.weekday, from: targetDate)
-        if daysBetween == 1 && savedWeekday == 1 && targetWeekday == 2 {
-            return storedWeek + 1
+    static func resolveWeek(
+        targetDate: Date,
+        anchorWeek: Int,
+        anchorDate: Date,
+        startDay: String?
+    ) -> Int {
+        if let week = weekFromStartDay(startDay, targetDate: targetDate) {
+            return week
         }
-        return storedWeek
+        return resolveWeekForDate(
+            anchorWeek: anchorWeek,
+            anchorDate: anchorDate,
+            targetDate: targetDate
+        )
+    }
+
+    static func weekFromStartDay(_ startDay: String?, targetDate: Date) -> Int? {
+        guard let startDay, !startDay.isEmpty else { return nil }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone.current
+        formatter.dateFormat = "yyyy-MM-dd"
+        guard let start = formatter.date(from: startDay) else { return nil }
+
+        let calendar = Calendar.current
+        let startDayOnly = calendar.startOfDay(for: start)
+        let targetDay = calendar.startOfDay(for: targetDate)
+        let daysBetween = calendar.dateComponents([.day], from: startDayOnly, to: targetDay).day ?? 0
+        if daysBetween < 0 { return 1 }
+        return daysBetween / 7 + 1
+    }
+
+    static func resolveWeekForDate(anchorWeek: Int, anchorDate: Date, targetDate: Date) -> Int {
+        if anchorWeek <= 0 { return anchorWeek }
+        let calendar = Calendar.current
+        let anchorDay = calendar.startOfDay(for: anchorDate)
+        let targetDay = calendar.startOfDay(for: targetDate)
+        if targetDay <= anchorDay { return anchorWeek }
+
+        let daysBetween = calendar.dateComponents([.day], from: anchorDay, to: targetDay).day ?? 0
+        return anchorWeek + daysBetween / 7
     }
 
     static func itemsForDay(allItems: [ScheduleItemData], dayIndex: Int, currentWeek: Int) -> [ScheduleItemData] {

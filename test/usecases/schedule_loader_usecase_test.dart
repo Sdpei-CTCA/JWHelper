@@ -76,9 +76,9 @@ void main() {
     expect(result.startDay, '2025-02-01');
   });
 
-  test('forceRefresh=true with empty network does not fallback to disk cache',
+  test('forceRefresh=true with empty network keeps disk cache and flags message',
       () async {
-    await seedCache(cachedItem);
+    await seedCache(cachedItem, startDay: '2024-09-01');
     final service = FakeScheduleService([]);
 
     final result = await ScheduleLoaderUsecase.execute(
@@ -88,7 +88,12 @@ void main() {
     );
 
     expect(service.callCount, 1);
-    expect(result.schedule, isEmpty);
+    expect(result.schedule, hasLength(1));
+    expect(result.schedule.first.name, 'Cached Course');
+    expect(result.keptLocalCacheOnEmpty, isTrue);
+
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getString('schedule_cache_$username'), isNot('[]'));
   });
 
   test('forceRefresh=false reads disk cache within 30 days', () async {
@@ -129,5 +134,7 @@ void main() {
     expect(service.callCount, 0);
     expect(result.schedule, isEmpty);
     expect(result.startDay, isNull);
+    final prefsAfter = await SharedPreferences.getInstance();
+    expect(prefsAfter.containsKey('schedule_start_day_$username'), isFalse);
   });
 }

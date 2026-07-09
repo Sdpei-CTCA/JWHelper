@@ -8,6 +8,18 @@ import 'package:JWHelper/features/schedule/domain/schedule_conflict.dart';
 import 'package:JWHelper/features/schedule/domain/schedule_item.dart';
 import 'package:JWHelper/shared/theme/wallpaper_provider.dart';
 
+Future<void> refreshScheduleWithFeedback(
+  BuildContext context,
+  DataProvider dataProvider,
+) async {
+  final message = await dataProvider.loadSchedule(forceRefresh: true);
+  if (message != null && context.mounted) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+}
+
 class ScheduleScreen extends StatefulWidget {
   final ValueNotifier<bool> isGridViewNotifier;
   final ValueNotifier<int> selectedWeekNotifier;
@@ -67,9 +79,8 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
 
     if (termUnavailable && termHint != null) {
       return RefreshIndicator(
-        onRefresh: () =>
-            Provider.of<DataProvider>(context, listen: false)
-                .loadSchedule(forceRefresh: true),
+        onRefresh: () => refreshScheduleWithFeedback(context,
+            Provider.of<DataProvider>(context, listen: false)),
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
           children: [
@@ -297,7 +308,7 @@ class _DayScheduleView extends StatelessWidget {
 
     if (dayItems.isEmpty) {
       return RefreshIndicator(
-        onRefresh: () => dataProvider.loadSchedule(forceRefresh: true),
+        onRefresh: () => refreshScheduleWithFeedback(context, dataProvider),
         child: ListView(
           children: const [
             SizedBox(height: 100),
@@ -352,7 +363,7 @@ class _DayScheduleView extends StatelessWidget {
     }
 
     return RefreshIndicator(
-      onRefresh: () => dataProvider.loadSchedule(forceRefresh: true),
+      onRefresh: () => refreshScheduleWithFeedback(context, dataProvider),
       child: ListView(
         padding: const EdgeInsets.all(16),
         children: [

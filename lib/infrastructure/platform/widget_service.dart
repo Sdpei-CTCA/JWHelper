@@ -84,6 +84,7 @@ class WidgetService {
   static Future<void> updateScheduleWidget(
     List<ScheduleItem> allItems, {
     int currentWeek = 0,
+    String? startDay,
     List<Exam> upcomingExams = const [],
   }) async {
     if (!_isHomeWidgetSupported) return;
@@ -105,6 +106,7 @@ class WidgetService {
       allItems: allItems,
       currentWeek: currentWeek,
       campus: campus,
+      startDay: startDay,
     );
     await HomeWidget.updateWidget(
       name: 'ScheduleWidgetProvider',
@@ -141,6 +143,7 @@ class WidgetService {
     required List<ScheduleItem> allItems,
     required int currentWeek,
     required String campus,
+    String? startDay,
   }) async {
     final now = DateTime.now();
     final resolved = WidgetScheduleResolver.resolveDisplayDay(
@@ -148,6 +151,7 @@ class WidgetService {
       currentWeek: currentWeek,
       now: now,
       campus: campus,
+      startDay: startDay,
     );
     final displayDate = resolved.displayDate;
     final displayWeek = resolved.displayWeek;
@@ -166,6 +170,14 @@ class WidgetService {
       displayWeek.toString(),
     );
     await HomeWidget.saveWidgetData<String>('widget_campus', campus);
+    await HomeWidget.saveWidgetData<String>(
+      'schedule_start_day',
+      startDay ?? '',
+    );
+    await HomeWidget.saveWidgetData<String>(
+      'widget_week_anchor_date',
+      _toIsoDate(now),
+    );
     await HomeWidget.saveWidgetData<String>(
       'upcoming_exams',
       '[]',

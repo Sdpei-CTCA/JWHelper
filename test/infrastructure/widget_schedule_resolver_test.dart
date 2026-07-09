@@ -24,35 +24,46 @@ ScheduleItem _item({
 
 void main() {
   group('WidgetScheduleResolver', () {
-    test('resolveWeekForDate increments after Sunday night', () {
-      final savedDate = DateTime(2026, 7, 5);
-      final monday = DateTime(2026, 7, 6);
+    test('resolveWeekForDate advances week every 7 days', () {
+      final anchorDate = DateTime(2026, 2, 16);
+      final targetDate = DateTime(2026, 3, 2);
 
       expect(
         WidgetScheduleResolver.resolveWeekForDate(
-          storedWeek: 10,
-          savedDate: savedDate,
-          targetDate: monday,
+          anchorWeek: 10,
+          anchorDate: anchorDate,
+          targetDate: targetDate,
         ),
-        11,
+        12,
       );
     });
 
-    test('resolveTodayFromCache filters by day and week', () {
+    test('weekFromStartDay matches academic week calculation', () {
+      expect(
+        WidgetScheduleResolver.weekFromStartDay(
+          '2026-02-16',
+          DateTime(2026, 3, 2),
+        ),
+        3,
+      );
+    });
+
+    test('resolveTodayFromCache prefers startDay over anchor fallback', () {
       final items = [
-        _item(dayIndex: 0, weekStart: 11, weekEnd: 11),
-        _item(dayIndex: 1, weekStart: 11, weekEnd: 11),
+        _item(dayIndex: 0, weekStart: 3, weekEnd: 3),
+        _item(dayIndex: 1, weekStart: 3, weekEnd: 3),
       ];
-      final mondayMorning = DateTime(2026, 7, 6, 8, 0);
+      final mondayMorning = DateTime(2026, 3, 2, 8, 0);
 
       final resolved = WidgetScheduleResolver.resolveTodayFromCache(
         allItems: items,
-        storedWeek: 10,
-        savedDate: DateTime(2026, 7, 5),
+        anchorWeek: 1,
+        anchorDate: DateTime(2026, 2, 1),
+        startDay: '2026-02-16',
         now: mondayMorning,
       );
 
-      expect(resolved.displayWeek, 11);
+      expect(resolved.displayWeek, 3);
       expect(resolved.displayItems.length, 1);
       expect(resolved.displayItems.first.dayIndex, 0);
     });
@@ -68,6 +79,7 @@ void main() {
         currentWeek: 10,
         now: evening,
         campus: PeriodTimeTable.campusJinan,
+        startDay: '2026-02-16',
       );
 
       expect(resolved.displayDate, DateTime(2026, 7, 7));

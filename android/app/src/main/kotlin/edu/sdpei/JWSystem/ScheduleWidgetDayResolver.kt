@@ -26,8 +26,16 @@ object ScheduleWidgetDayResolver {
         }
 
         val weekJson = prefs.getString("week_schedule", null) ?: return false
-        val storedWeek = prefs.getString("widget_current_week", "0")?.toIntOrNull() ?: 0
-        val resolved = resolveTodayFromCache(weekJson, storedWeek, savedDate, now) ?: return false
+        val anchorWeek = prefs.getString("widget_current_week", "0")?.toIntOrNull() ?: 0
+        val anchorDate = parseIsoDate(prefs.getString("widget_week_anchor_date", null)) ?: savedDate
+        val startDay = prefs.getString("schedule_start_day", null)
+        val resolved = resolveTodayFromCache(
+            weekJson = weekJson,
+            anchorWeek = anchorWeek,
+            anchorDate = anchorDate,
+            startDay = startDay,
+            now = now,
+        ) ?: return false
 
         val editor = prefs.edit()
         val array = JSONArray()
@@ -40,6 +48,7 @@ object ScheduleWidgetDayResolver {
         editor.putString("schedule_date_iso", isoFormatter.format(resolved.displayDate.time))
         editor.putString("widget_current_week", resolved.week.toString())
         editor.putString("current_week", "第${resolved.week}周")
+        editor.putString("widget_week_anchor_date", isoFormatter.format(resolved.displayDate.time))
         editor.apply()
         return true
     }
@@ -52,14 +61,20 @@ object ScheduleWidgetDayResolver {
 
     private fun resolveTodayFromCache(
         weekJson: String,
-        storedWeek: Int,
-        savedDate: Calendar,
+        anchorWeek: Int,
+        anchorDate: Calendar,
+        startDay: String?,
         now: Calendar,
     ): ResolvedDay? {
         val allItems = parseItems(weekJson)
         if (allItems.isEmpty()) return null
 
-        val week = resolveWeekForDate(storedWeek, savedDate, now)
+        val week = resolveWeek(
+            targetDate = now,
+            anchorWeek = anchorWeek,
+            anchorDate = anchorDate,
+            startDay = startDay,
+        )
         val dayIndex = calendarToDayIndex(now)
         val items = itemsForDay(allItems, dayIndex, week)
         val displayDate = now.clone() as Calendar
@@ -103,24 +118,43 @@ object ScheduleWidgetDayResolver {
         return true
     }
 
-    private fun resolveWeekForDate(storedWeek: Int, savedDate: Calendar, targetDate: Calendar): Int {
-        if (storedWeek <= 0) return storedWeek
-        if (isSameDay(savedDate, targetDate)) return storedWeek
+    private fun resolveWeek(
+        targetDate: Calendar,
+        anchorWeek: Int,
+        anchorDate: Calendar,
+        startDay: String?,
+    ): Int {
+        weekFromStartDay(startDay, targetDate)?.let { return it }
+        return resolveWeekForDate(anchorWeek, anchorDate, targetDate)
+    }
 
-        val savedDay = savedDate.clone() as Calendar
-        normalizeDay(savedDay)
+    private fun weekFromStartDay(startDay: String?, targetDate: Calendar): Int? {
+        if (startDay.isNullOrBlank()) return null
+        return try {
+            val start = isoFormatter.parse(startDay) ?: return null
+            val startCal = Calendar.getInstance().apply { time = start }
+            normalizeDay(startCal)
+            val targetDay = targetDate.clone() as Calendar
+            normalizeDay(targetDay)
+            val diffDays = ((targetDay.timeInMillis - startCal.timeInMillis) / (24 * 60 * 60 * 1000)).toInt()
+            if (diffDays < 0) 1 else diffDays / 7 + 1
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun resolveWeekForDate(anchorWeek: Int, anchorDate: Calendar, targetDate: Calendar): Int {
+        if (anchorWeek <= 0) return anchorWeek
+        if (isSameDay(anchorDate, targetDate)) return anchorWeek
+
+        val anchorDay = anchorDate.clone() as Calendar
+        normalizeDay(anchorDay)
         val targetDay = targetDate.clone() as Calendar
         normalizeDay(targetDay)
-        if (!targetDay.after(savedDay)) return storedWeek
+        if (!targetDay.after(anchorDay)) return anchorWeek
 
-        val daysBetween = ((targetDay.timeInMillis - savedDay.timeInMillis) / (24 * 60 * 60 * 1000)).toInt()
-        if (daysBetween == 1 &&
-            savedDate.get(Calendar.DAY_OF_WEEK) == Calendar.SUNDAY &&
-            targetDate.get(Calendar.DAY_OF_WEEK) == Calendar.MONDAY
-        ) {
-            return storedWeek + 1
-        }
-        return storedWeek
+        val daysBetween = ((targetDay.timeInMillis - anchorDay.timeInMillis) / (24 * 60 * 60 * 1000)).toInt()
+        return anchorWeek + daysBetween / 7
     }
 
     private fun calendarToDayIndex(cal: Calendar): Int {

@@ -91,10 +91,10 @@ extension ScheduleDataMixin on DataProvider {
     } catch (_) {}
   }
 
-  Future<void> loadSchedule({bool forceRefresh = false}) async {
-    if (_scheduleLoaded && !forceRefresh) return;
-    if (_scheduleLoading && !forceRefresh) return;
-    if (_username.isEmpty) return;
+  Future<String?> loadSchedule({bool forceRefresh = false}) async {
+    if (_scheduleLoaded && !forceRefresh) return null;
+    if (_scheduleLoading && !forceRefresh) return null;
+    if (_username.isEmpty) return null;
 
     if (forceRefresh) {
       _scheduleLoaded = false;
@@ -103,6 +103,7 @@ extension ScheduleDataMixin on DataProvider {
     _scheduleLoading = true;
     notifyStateChanged();
 
+    String? refreshMessage;
     try {
       final result = await ScheduleLoaderUsecase.execute(
         service: _scheduleService,
@@ -110,10 +111,14 @@ extension ScheduleDataMixin on DataProvider {
         forceRefresh: forceRefresh,
       );
 
+      if (result.keptLocalCacheOnEmpty) {
+        refreshMessage = '教务未返回数据，已保留本地课表';
+      }
+
       if (result.evaluationRequired) {
         _evaluationRequired = true;
         notifyStateChanged();
-        return;
+        return refreshMessage;
       }
 
       _applyScheduleResult(
@@ -147,6 +152,7 @@ extension ScheduleDataMixin on DataProvider {
       _scheduleLoading = false;
       notifyStateChanged();
     }
+    return refreshMessage;
   }
 
   void _calculateCurrentWeek(String startDayStr) {

@@ -42,6 +42,7 @@ extension WidgetSyncMixin on DataProvider {
       await WidgetService.updateScheduleWidget(
         _schedule,
         currentWeek: _currentWeek,
+        startDay: _scheduleStartDay,
         upcomingExams: upcoming,
       );
     } catch (e) {

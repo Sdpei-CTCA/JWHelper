@@ -41,22 +41,45 @@ class WidgetScheduleResolver {
   }
 
   static int resolveWeekForDate({
-    required int storedWeek,
-    required DateTime savedDate,
+    required int anchorWeek,
+    required DateTime anchorDate,
     required DateTime targetDate,
   }) {
-    if (storedWeek <= 0) return storedWeek;
-    final savedDay = DateTime(savedDate.year, savedDate.month, savedDate.day);
+    if (anchorWeek <= 0) return anchorWeek;
+    final anchorDay = DateTime(anchorDate.year, anchorDate.month, anchorDate.day);
     final targetDay = DateTime(targetDate.year, targetDate.month, targetDate.day);
-    if (!targetDay.isAfter(savedDay)) return storedWeek;
+    if (!targetDay.isAfter(anchorDay)) return anchorWeek;
 
-    final daysBetween = targetDay.difference(savedDay).inDays;
-    if (daysBetween == 1 &&
-        savedDate.weekday == DateTime.sunday &&
-        targetDate.weekday == DateTime.monday) {
-      return storedWeek + 1;
+    final daysBetween = targetDay.difference(anchorDay).inDays;
+    return anchorWeek + daysBetween ~/ 7;
+  }
+
+  static int? weekFromStartDay(String? startDayStr, DateTime targetDate) {
+    if (startDayStr == null || startDayStr.trim().isEmpty) return null;
+    try {
+      final parsed = DateTime.parse(startDayStr);
+      final startDay = DateTime(parsed.year, parsed.month, parsed.day);
+      final targetDay = DateTime(targetDate.year, targetDate.month, targetDate.day);
+      final diffDays = targetDay.difference(startDay).inDays;
+      if (diffDays < 0) return 1;
+      return (diffDays / 7).floor() + 1;
+    } catch (_) {
+      return null;
     }
-    return storedWeek;
+  }
+
+  static int resolveWeek({
+    required DateTime targetDate,
+    required int anchorWeek,
+    required DateTime anchorDate,
+    String? startDay,
+  }) {
+    return weekFromStartDay(startDay, targetDate) ??
+        resolveWeekForDate(
+          anchorWeek: anchorWeek,
+          anchorDate: anchorDate,
+          targetDate: targetDate,
+        );
   }
 
   static ResolvedWidgetDay resolveDisplayDay({
@@ -64,6 +87,7 @@ class WidgetScheduleResolver {
     required int currentWeek,
     required DateTime now,
     required String campus,
+    String? startDay,
   }) {
     final todayDate = DateTime(now.year, now.month, now.day);
     final todayIndex = calendarDayIndex(now);
@@ -81,9 +105,12 @@ class WidgetScheduleResolver {
     if (shouldShowNextDay) {
       displayDate = todayDate.add(const Duration(days: 1));
       displayDayIndex = (todayIndex + 1) % 7;
-      if (todayIndex == 6 && currentWeek > 0) {
-        displayWeek = currentWeek + 1;
-      }
+      displayWeek = resolveWeek(
+        targetDate: displayDate,
+        anchorWeek: currentWeek,
+        anchorDate: todayDate,
+        startDay: startDay,
+      );
       displayItems = itemsForDay(
         allItems,
         dayIndex: displayDayIndex,
@@ -101,15 +128,17 @@ class WidgetScheduleResolver {
 
   static ResolvedWidgetDay resolveTodayFromCache({
     required List<ScheduleItem> allItems,
-    required int storedWeek,
-    required DateTime savedDate,
+    required int anchorWeek,
+    required DateTime anchorDate,
     required DateTime now,
+    String? startDay,
   }) {
     final todayDate = DateTime(now.year, now.month, now.day);
-    final week = resolveWeekForDate(
-      storedWeek: storedWeek,
-      savedDate: savedDate,
+    final week = resolveWeek(
       targetDate: todayDate,
+      anchorWeek: anchorWeek,
+      anchorDate: anchorDate,
+      startDay: startDay,
     );
     final dayIndex = calendarDayIndex(now);
     final items = itemsForDay(allItems, dayIndex: dayIndex, currentWeek: week);

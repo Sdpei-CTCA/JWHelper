@@ -18,6 +18,8 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordController = TextEditingController();
   final _captchaController = TextEditingController();
   bool _autoLoginChecking = true;
+  bool _isLoggingIn = false;
+  int _loginAttempt = 0;
 
   @override
   void initState() {
@@ -56,6 +58,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _handleLogin() async {
     final auth = Provider.of<AuthProvider>(context, listen: false);
+    if (auth.isLoading || _isLoggingIn) return;
+
     final username = _usernameController.text.trim();
     final password = _passwordController.text.trim();
 
@@ -69,6 +73,9 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
+    final attempt = ++_loginAttempt;
+    _isLoggingIn = true;
+    setState(() {});
     try {
       final error = await auth.login(
         username,
@@ -76,23 +83,16 @@ class _LoginScreenState extends State<LoginScreen> {
         verifyCode: _captchaController.text,
       );
 
-      if (!mounted) return;
+      if (!mounted || attempt != _loginAttempt) return;
 
-      if (error != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(error), backgroundColor: Colors.red),
-        );
-        // If captcha is needed, clear the captcha field
-        if (auth.needCaptcha) {
-          _captchaController.clear();
-        }
-      } else if (auth.isLoggedIn) {
+      if (auth.isLoggedIn) {
+        ScaffoldMessenger.of(context).clearSnackBars();
         final dataProvider = Provider.of<DataProvider>(context, listen: false);
 
         if (!auth.isOfflineMode) {
           await dataProvider.prepareOnlineLoginData();
 
-          if (!mounted) return;
+          if (!mounted || attempt != _loginAttempt) return;
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -107,21 +107,36 @@ class _LoginScreenState extends State<LoginScreen> {
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (_) => const HomeScreen()),
         );
+        return;
+      }
+
+      if (error != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(error), backgroundColor: Colors.red),
+        );
+        if (auth.needCaptcha) {
+          _captchaController.clear();
+        }
       }
     } catch (e) {
       debugPrint("Login error: $e");
-      if (mounted) {
-        String errorMsg = "发生未知错误: $e";
-        if (kIsWeb && e.toString().contains("XMLHttpRequest")) {
-          errorMsg = "Web端存在跨域限制，无法直接访问教务系统。\n请使用 Windows 或 Android 客户端运行。";
-        }
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(errorMsg),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 5),
-          ),
-        );
+      if (!mounted || attempt != _loginAttempt) return;
+      if (auth.isLoggedIn) return;
+
+      String errorMsg = "发生未知错误: $e";
+      if (kIsWeb && e.toString().contains("XMLHttpRequest")) {
+        errorMsg = "Web端存在跨域限制，无法直接访问教务系统。\n请使用 Windows 或 Android 客户端运行。";
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(errorMsg),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 5),
+        ),
+      );
+    } finally {
+      if (mounted && attempt == _loginAttempt) {
+        setState(() => _isLoggingIn = false);
       }
     }
   }
@@ -130,6 +145,7 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget build(BuildContext context) {
     final auth = Provider.of<AuthProvider>(context);
     final theme = Theme.of(context);
+    final isLoginBusy = auth.isLoading || _isLoggingIn;
 
     if (_autoLoginChecking) {
       return Scaffold(
@@ -304,20 +320,34 @@ class _LoginScreenState extends State<LoginScreen> {
                       width: double.infinity,
                       height: 48,
                       child: ElevatedButton(
-                        onPressed: auth.isLoading ? null : _handleLogin,
+                        onPressed: isLoginBusy ? null : _handleLogin,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Theme.of(context).colorScheme.primary,
-                          foregroundColor: Colors.white,
+                          backgroundColor: isLoginBusy
+                              ? theme.colorScheme.onSurface
+                                  .withValues(alpha: 0.12)
+                              : theme.colorScheme.primary,
+                          foregroundColor: isLoginBusy
+                              ? theme.colorScheme.onSurface
+                                  .withValues(alpha: 0.38)
+                              : Colors.white,
+                          disabledBackgroundColor: theme.colorScheme.onSurface
+                              .withValues(alpha: 0.12),
+                          disabledForegroundColor: theme.colorScheme.onSurface
+                              .withValues(alpha: 0.38),
                           shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(8)),
                           elevation: 0,
                         ),
-                        child: auth.isLoading
-                            ? const SizedBox(
+                        child: isLoginBusy
+                            ? SizedBox(
                                 width: 20,
                                 height: 20,
                                 child: CircularProgressIndicator(
-                                    color: Colors.white, strokeWidth: 2))
+                                  color: theme.colorScheme.onSurface
+                                      .withValues(alpha: 0.38),
+                                  strokeWidth: 2,
+                                ),
+                              )
                             : const Text("登 录", style: TextStyle(fontSize: 16)),
                       ),
                     ),

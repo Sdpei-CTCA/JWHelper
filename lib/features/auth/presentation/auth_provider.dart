@@ -22,6 +22,7 @@ class AuthProvider with ChangeNotifier {
   String _savedUsername = "";
   String _currentUsername = "";
   bool _isOfflineMode = false;
+  int _loginSequence = 0;
 
   bool get isLoggedIn => _isLoggedIn;
   bool get isLoading => _isLoading;
@@ -105,68 +106,85 @@ class AuthProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  bool _isStaleLogin(int sequence) => sequence != _loginSequence;
+
+  void _finishLoginLoading(int sequence) {
+    if (!_isStaleLogin(sequence)) {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
   Future<String?> login(String username, String password,
       {String verifyCode = ""}) async {
+    final sequence = ++_loginSequence;
     _isLoading = true;
     notifyListeners();
 
-    // Ensure client is initialized
-    await ApiClient().init();
+    try {
+      // Ensure client is initialized
+      await ApiClient().init();
+      if (_isStaleLogin(sequence)) return null;
 
-    // Check for maintenance time (00:00 - 06:00)
-    final now = DateTime.now();
-    if (now.hour >= 0 && now.hour < 6) {
-      if (await _canEnterOfflineMode(username, password)) {
-        final prefs = await SharedPreferences.getInstance();
-        final hasCache = OfflineCacheKeys.hasOfflineCache(prefs, username);
-        if (!hasCache) {
-          _isLoading = false;
+      // Check for maintenance time (00:00 - 06:00)
+      final now = DateTime.now();
+      if (now.hour >= 0 && now.hour < 6) {
+        if (await _canEnterOfflineMode(username, password)) {
+          if (_isStaleLogin(sequence)) return null;
+
+          final prefs = await SharedPreferences.getInstance();
+          final hasCache = OfflineCacheKeys.hasOfflineCache(prefs, username);
+          if (!hasCache) {
+            return "当前为维护时段，且未检测到本地离线缓存，请联网成功登录一次后再使用离线模式";
+          }
+          _isLoggedIn = true;
+          _needCaptcha = false;
+          _currentUsername = username;
+          _isOfflineMode = true;
           notifyListeners();
-          return "当前为维护时段，且未检测到本地离线缓存，请联网成功登录一次后再使用离线模式";
+          return null; // Automatically enter offline mode
         }
+      }
+
+      var result =
+          await _authService.login(username, password, verifyCode: verifyCode);
+      if (_isStaleLogin(sequence)) return null;
+
+      if (result['success']) {
         _isLoggedIn = true;
         _needCaptcha = false;
         _currentUsername = username;
-        _isOfflineMode = true;
-        _isLoading = false;
+        _isOfflineMode = false;
+
+        // Save preferences
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setBool('remember_password', _rememberPassword);
+        await prefs.setBool('auto_login', _autoLogin);
+        if (_rememberPassword) {
+          await prefs.setString('username', username);
+          await _secureStorage.write(key: _securePasswordKey, value: password);
+          await prefs.remove('password');
+          _savedUsername = username;
+        } else {
+          await prefs.remove('username');
+          await prefs.remove('password');
+          await _secureStorage.delete(key: _securePasswordKey);
+          _savedUsername = "";
+        }
+
         notifyListeners();
-        return null; // Automatically enter offline mode
-      }
-    }
-
-    var result =
-        await _authService.login(username, password, verifyCode: verifyCode);
-
-    _isLoading = false;
-    if (result['success']) {
-      _isLoggedIn = true;
-      _needCaptcha = false;
-      _currentUsername = username;
-      _isOfflineMode = false;
-
-      // Save preferences
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool('remember_password', _rememberPassword);
-      await prefs.setBool('auto_login', _autoLogin);
-      if (_rememberPassword) {
-        await prefs.setString('username', username);
-        await _secureStorage.write(key: _securePasswordKey, value: password);
-        await prefs.remove('password');
-        _savedUsername = username;
-      } else {
-        await prefs.remove('username');
-        await prefs.remove('password');
-        await _secureStorage.delete(key: _securePasswordKey);
-        _savedUsername = "";
+        return null; // No error
       }
 
-      notifyListeners();
-      return null; // No error
-    } else {
+      // Ignore stale failures after a newer login already succeeded.
+      if (_isLoggedIn) return null;
+
       // Check for offline login possibility
       String msg = result['message'].toString();
       if (_canUseOfflineFallback(msg, result)) {
         if (await _canEnterOfflineMode(username, password)) {
+          if (_isStaleLogin(sequence)) return null;
+
           final prefs = await SharedPreferences.getInstance();
           final hasCache = OfflineCacheKeys.hasOfflineCache(prefs, username);
           if (!hasCache) {
@@ -185,13 +203,19 @@ class AuthProvider with ChangeNotifier {
       if (result['needCaptcha'] == true) {
         _needCaptcha = true;
         await loadCaptcha();
+        if (_isStaleLogin(sequence)) return null;
+      } else {
+        _needCaptcha = false;
       }
       notifyListeners();
       return result['message'];
+    } finally {
+      _finishLoginLoading(sequence);
     }
   }
 
   Future<void> logout() async {
+    _loginSequence++;
     await ApiClient().clearCookies();
     _isLoggedIn = false;
     _needCaptcha = false;

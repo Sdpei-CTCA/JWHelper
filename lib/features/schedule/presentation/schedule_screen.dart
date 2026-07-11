@@ -120,39 +120,37 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
     // For mobile, maybe a list grouped by day is better?
     // Let's do a TabView for each day.
 
-    return Stack(
+    return Column(
       children: [
         if (keptStale && keptStaleHint != null)
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: Material(
-              color: theme.colorScheme.tertiaryContainer.withValues(alpha: 0.92),
-              child: Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Icon(Icons.info_outline,
-                        size: 18, color: theme.colorScheme.onTertiaryContainer),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        keptStaleHint,
-                        style: TextStyle(
-                          fontSize: 13,
-                          height: 1.4,
-                          color: theme.colorScheme.onTertiaryContainer,
-                        ),
+          Material(
+            color: theme.colorScheme.tertiaryContainer.withValues(alpha: 0.92),
+            child: Padding(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.info_outline,
+                      size: 18, color: theme.colorScheme.onTertiaryContainer),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      keptStaleHint,
+                      style: TextStyle(
+                        fontSize: 13,
+                        height: 1.4,
+                        color: theme.colorScheme.onTertiaryContainer,
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ),
+        Expanded(
+          child: Stack(
+            children: [
         // Wallpaper Background
         if (wallpaperProvider.wallpaperPath != null)
           Positioned.fill(
@@ -254,6 +252,9 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                   ),
             );
           },
+        ),
+            ],
+          ),
         ),
       ],
     );

@@ -1,0 +1,60 @@
+{
+  "menu": [
+    {
+      "id": 748,
+      "pid": 0,
+      "name": "我的学业",
+      "href": "",
+      "imageUrl": "/images/menu/defaultMenuImg.png",
+      "orderMenu": 10,
+      "children": [
+        {
+          "id": 849,
+          "pid": 748,
+          "name": "我的学业",
+          "href": null,
+          "imageUrl": "/images/menu/defaultMenuImg.png",
+          "orderMenu": 10,
+          "children": [
+            {
+              "id": 61,
+              "pid": 849,
+              "name": "成绩",
+              "href": "/Student/MyMark.aspx",
+              "imageUrl": "/images/menu/cimpo.png",
+              "orderMenu": 9099
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 767,
+      "pid": 0,
+      "name": "评教选课",
+      "href": "",
+      "imageUrl": "/images/menu/defaultMenuImg.png",
+      "orderMenu": 20,
+      "children": []
+    },
+    {
+      "id": 849,
+      "pid": 748,
+      "name": "我的学业",
+      "href": null,
+      "imageUrl": "/images/menu/defaultMenuImg.png",
+      "orderMenu": 10,
+      "children": []
+    },
+    {
+      "id": 61,
+      "pid": 849,
+      "name": "成绩",
+      "href": "/Student/MyMark.aspx",
+      "imageUrl": "/images/menu/cimpo.png",
+      "orderMenu": 9099,
+      "children": []
+    }
+  ],
+  "userName": "测试同学"
+}

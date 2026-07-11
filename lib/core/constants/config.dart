@@ -2,6 +2,7 @@ class Config {
   static const String baseUrl = "https://jw.sdpei.edu.cn";
   static const String loginUrl = "$baseUrl/LoginHandler.ashx";
   static const String mainUrl = "$baseUrl/Navigation/main.aspx";
+  static const String menuHandlerUrl = "$baseUrl/IndexMenuHandler.ashx";
   static const String gradesUrl = "$baseUrl/Student/MyMark.aspx";
   static const String timetableAPI = "$baseUrl/Teacher/TimeTableHandler.ashx";
   static const String progressUrl = "$baseUrl/Student/MyProgramProgress.aspx";

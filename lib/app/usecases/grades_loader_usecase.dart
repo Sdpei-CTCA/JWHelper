@@ -68,7 +68,7 @@ class GradesLoaderUsecase {
         final cached = _loadCachedGrades(prefs, username);
         if (cached != null) {
           return GradesLoadResult(
-              grades: cached, loaded: true, evaluationRequired: false);
+              grades: cached, loaded: true, evaluationRequired: true);
         }
         return const GradesLoadResult(
             grades: [], loaded: false, evaluationRequired: true);

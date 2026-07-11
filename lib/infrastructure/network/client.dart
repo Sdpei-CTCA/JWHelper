@@ -6,6 +6,8 @@ import 'package:cookie_jar/cookie_jar.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:JWHelper/core/constants/config.dart';
 import 'package:JWHelper/core/errors/exceptions.dart';
+import 'package:JWHelper/infrastructure/network/http_client_factory.dart';
+import 'package:JWHelper/infrastructure/network/network_retry.dart';
 
 class ApiClient {
   static final ApiClient _instance = ApiClient._internal();
@@ -62,14 +64,31 @@ class ApiClient {
         }
         return handler.next(response);
       },
-      onError: (DioException e, handler) {
+      onError: (DioException e, handler) async {
         debugPrint("<-- Error: ${e.message} at ${e.requestOptions.uri}");
-        // Here we could handle global error states (e.g., token expiration, connectivity)
         if (e.type == DioExceptionType.connectionTimeout ||
             e.type == DioExceptionType.receiveTimeout ||
             e.type == DioExceptionType.sendTimeout) {
           debugPrint("Network timeout: ${e.message}");
         }
+
+        final attempt = NetworkRetry.attemptFor(e.requestOptions);
+        if (attempt < NetworkRetry.maxRetries &&
+            NetworkRetry.isRetriable(e)) {
+          NetworkRetry.markNextAttempt(e.requestOptions);
+          debugPrint(
+              "Retrying request (${attempt + 1}/${NetworkRetry.maxRetries}): ${e.requestOptions.uri}");
+          await Future<void>.delayed(Duration(milliseconds: 400 * (attempt + 1)));
+          try {
+            final response = await dio.fetch(e.requestOptions);
+            return handler.resolve(response);
+          } catch (retryError) {
+            if (retryError is DioException) {
+              return handler.next(retryError);
+            }
+          }
+        }
+
         return handler.next(e);
       }
     ));
@@ -84,6 +103,8 @@ class ApiClient {
     cookieJar = CookieJar();
 
     if (!kIsWeb) {
+      configurePlatformHttpClient(dio);
+
       try {
         // Try to use persistent cookies on mobile/desktop
         Directory appDocDir = await getApplicationDocumentsDirectory();

@@ -11,7 +11,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class WidgetService {
   // Use group ID for iOS if needed, usually configured in Xcode
-  static const String appGroupId = 'group.com.jwhelper.shared';
+  static String get appGroupId => kDebugMode
+      ? 'group.com.jwhelper.shared.dev'
+      : 'group.com.jwhelper.shared';
   static const String displayModeSchedule = 'schedule';
   static const String displayModeExam = 'exam';
 

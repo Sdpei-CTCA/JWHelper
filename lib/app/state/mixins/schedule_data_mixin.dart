@@ -10,10 +10,13 @@ extension ScheduleDataMixin on DataProvider {
 
   bool get isScheduleTermUnavailable =>
       _scheduleLoaded &&
+      !_scheduleKeptStaleCache &&
       ScheduleTermState.isTermUnavailable(
         schedule: _schedule,
         startDay: _scheduleStartDay,
       );
+
+  bool get isScheduleKeptStaleCache => _scheduleKeptStaleCache;
 
   String? get scheduleTermSubtitle =>
       isScheduleTermUnavailable ? ScheduleTermState.unavailableSubtitle : null;
@@ -21,11 +24,18 @@ extension ScheduleDataMixin on DataProvider {
   String? get scheduleTermHint =>
       isScheduleTermUnavailable ? ScheduleTermState.unavailableMessage : null;
 
+  String? get scheduleKeptStaleSubtitle =>
+      _scheduleKeptStaleCache ? ScheduleTermState.keptStaleSubtitle : null;
+
+  String? get scheduleKeptStaleHint =>
+      _scheduleKeptStaleCache ? ScheduleTermState.keptStaleHint : null;
+
   void _applyScheduleResult({
     required List<ScheduleItem> schedule,
     required String? startDay,
     required bool loaded,
   }) {
+    _clearKeptStaleCacheFlag();
     _schedule = schedule;
     if (ScheduleTermState.isTermUnavailable(
       schedule: schedule,
@@ -39,6 +49,24 @@ extension ScheduleDataMixin on DataProvider {
       _calculateCurrentWeek(startDay);
     }
     _scheduleLoaded = loaded;
+  }
+
+  void _applyKeptStaleCacheResult(ScheduleLoadResult result) {
+    _scheduleKeptStaleCache = true;
+    _schedule = result.schedule;
+    _scheduleLoaded = result.loaded;
+    if (result.startDay != null && result.startDay!.trim().isNotEmpty) {
+      _scheduleStartDay = result.startDay;
+      _calculateCurrentWeek(result.startDay!);
+    } else {
+      _scheduleStartDay = null;
+      _currentWeek = 0;
+      _daysUntilStart = 0;
+    }
+  }
+
+  void _clearKeptStaleCacheFlag() {
+    _scheduleKeptStaleCache = false;
   }
 
   Map<int, List<ScheduleItem>> get scheduleGroupedByDay {
@@ -113,10 +141,24 @@ extension ScheduleDataMixin on DataProvider {
 
       if (result.keptLocalCacheOnEmpty) {
         refreshMessage = '教务未返回数据，已保留本地课表';
+        _applyKeptStaleCacheResult(result);
+        notifyStateChanged();
+        return refreshMessage;
       }
 
       if (result.evaluationRequired) {
         _evaluationRequired = true;
+        if (result.schedule.isNotEmpty ||
+            ScheduleTermState.isTermUnavailable(
+              schedule: result.schedule,
+              startDay: result.startDay,
+            )) {
+          _applyScheduleResult(
+            schedule: result.schedule,
+            startDay: result.startDay,
+            loaded: result.loaded,
+          );
+        }
         notifyStateChanged();
         return refreshMessage;
       }

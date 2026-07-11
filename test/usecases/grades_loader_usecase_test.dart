@@ -1,20 +1,29 @@
 import 'dart:convert';
 
+import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:JWHelper/app/usecases/grades_loader_usecase.dart';
+import 'package:JWHelper/core/errors/exceptions.dart';
 import 'package:JWHelper/features/grades/data/grades_service.dart';
 import 'package:JWHelper/features/grades/domain/grade.dart';
 
 class FakeGradesService extends GradesService {
-  FakeGradesService(this._grades);
+  FakeGradesService(this._grades, {this.throwEvaluation = false});
 
   final List<Grade> _grades;
+  final bool throwEvaluation;
   int callCount = 0;
 
   @override
   Future<List<Grade>> getAllGrades() async {
     callCount++;
+    if (throwEvaluation) {
+      throw DioException(
+        requestOptions: RequestOptions(path: '/grades'),
+        error: EvaluationRequiredException(),
+      );
+    }
     return _grades;
   }
 }
@@ -97,5 +106,22 @@ void main() {
     expect(service.callCount, 0);
     expect(result.grades, hasLength(1));
     expect(result.grades.first.courseName, 'Cached Course');
+  });
+
+  test('evaluation required with disk cache still flags evaluationRequired',
+      () async {
+    await seedCache(cachedGrade);
+    final service = FakeGradesService([], throwEvaluation: true);
+
+    final result = await GradesLoaderUsecase.execute(
+      service: service,
+      username: username,
+      forceRefresh: true,
+    );
+
+    expect(service.callCount, 1);
+    expect(result.evaluationRequired, isTrue);
+    expect(result.grades.first.courseName, 'Cached Course');
+    expect(result.loaded, isTrue);
   });
 }

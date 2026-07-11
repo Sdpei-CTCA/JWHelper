@@ -7,6 +7,13 @@ class ScheduleTermState {
   static const String unavailableMessage =
       '教务尚未发布课表，请稍后再试或前往教务系统确认';
 
+  /// 课表页在保留本地旧课表时展示的说明。
+  static const String keptStaleHint =
+      '教务未返回新课表，以下为上次同步的本地课表';
+
+  /// AppBar 副标题：保留本地课表。
+  static const String keptStaleSubtitle = '已保留本地课表';
+
   static bool isTermUnavailable({
     required List<dynamic> schedule,
     required String? startDay,

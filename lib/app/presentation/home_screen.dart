@@ -99,39 +99,48 @@ class _HomeScreenState extends State<HomeScreen> {
     _onDataChanged();
     _checkWidgetLaunch();
 
-    // Try auto-login in background (this will init ApiClient when needed)
+    // Try auto-login only when this session is not already authenticated.
     final prefs = await SharedPreferences.getInstance();
     final hasSavedUser = prefs.getBool('auto_login') ?? false;
     final savedUsername = prefs.getString('username') ?? '';
 
-    if (hasSavedUser && savedUsername.isNotEmpty) {
-      setState(() => _isAutoLoggingIn = true);
-      final error = await auth.performAutoLogin();
-      if (mounted) {
-        setState(() {
-          _isAutoLoggingIn = false;
-          _loginError = error;
-        });
-        if (error == null && auth.isLoggedIn) {
-          if (auth.isOfflineMode) {
-            data.prepareOfflineLoginData();
-          } else {
-            await data.prepareOnlineLoginData();
+    if (!auth.isLoggedIn) {
+      if (hasSavedUser && savedUsername.isNotEmpty) {
+        setState(() => _isAutoLoggingIn = true);
+        final error = await auth.performAutoLogin();
+        if (mounted) {
+          setState(() {
+            _isAutoLoggingIn = false;
+            _loginError = error;
+          });
+          if (error == null && auth.isLoggedIn) {
+            if (auth.isOfflineMode) {
+              data.prepareOfflineLoginData();
+            } else {
+              await data.prepareOnlineLoginData();
+            }
+            if (mounted) _onDataChanged();
           }
         }
-      }
-    } else if (!auth.isLoggedIn) {
-      // No saved user (first launch or logged out) — go to login screen
-      if (mounted) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const LoginScreen()),
-        );
+      } else {
+        // No saved user (first launch or logged out) — go to login screen
+        if (mounted) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (_) => const LoginScreen()),
+          );
+        }
         return;
       }
     }
 
-    // Full schedule load (may fetch from network if cache is stale)
-    data.loadSchedule();
+    // LoginScreen may have already refreshed data; avoid duplicate network calls.
+    if (auth.isLoggedIn && !data.scheduleLoaded && !data.scheduleLoading) {
+      if (auth.isOfflineMode) {
+        data.prepareOfflineLoginData();
+      } else {
+        data.loadSchedule();
+      }
+    }
 
     if (mounted) _checkCampusSetting();
   }
@@ -273,7 +282,12 @@ class _HomeScreenState extends State<HomeScreen> {
     await showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => Dialog(
+      builder: (context) {
+        final colorScheme = Theme.of(context).colorScheme;
+        final textTheme = Theme.of(context).textTheme;
+
+        return Dialog(
+        backgroundColor: colorScheme.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         child: Padding(
           padding: const EdgeInsets.all(24.0),
@@ -283,23 +297,30 @@ class _HomeScreenState extends State<HomeScreen> {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.tertiary.withValues(alpha: 0.1),
+                  color: colorScheme.tertiaryContainer,
                   shape: BoxShape.circle,
                 ),
                 child: Icon(Icons.assignment_late_outlined,
-                    color: Theme.of(context).colorScheme.tertiary, size: 32),
+                    color: colorScheme.onTertiaryContainer, size: 32),
               ),
               const SizedBox(height: 16),
-              const Text(
+              Text(
                 "需要进行教学评价",
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                style: textTheme.titleLarge?.copyWith(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: colorScheme.onSurface,
+                ),
               ),
               const SizedBox(height: 12),
               Text(
                 "系统检测到您未完成教学评价，导致数据无法加载。\n请优先完成评价。",
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                    color: Theme.of(context).disabledColor, fontSize: 14),
+                style: textTheme.bodyMedium?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                  fontSize: 14,
+                  height: 1.5,
+                ),
               ),
               const SizedBox(height: 24),
               Row(
@@ -309,6 +330,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       onPressed: () =>
                           EvaluationFlowCoordinator.openWebEvaluation(context),
                       style: OutlinedButton.styleFrom(
+                        foregroundColor: colorScheme.primary,
+                        side: BorderSide(color: colorScheme.outline),
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(10)),
@@ -333,6 +356,8 @@ class _HomeScreenState extends State<HomeScreen> {
                         );
                       },
                       style: FilledButton.styleFrom(
+                        backgroundColor: colorScheme.primary,
+                        foregroundColor: colorScheme.onPrimary,
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(10)),
@@ -345,7 +370,8 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
         ),
-      ),
+      );
+      },
     );
     _isEvaluationDialogShowing = false;
   }
@@ -739,6 +765,14 @@ class _HomeScreenState extends State<HomeScreen> {
             if (dataProvider.isScheduleTermUnavailable)
               Text(
                 dataProvider.scheduleTermSubtitle ?? '假期或未发课表',
+                style: const TextStyle(
+                    color: Colors.grey,
+                    fontSize: 12,
+                    fontWeight: FontWeight.normal),
+              )
+            else if (dataProvider.isScheduleKeptStaleCache)
+              Text(
+                dataProvider.scheduleKeptStaleSubtitle ?? '已保留本地课表',
                 style: const TextStyle(
                     color: Colors.grey,
                     fontSize: 12,

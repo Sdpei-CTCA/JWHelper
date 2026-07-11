@@ -1,21 +1,30 @@
 import 'dart:convert';
 
+import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:JWHelper/app/usecases/schedule_loader_usecase.dart';
+import 'package:JWHelper/core/errors/exceptions.dart';
 import 'package:JWHelper/features/schedule/data/schedule_service.dart';
 import 'package:JWHelper/features/schedule/domain/schedule_item.dart';
 
 class FakeScheduleService extends ScheduleService {
-  FakeScheduleService(this._items, {this.startDay});
+  FakeScheduleService(this._items, {this.startDay, this.throwEvaluation = false});
 
   final List<ScheduleItem> _items;
   final String? startDay;
+  final bool throwEvaluation;
   int callCount = 0;
 
   @override
   Future<Map<String, dynamic>> getSchedule() async {
     callCount++;
+    if (throwEvaluation) {
+      throw DioException(
+        requestOptions: RequestOptions(path: '/schedule'),
+        error: EvaluationRequiredException(),
+      );
+    }
     return {'items': _items, 'startDay': startDay};
   }
 }
@@ -136,5 +145,22 @@ void main() {
     expect(result.startDay, isNull);
     final prefsAfter = await SharedPreferences.getInstance();
     expect(prefsAfter.containsKey('schedule_start_day_$username'), isFalse);
+  });
+
+  test('evaluation required with disk cache still flags evaluationRequired',
+      () async {
+    await seedCache(cachedItem, startDay: '2024-09-01');
+    final service = FakeScheduleService([], throwEvaluation: true);
+
+    final result = await ScheduleLoaderUsecase.execute(
+      service: service,
+      username: username,
+      forceRefresh: true,
+    );
+
+    expect(service.callCount, 1);
+    expect(result.evaluationRequired, isTrue);
+    expect(result.schedule.first.name, 'Cached Course');
+    expect(result.loaded, isTrue);
   });
 }

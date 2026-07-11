@@ -111,7 +111,7 @@ class ScheduleLoaderUsecase {
             schedule: cached.$1,
             startDay: cached.$2,
             loaded: true,
-            evaluationRequired: false,
+            evaluationRequired: true,
           );
         }
         return const ScheduleLoadResult(

@@ -45,6 +45,7 @@ class DataProvider with ChangeNotifier {
   int _currentWeek = 1;
   int _daysUntilStart = 0;
   String? _scheduleStartDay;
+  bool _scheduleKeptStaleCache = false;
 
   List<ProgressGroup> _progressGroups = [];
   List<ProgressInfo> _progressInfo = [];
@@ -155,6 +156,9 @@ class DataProvider with ChangeNotifier {
     _schedule = [];
     _scheduleLoaded = false;
     _scheduleStartDay = null;
+    _scheduleKeptStaleCache = false;
+    _currentWeek = 1;
+    _daysUntilStart = 0;
     _progressGroups = [];
     _progressInfo = [];
     _progressLoaded = false;

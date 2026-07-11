@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:JWHelper/core/constants/period_time_table.dart';
 import 'package:JWHelper/app/state/data_provider.dart';
+import 'package:JWHelper/features/auth/presentation/auth_provider.dart';
 import 'package:JWHelper/features/schedule/data/schedule_conflict_store.dart';
 import 'package:JWHelper/features/schedule/domain/schedule_conflict.dart';
 import 'package:JWHelper/features/schedule/domain/schedule_item.dart';
@@ -37,7 +38,14 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
     super.initState();
     _loadConflictSelections();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      Provider.of<DataProvider>(context, listen: false).loadSchedule();
+      if (!mounted) return;
+      final auth = Provider.of<AuthProvider>(context, listen: false);
+      final data = Provider.of<DataProvider>(context, listen: false);
+      if (auth.isLoggedIn &&
+          !data.scheduleLoaded &&
+          !data.scheduleLoading) {
+        data.loadSchedule();
+      }
     });
   }
 
@@ -72,6 +80,8 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
     final scheduleIsEmpty = context.select<DataProvider, bool>((d) => d.schedule.isEmpty);
     final termUnavailable = context.select<DataProvider, bool>((d) => d.isScheduleTermUnavailable);
     final termHint = context.select<DataProvider, String?>((d) => d.scheduleTermHint);
+    final keptStale = context.select<DataProvider, bool>((d) => d.isScheduleKeptStaleCache);
+    final keptStaleHint = context.select<DataProvider, String?>((d) => d.scheduleKeptStaleHint);
 
     if (scheduleLoading && scheduleIsEmpty) {
       return const Center(child: CircularProgressIndicator());
@@ -112,6 +122,37 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
 
     return Stack(
       children: [
+        if (keptStale && keptStaleHint != null)
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: Material(
+              color: theme.colorScheme.tertiaryContainer.withValues(alpha: 0.92),
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.info_outline,
+                        size: 18, color: theme.colorScheme.onTertiaryContainer),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        keptStaleHint,
+                        style: TextStyle(
+                          fontSize: 13,
+                          height: 1.4,
+                          color: theme.colorScheme.onTertiaryContainer,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
         // Wallpaper Background
         if (wallpaperProvider.wallpaperPath != null)
           Positioned.fill(

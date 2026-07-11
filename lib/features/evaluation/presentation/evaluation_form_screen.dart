@@ -93,14 +93,17 @@ class _EvaluationFormScreenState extends State<EvaluationFormScreen> {
   };
 
   Widget _buildQuestion(EvaluationQuestion q, int index) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: Colors.grey.withValues(alpha: 0.1)),
+        side: BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.35)),
       ),
-      color: Theme.of(context).cardTheme.color ?? Colors.white,
+      color: colorScheme.surfaceContainerLow,
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -113,14 +116,13 @@ class _EvaluationFormScreenState extends State<EvaluationFormScreen> {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                   decoration: BoxDecoration(
-                    color:
-                        Theme.of(context).primaryColor.withValues(alpha: 0.1),
+                    color: colorScheme.primary.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
                     "${index + 1}",
                     style: TextStyle(
-                      color: Theme.of(context).primaryColor,
+                      color: colorScheme.primary,
                       fontWeight: FontWeight.bold,
                       fontSize: 13,
                     ),
@@ -130,10 +132,11 @@ class _EvaluationFormScreenState extends State<EvaluationFormScreen> {
                 Expanded(
                   child: Text(
                     q.title,
-                    style: const TextStyle(
+                    style: theme.textTheme.bodyMedium?.copyWith(
                       fontWeight: FontWeight.w600,
                       fontSize: 14,
                       height: 1.3,
+                      color: colorScheme.onSurface,
                     ),
                   ),
                 ),
@@ -174,14 +177,25 @@ class _EvaluationFormScreenState extends State<EvaluationFormScreen> {
                           padding: const EdgeInsets.symmetric(vertical: 8),
                           decoration: BoxDecoration(
                             color: isSelected
-                                ? Theme.of(context).primaryColor
-                                : Theme.of(context).scaffoldBackgroundColor,
+                                ? colorScheme.primary
+                                : colorScheme.surface,
                             borderRadius: BorderRadius.circular(8),
                             border: Border.all(
                               color: isSelected
-                                  ? Colors.transparent
-                                  : Colors.grey.withValues(alpha: 0.2),
+                                  ? colorScheme.primary
+                                  : colorScheme.outline,
+                              width: isSelected ? 2.5 : 1.5,
                             ),
+                            boxShadow: isSelected
+                                ? [
+                                    BoxShadow(
+                                      color: colorScheme.primary
+                                          .withValues(alpha: 0.28),
+                                      blurRadius: 6,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ]
+                                : null,
                           ),
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
@@ -190,11 +204,8 @@ class _EvaluationFormScreenState extends State<EvaluationFormScreen> {
                                 opt,
                                 style: TextStyle(
                                   color: isSelected
-                                      ? Colors.white
-                                      : Theme.of(context)
-                                          .textTheme
-                                          .bodyMedium
-                                          ?.color,
+                                      ? colorScheme.onPrimary
+                                      : colorScheme.onSurface,
                                   fontWeight: FontWeight.bold,
                                   fontSize: 14,
                                 ),
@@ -204,8 +215,9 @@ class _EvaluationFormScreenState extends State<EvaluationFormScreen> {
                                 label,
                                 style: TextStyle(
                                   color: isSelected
-                                      ? Colors.white.withValues(alpha: 0.9)
-                                      : Colors.grey,
+                                      ? colorScheme.onPrimary
+                                          .withValues(alpha: 0.9)
+                                      : colorScheme.onSurfaceVariant,
                                   fontSize: 10,
                                 ),
                                 textAlign: TextAlign.center,
@@ -223,11 +235,9 @@ class _EvaluationFormScreenState extends State<EvaluationFormScreen> {
             ] else ...[
               Container(
                 decoration: BoxDecoration(
-                  color: Theme.of(context)
-                      .scaffoldBackgroundColor
-                      .withValues(alpha: 0.5),
+                  color: colorScheme.surfaceContainerHighest,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.grey.withValues(alpha: 0.2)),
+                  border: Border.all(color: colorScheme.outlineVariant),
                 ),
                 child: Stack(
                   children: [
@@ -246,10 +256,10 @@ class _EvaluationFormScreenState extends State<EvaluationFormScreen> {
                         focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
                             borderSide: BorderSide(
-                                color: Theme.of(context).primaryColor,
-                                width: 1.5)),
+                                color: colorScheme.primary, width: 1.5)),
                         enabledBorder: InputBorder.none,
                         hintText: "请输入评价内容...",
+                        hintStyle: TextStyle(color: colorScheme.onSurfaceVariant),
                         contentPadding: const EdgeInsets.all(16),
                       ),
                     ),
@@ -268,23 +278,34 @@ class _EvaluationFormScreenState extends State<EvaluationFormScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      backgroundColor: colorScheme.surface,
       appBar: AppBar(
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text("课程评价",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            Text(widget.item.courseName ?? "未知课程",
-                style: TextStyle(
-                    fontSize: 12,
-                    color: Theme.of(context).textTheme.bodySmall?.color)),
+            Text(
+              "课程评价",
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: colorScheme.onSurface,
+                  ),
+            ),
+            Text(
+              widget.item.courseName ?? "未知课程",
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+            ),
           ],
         ),
         centerTitle: false,
         scrolledUnderElevation: 0,
-        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        backgroundColor: colorScheme.surface,
+        foregroundColor: colorScheme.onSurface,
       ),
       body: _loading
           ? Center(
@@ -319,8 +340,7 @@ class _EvaluationFormScreenState extends State<EvaluationFormScreen> {
                       child: Text(
                         "到底啦~ 记得提交哦",
                         style: TextStyle(
-                            color: Theme.of(context).disabledColor,
-                            fontSize: 12),
+                            color: colorScheme.onSurfaceVariant, fontSize: 12),
                       ),
                     ),
                   );
@@ -339,9 +359,10 @@ class _EvaluationFormScreenState extends State<EvaluationFormScreen> {
                 child: FilledButton.icon(
                   onPressed: _submitting ? null : _submit,
                   style: FilledButton.styleFrom(
+                    backgroundColor: colorScheme.primary,
+                    foregroundColor: colorScheme.onPrimary,
                     elevation: 4,
-                    shadowColor:
-                        Theme.of(context).primaryColor.withValues(alpha: 0.4),
+                    shadowColor: colorScheme.primary.withValues(alpha: 0.4),
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16)),
                   ),

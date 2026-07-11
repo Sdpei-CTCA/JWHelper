@@ -35,6 +35,10 @@ extension GradesDataMixin on DataProvider {
 
       if (result.evaluationRequired) {
         _evaluationRequired = true;
+        if (result.grades.isNotEmpty) {
+          _grades = result.grades;
+          _gradesLoaded = result.loaded;
+        }
         notifyStateChanged();
         return;
       }

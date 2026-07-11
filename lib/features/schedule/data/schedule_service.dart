@@ -76,6 +76,7 @@ class ScheduleService {
   }
 
   Future<Map<String, dynamic>> getSchedule() async {
+    await _client.init();
     try {
       // 1. Get Semester ID using initTablePage
       var semId = await _fetchSemesterId();

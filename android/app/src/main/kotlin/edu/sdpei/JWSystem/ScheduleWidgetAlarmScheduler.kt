@@ -8,7 +8,8 @@ import android.content.SharedPreferences
 import android.os.Build
 
 object ScheduleWidgetAlarmScheduler {
-    const val ACTION_REFRESH = "edu.sdpei.JWSystem.action.SCHEDULE_WIDGET_REFRESH"
+    private fun actionRefresh(context: Context): String =
+        "${context.packageName}.action.SCHEDULE_WIDGET_REFRESH"
     private const val REQUEST_CODE_BASE = 9100
     private const val MAX_ALARMS = 24
 
@@ -62,7 +63,7 @@ object ScheduleWidgetAlarmScheduler {
 
     private fun refreshPendingIntent(context: Context, requestCode: Int): PendingIntent {
         val intent = Intent(context, ScheduleWidgetRefreshReceiver::class.java).apply {
-            action = ACTION_REFRESH
+            action = actionRefresh(context)
         }
         val flags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         return PendingIntent.getBroadcast(context, requestCode, intent, flags)

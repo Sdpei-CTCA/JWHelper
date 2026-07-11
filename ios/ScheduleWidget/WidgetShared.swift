@@ -3,7 +3,13 @@ import WidgetKit
 
 enum WidgetAppGroup {
     // New App Group ID (ensure it is enabled for both app + widget targets in Xcode)
-    static let id = "group.com.jwhelper.shared"
+    static var id: String {
+        #if DEBUG
+        return "group.com.jwhelper.shared.dev"
+        #else
+        return "group.com.jwhelper.shared"
+        #endif
+    }
 }
 
 enum WidgetKeys {

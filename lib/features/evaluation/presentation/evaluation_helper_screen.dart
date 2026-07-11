@@ -63,13 +63,22 @@ class _EvaluationHelperScreenState extends State<EvaluationHelperScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      backgroundColor: colorScheme.surface,
       appBar: AppBar(
-        title:
-            const Text("教学评价", style: TextStyle(fontWeight: FontWeight.bold)),
+        title: Text(
+          "教学评价",
+          style: textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.bold,
+            color: colorScheme.onSurface,
+          ),
+        ),
         centerTitle: true,
-        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        backgroundColor: colorScheme.surface,
+        foregroundColor: colorScheme.onSurface,
         elevation: 0,
         actions: [
           IconButton(
@@ -84,15 +93,25 @@ class _EvaluationHelperScreenState extends State<EvaluationHelperScreen> {
               child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const CircularProgressIndicator(),
+                CircularProgressIndicator(color: colorScheme.primary),
                 const SizedBox(height: 16),
-                Text(_status,
-                    style: TextStyle(color: Theme.of(context).disabledColor))
+                Text(
+                  _status,
+                  style: textTheme.bodyMedium?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                )
               ],
             ))
           : _items.isEmpty
               ? Center(
-                  child: Text(_status, style: const TextStyle(fontSize: 16)))
+                  child: Text(
+                    _status,
+                    style: textTheme.bodyLarge?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                )
               : ListView.separated(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -108,10 +127,9 @@ class _EvaluationHelperScreenState extends State<EvaluationHelperScreen> {
                       elevation: 0,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),
-                        side: BorderSide(
-                            color: Colors.grey.withValues(alpha: 0.1)),
+                        side: BorderSide(color: colorScheme.outlineVariant),
                       ),
-                      color: Theme.of(context).cardTheme.color ?? Colors.white,
+                      color: colorScheme.surfaceContainerLow,
                       child: Padding(
                         padding: const EdgeInsets.all(16),
                         child: Column(
@@ -122,13 +140,13 @@ class _EvaluationHelperScreenState extends State<EvaluationHelperScreen> {
                                 Container(
                                   padding: const EdgeInsets.all(10),
                                   decoration: BoxDecoration(
-                                    color: Theme.of(context)
-                                        .primaryColor
-                                        .withValues(alpha: 0.1),
+                                    color: colorScheme.primaryContainer,
                                     borderRadius: BorderRadius.circular(12),
                                   ),
-                                  child: Icon(Icons.school_outlined,
-                                      color: Theme.of(context).primaryColor),
+                                  child: Icon(
+                                    Icons.school_outlined,
+                                    color: colorScheme.onPrimaryContainer,
+                                  ),
                                 ),
                                 const SizedBox(width: 12),
                                 Expanded(
@@ -138,17 +156,17 @@ class _EvaluationHelperScreenState extends State<EvaluationHelperScreen> {
                                     children: [
                                       Text(
                                         item.courseName ?? "未知课程",
-                                        style: const TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 16),
+                                        style: textTheme.titleMedium?.copyWith(
+                                          fontWeight: FontWeight.bold,
+                                          color: colorScheme.onSurface,
+                                        ),
                                       ),
                                       const SizedBox(height: 4),
                                       Text(
                                         "${item.teacherName} • ${item.evaluationId}",
-                                        style: TextStyle(
-                                            color:
-                                                Theme.of(context).disabledColor,
-                                            fontSize: 12),
+                                        style: textTheme.bodySmall?.copyWith(
+                                          color: colorScheme.onSurfaceVariant,
+                                        ),
                                       ),
                                     ],
                                   ),
@@ -158,37 +176,43 @@ class _EvaluationHelperScreenState extends State<EvaluationHelperScreen> {
                                     padding: const EdgeInsets.symmetric(
                                         horizontal: 10, vertical: 6),
                                     decoration: BoxDecoration(
-                                      color:
-                                          Colors.green.withValues(alpha: 0.1),
+                                      color: colorScheme.tertiaryContainer,
                                       borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(
+                                        color: colorScheme.tertiary
+                                            .withValues(alpha: 0.35),
+                                      ),
                                     ),
-                                    child: const Text(
+                                    child: Text(
                                       "已评价",
-                                      style: TextStyle(
-                                        fontSize: 12,
+                                      style: textTheme.labelMedium?.copyWith(
                                         fontWeight: FontWeight.bold,
-                                        color: Colors.green,
+                                        color: colorScheme.onTertiaryContainer,
                                       ),
                                     ),
                                   )
                               ],
                             ),
-                            const Padding(
-                              padding: EdgeInsets.symmetric(vertical: 12),
-                              child: Divider(height: 1),
+                            Padding(
+                              padding:
+                                  const EdgeInsets.symmetric(vertical: 12),
+                              child: Divider(
+                                height: 1,
+                                color: colorScheme.outlineVariant,
+                              ),
                             ),
                             SizedBox(
                               width: double.infinity,
-                              height: 36,
+                              height: 40,
                               child: FilledButton.icon(
                                 onPressed: () => _openManualEvaluation(item),
-                                icon: const Icon(Icons.edit_note, size: 16),
+                                icon: const Icon(Icons.edit_note, size: 18),
                                 label: Text(isSuccess ? "重新查看" : "手动评教"),
                                 style: FilledButton.styleFrom(
+                                  backgroundColor: colorScheme.primary,
+                                  foregroundColor: colorScheme.onPrimary,
                                   shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(8)),
-                                  backgroundColor:
-                                      Theme.of(context).primaryColor,
                                 ),
                               ),
                             )

@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/scheduler.dart' show SchedulerBinding;
 import 'package:dio/dio.dart';
 import 'package:dio_cookie_manager/dio_cookie_manager.dart';
 import 'package:cookie_jar/cookie_jar.dart';
@@ -8,11 +9,15 @@ import 'package:JWHelper/core/constants/config.dart';
 import 'package:JWHelper/core/errors/exceptions.dart';
 import 'package:JWHelper/infrastructure/network/http_client_factory.dart';
 import 'package:JWHelper/infrastructure/network/network_retry.dart';
+import 'package:JWHelper/infrastructure/network/session_response.dart';
+
+typedef SessionExpiredCallback = void Function(LoginSessionExpiredException error);
 
 class ApiClient {
   static final ApiClient _instance = ApiClient._internal();
   late Dio dio;
   late CookieJar cookieJar;
+  static SessionExpiredCallback? onSessionExpired;
 
   factory ApiClient() {
     return _instance;
@@ -39,6 +44,17 @@ class ApiClient {
       },
       onResponse: (response, handler) {
         debugPrint("<-- [${response.statusCode}] ${response.requestOptions.uri}");
+        if (shouldCheckLoginTimeout(response.requestOptions.uri) &&
+            isLoginTimeoutBody(response.data)) {
+          final error = LoginSessionExpiredException();
+          _notifySessionExpired(error);
+          return handler.reject(DioException(
+            requestOptions: response.requestOptions,
+            error: error,
+            type: DioExceptionType.unknown,
+            response: response,
+          ));
+        }
         // Detect evaluation requirement
         // If the request was NOT for evaluation, but we ended up there or got its content
         final isEvalRequest =
@@ -130,5 +146,13 @@ class ApiClient {
 
   Future<void> clearCookies() async {
     await cookieJar.deleteAll();
+  }
+
+  static void _notifySessionExpired(LoginSessionExpiredException error) {
+    final callback = onSessionExpired;
+    if (callback == null) return;
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      callback(error);
+    });
   }
 }

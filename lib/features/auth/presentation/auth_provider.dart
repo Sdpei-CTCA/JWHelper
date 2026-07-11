@@ -234,6 +234,34 @@ class AuthProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  /// Session 过期：清 Cookie 与登录态，保留记住密码/自动登录设置。
+  Future<void> expireSession() async {
+    _loginSequence++;
+    await ApiClient().clearCookies();
+    MenuRegistry.instance.clear();
+    _isLoggedIn = false;
+    _needCaptcha = false;
+    _isOfflineMode = false;
+    notifyListeners();
+  }
+
+  /// Session 过期后，用本地保存的凭据尝试静默重新登录。
+  Future<String?> trySilentRelogin() async {
+    await initSavedUser();
+    if (!_rememberPassword || _savedUsername.isEmpty) {
+      return '未保存登录凭据';
+    }
+
+    var password = await getSavedPasswordForPrefill();
+    if (password.isEmpty) {
+      return '未保存登录凭据';
+    }
+
+    final error = await login(_savedUsername, password);
+    password = "";
+    return error;
+  }
+
   Future<String> getSavedPasswordForPrefill() async {
     if (!_rememberPassword) {
       return "";

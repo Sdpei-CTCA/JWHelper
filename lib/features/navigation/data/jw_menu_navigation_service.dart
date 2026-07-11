@@ -3,7 +3,6 @@ import 'dart:math';
 
 import 'package:dio/dio.dart';
 import 'package:JWHelper/core/constants/config.dart';
-import 'package:JWHelper/core/errors/exceptions.dart';
 import 'package:JWHelper/features/navigation/data/menu_navigation_service.dart';
 import 'package:JWHelper/features/navigation/domain/menu_build_response.dart';
 import 'package:JWHelper/features/navigation/domain/menu_item.dart';
@@ -38,10 +37,6 @@ class JwMenuNavigationService implements MenuNavigationService {
     );
 
     final body = response.data?.toString().trim() ?? '';
-    if (body == 'logintimeout') {
-      throw LoginSessionExpiredException();
-    }
-
     final dynamic decoded = jsonDecode(body);
     if (decoded is! Map<String, dynamic>) {
       throw FormatException('Unexpected BuildMenu response: $body');

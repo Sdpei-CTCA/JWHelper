@@ -7,7 +7,9 @@ import 'package:JWHelper/app/state/data_provider.dart';
 import 'package:JWHelper/app/presentation/home_screen.dart';
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+  final String? sessionExpiredMessage;
+
+  const LoginScreen({super.key, this.sessionExpiredMessage});
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -25,6 +27,10 @@ class _LoginScreenState extends State<LoginScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (widget.sessionExpiredMessage != null) {
+        _showSessionExpiredLogin();
+        return;
+      }
       final auth = Provider.of<AuthProvider>(context, listen: false);
       auth.init().then((error) async {
         if (mounted) {
@@ -54,6 +60,28 @@ class _LoginScreenState extends State<LoginScreen> {
         }
       });
     });
+  }
+
+  Future<void> _showSessionExpiredLogin() async {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    await auth.loadSavedPreferences();
+    if (!mounted) return;
+
+    setState(() => _autoLoginChecking = false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(widget.sessionExpiredMessage!),
+        backgroundColor: Theme.of(context).colorScheme.tertiary,
+      ),
+    );
+
+    if (auth.rememberPassword) {
+      _usernameController.text = auth.savedUsername;
+      final prefillPassword = await auth.getSavedPasswordForPrefill();
+      if (mounted) {
+        _passwordController.text = prefillPassword;
+      }
+    }
   }
 
   Future<void> _handleLogin() async {

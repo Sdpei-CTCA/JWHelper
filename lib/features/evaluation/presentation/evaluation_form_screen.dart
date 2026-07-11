@@ -13,6 +13,8 @@ class EvaluationFormScreen extends StatefulWidget {
 }
 
 class _EvaluationFormScreenState extends State<EvaluationFormScreen> {
+  static const int _minTextAnswerLength = 10;
+
   final EvaluationService _evaluationService = EvaluationService();
   bool _loading = true;
   bool _submitting = false;
@@ -44,15 +46,32 @@ class _EvaluationFormScreenState extends State<EvaluationFormScreen> {
     }
   }
 
+  bool _isTextQuestion(EvaluationQuestion question) => question.type != 0;
+
   Future<void> _submit() async {
     final hasIncompleteAnswers = _questions.any((q) {
       final value = (_answers[q.id] ?? '').trim();
-      return value.isEmpty;
+      if (value.isEmpty) return true;
+      if (_isTextQuestion(q) && value.length < _minTextAnswerLength) {
+        return true;
+      }
+      return false;
     });
 
     if (hasIncompleteAnswers) {
+      final hasShortText = _questions.any((q) {
+        if (!_isTextQuestion(q)) return false;
+        final value = (_answers[q.id] ?? '').trim();
+        return value.isNotEmpty && value.length < _minTextAnswerLength;
+      });
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("请先完成所有题目后再提交")),
+        SnackBar(
+          content: Text(
+            hasShortText
+                ? '文字评价至少需要$_minTextAnswerLength个字符'
+                : '请先完成所有题目后再提交',
+          ),
+        ),
       );
       return;
     }
@@ -248,7 +267,9 @@ class _EvaluationFormScreenState extends State<EvaluationFormScreen> {
                         ),
                       maxLines: 3,
                       onChanged: (val) {
-                        _answers[q.id] = val;
+                        setState(() {
+                          _answers[q.id] = val;
+                        });
                       },
                       style: const TextStyle(fontSize: 14, height: 1.4),
                       decoration: InputDecoration(
@@ -258,14 +279,26 @@ class _EvaluationFormScreenState extends State<EvaluationFormScreen> {
                             borderSide: BorderSide(
                                 color: colorScheme.primary, width: 1.5)),
                         enabledBorder: InputBorder.none,
-                        hintText: "请输入评价内容...",
+                        hintText: '请输入评价内容（至少$_minTextAnswerLength字）...',
                         hintStyle: TextStyle(color: colorScheme.onSurfaceVariant),
-                        contentPadding: const EdgeInsets.all(16),
+                        contentPadding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
                       ),
                     ),
                   ],
                 ),
-              )
+              ),
+              if ((_answers[q.id] ?? '').trim().isNotEmpty &&
+                  (_answers[q.id] ?? '').trim().length < _minTextAnswerLength)
+                Padding(
+                  padding: const EdgeInsets.only(top: 6, left: 4),
+                  child: Text(
+                    '还需至少 ${_minTextAnswerLength - (_answers[q.id] ?? '').trim().length} 字',
+                    style: TextStyle(
+                      color: colorScheme.error,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
             ]
           ],
         ),

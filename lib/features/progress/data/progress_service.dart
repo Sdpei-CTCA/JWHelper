@@ -3,9 +3,10 @@ import 'package:flutter/foundation.dart';
 import 'package:html/parser.dart' as parser;
 import 'package:html/dom.dart';
 import 'package:dio/dio.dart';
-import 'package:JWHelper/core/constants/config.dart';
 import 'package:JWHelper/infrastructure/network/client.dart';
 import 'package:JWHelper/features/progress/domain/progress_item.dart';
+import 'package:JWHelper/features/navigation/data/jw_endpoint_resolver.dart';
+import 'package:JWHelper/features/navigation/domain/app_feature.dart';
 
 // Top-level helper
 String? _extractId(Element a) {
@@ -263,12 +264,24 @@ Map<String, dynamic> _parseProgressHtml(String html) {
 }
 
 class ProgressService {
-  final ApiClient _client = ApiClient();
+  final ApiClient _client;
+  final JwEndpointResolver _endpoints;
   String _systemNumber = "";
+
+  ProgressService({
+    ApiClient? client,
+    JwEndpointResolver? endpoints,
+  })  : _client = client ?? ApiClient(),
+        _endpoints = endpoints ?? JwEndpointResolver();
+
+  String get _progressPageUrl => _endpoints.pageUrl(AppFeature.progress);
+
+  String get _progressHandlerUrl =>
+      _endpoints.handlerUrl(AppFeature.progress);
 
   Future<Map<String, dynamic>> getProgressData() async {
     try {
-      var response = await _client.dio.get(Config.progressUrl);
+      var response = await _client.dio.get(_progressPageUrl);
 
       // Use compute for parsing
       var result = await compute(_parseProgressHtml, response.data.toString());
@@ -290,7 +303,7 @@ class ProgressService {
 
     try {
       String url =
-          "${Config.baseUrl}/Student/MyProgramProgressHandler.ashx?action=GetData&random=${DateTime.now().millisecondsSinceEpoch}";
+          '$_progressHandlerUrl?action=GetData&random=${DateTime.now().millisecondsSinceEpoch}';
 
       var formData = {
         "groupId": groupId,
@@ -304,7 +317,7 @@ class ProgressService {
           contentType: Headers.formUrlEncodedContentType,
           headers: {
             "X-Requested-With": "XMLHttpRequest",
-            "Referer": Config.progressUrl,
+            "Referer": _progressPageUrl,
           },
         ),
       );

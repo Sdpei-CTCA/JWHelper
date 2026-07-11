@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:JWHelper/core/constants/config.dart';
+import 'package:JWHelper/features/navigation/data/jw_endpoint_resolver.dart';
+import 'package:JWHelper/features/navigation/domain/app_feature.dart';
 
 typedef OpenHelperFn = Future<void> Function();
 typedef ResetEvaluationStateFn = void Function();
@@ -14,7 +15,9 @@ class EvaluationFlowCoordinator {
   }
 
   static Future<void> openWebEvaluation(BuildContext context) async {
-    final Uri url = Uri.parse(Config.evaluationUrl);
+    final Uri url = Uri.parse(
+      JwEndpointResolver().pageUrl(AppFeature.evaluation),
+    );
     if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
       if (context.mounted) {
         ScaffoldMessenger.of(context)

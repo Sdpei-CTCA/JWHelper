@@ -4,6 +4,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:JWHelper/features/auth/data/auth_service.dart';
 import 'package:JWHelper/infrastructure/network/client.dart';
+import 'package:JWHelper/features/navigation/data/menu_registry.dart';
 import 'package:JWHelper/app/cache/offline_cache_keys.dart';
 
 class AuthProvider with ChangeNotifier {
@@ -217,6 +218,7 @@ class AuthProvider with ChangeNotifier {
   Future<void> logout() async {
     _loginSequence++;
     await ApiClient().clearCookies();
+    MenuRegistry.instance.clear();
     _isLoggedIn = false;
     _needCaptcha = false;
     _isOfflineMode = false;

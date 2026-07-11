@@ -16,11 +16,12 @@ class JwMenuNavigationService implements MenuNavigationService {
 
   @override
   Future<List<MenuItem>> buildMenu(MenuBuildRequest request) async {
-    final response = await fetchMenuBuildResponse(request);
+    final response = await fetchFullMenu(request);
     return response.itemsForParent(request.parentId);
   }
 
-  Future<MenuBuildResponse> fetchMenuBuildResponse(MenuBuildRequest request) async {
+  @override
+  Future<MenuBuildResponse> fetchFullMenu(MenuBuildRequest request) async {
     await _client.init();
 
     final random = Random().nextDouble();

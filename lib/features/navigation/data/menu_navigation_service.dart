@@ -1,3 +1,4 @@
+import 'package:JWHelper/features/navigation/domain/menu_build_response.dart';
 import 'package:JWHelper/features/navigation/domain/menu_item.dart';
 
 /// 构建菜单请求参数，对应：
@@ -17,6 +18,9 @@ class MenuBuildRequest {
 abstract class MenuNavigationService {
   /// 拉取指定父节点下的子菜单树。
   Future<List<MenuItem>> buildMenu(MenuBuildRequest request);
+
+  /// 拉取完整 BuildMenu 响应（含 `userName`）。
+  Future<MenuBuildResponse> fetchFullMenu(MenuBuildRequest request);
 }
 
 extension MenuNavigationServiceX on MenuNavigationService {
@@ -33,6 +37,14 @@ class StubMenuNavigationService implements MenuNavigationService {
   Future<List<MenuItem>> buildMenu(MenuBuildRequest request) {
     throw UnimplementedError(
       'MenuNavigationService.buildMenu(parentId: ${request.parentId}) '
+      'is not implemented yet',
+    );
+  }
+
+  @override
+  Future<MenuBuildResponse> fetchFullMenu(MenuBuildRequest request) {
+    throw UnimplementedError(
+      'MenuNavigationService.fetchFullMenu(parentId: ${request.parentId}) '
       'is not implemented yet',
     );
   }

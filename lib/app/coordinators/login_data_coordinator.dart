@@ -1,3 +1,5 @@
+import 'package:JWHelper/features/navigation/data/menu_registry.dart';
+
 typedef LoadDataFn = Future<void> Function({bool forceRefresh});
 
 class LoginDataCoordinator {
@@ -8,6 +10,7 @@ class LoginDataCoordinator {
     required LoadDataFn loadExamSemesters,
   }) async {
     await Future.wait([
+      MenuRegistry.instance.refresh(),
       loadGrades(forceRefresh: true),
       loadSchedule(forceRefresh: true),
       loadProgress(forceRefresh: true),

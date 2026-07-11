@@ -2,9 +2,10 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:html/parser.dart' as parser;
 import 'package:html/dom.dart';
-import 'package:JWHelper/core/constants/config.dart';
 import 'package:JWHelper/infrastructure/network/client.dart';
 import 'package:JWHelper/features/grades/domain/grade.dart';
+import 'package:JWHelper/features/navigation/data/jw_endpoint_resolver.dart';
+import 'package:JWHelper/features/navigation/domain/app_feature.dart';
 
 // Top-level function for compute
 List<Grade> _parseAllGrades(String html) {
@@ -54,7 +55,16 @@ List<Grade> _parseAllGrades(String html) {
 }
 
 class GradesService {
-  final ApiClient _client = ApiClient();
+  final ApiClient _client;
+  final JwEndpointResolver _endpoints;
+
+  GradesService({
+    ApiClient? client,
+    JwEndpointResolver? endpoints,
+  })  : _client = client ?? ApiClient(),
+        _endpoints = endpoints ?? JwEndpointResolver();
+
+  String get _gradesPageUrl => _endpoints.pageUrl(AppFeature.grades);
 
   // Kept for compatibility if needed, but getAllGrades is preferred
   Future<List<String>> getSemesters() async {
@@ -62,7 +72,7 @@ class GradesService {
     // but for just getting semesters, we can still parse lightly or use the full parse.
     // Let's just fetch and parse quickly.
     try {
-      var response = await _client.dio.get(Config.gradesUrl);
+      var response = await _client.dio.get(_gradesPageUrl);
       return await compute(_parseSemestersOnly, response.data.toString());
     } catch (e) {
       debugPrint("Get semesters failed: $e");
@@ -73,7 +83,7 @@ class GradesService {
   Future<List<Grade>> getAllGrades() async {
     try {
       final url =
-          '${Config.gradesUrl}?random=${DateTime.now().millisecondsSinceEpoch}';
+          '$_gradesPageUrl?random=${DateTime.now().millisecondsSinceEpoch}';
       var response = await _client.dio.get(
         url,
         options: Options(headers: {'Cache-Control': 'no-cache'}),

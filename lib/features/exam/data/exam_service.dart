@@ -6,6 +6,8 @@ import 'package:html/parser.dart' as html_parser;
 import 'package:JWHelper/core/constants/config.dart';
 import 'package:JWHelper/infrastructure/network/client.dart';
 import 'package:JWHelper/features/exam/domain/exam.dart';
+import 'package:JWHelper/features/navigation/data/jw_endpoint_resolver.dart';
+import 'package:JWHelper/features/navigation/domain/app_feature.dart';
 
 // Top-level function for compute
 List<Semester> _parseExamSemesters(String html) {
@@ -66,13 +68,22 @@ List<Exam> _parseExportedHtml(String html) {
 }
 
 class ExamService {
-  final ApiClient _client = ApiClient();
+  final ApiClient _client;
+  final JwEndpointResolver _endpoints;
+
+  ExamService({
+    ApiClient? client,
+    JwEndpointResolver? endpoints,
+  })  : _client = client ?? ApiClient(),
+        _endpoints = endpoints ?? JwEndpointResolver();
+
+  String get _examPageUrl => _endpoints.pageUrl(AppFeature.exam);
+
+  String get _examHandlerUrl => _endpoints.handlerUrl(AppFeature.exam);
 
   Future<List<Semester>> getSemesters() async {
     try {
-      final response = await _client.dio.get(
-        "${Config.baseUrl}/Student/StudentExamArrangeTable.aspx",
-      );
+      final response = await _client.dio.get(_examPageUrl);
 
       return await compute(_parseExamSemesters, response.data.toString());
     } catch (e) {
@@ -84,7 +95,7 @@ class ExamService {
   Future<List<ExamRound>> getExamRounds(String semId) async {
     try {
       final response = await _client.dio.post(
-        "${Config.baseUrl}/Student/StudentExamArrangeTableHandler.ashx",
+        _examHandlerUrl,
         queryParameters: {
           "action": "thirdchange",
           "rondom": DateTime.now().millisecondsSinceEpoch / 1000,
@@ -122,7 +133,7 @@ class ExamService {
   Future<List<Exam>> getExamList(String semId, String etId) async {
     try {
       final response = await _client.dio.post(
-        "${Config.baseUrl}/Student/StudentExamArrangeTableHandler.ashx",
+        _examHandlerUrl,
         data: {
           "semId": semId,
           "etID": etId,
@@ -173,7 +184,7 @@ class ExamService {
   }) async {
     try {
       final response = await _client.dio.post(
-        "${Config.baseUrl}/Student/StudentExamArrangeTableHandler.ashx",
+        _examHandlerUrl,
         queryParameters: {
           "ron": Random().nextDouble(),
         },
@@ -190,7 +201,7 @@ class ExamService {
           receiveTimeout: const Duration(minutes: 3),
           headers: {
             "X-Requested-With": "XMLHttpRequest",
-            "Referer": "${Config.baseUrl}/Student/StudentExamArrangeTable.aspx",
+            "Referer": _examPageUrl,
           },
         ),
       );
@@ -223,7 +234,7 @@ class ExamService {
   }) async {
     try {
       final response = await _client.dio.post(
-        "${Config.baseUrl}/Student/StudentExamArrangeTableHandler.ashx",
+        _examHandlerUrl,
         queryParameters: {
           "ron": Random().nextDouble(),
         },
@@ -240,7 +251,7 @@ class ExamService {
           receiveTimeout: const Duration(minutes: 3),
           headers: {
             "X-Requested-With": "XMLHttpRequest",
-            "Referer": "${Config.baseUrl}/Student/StudentExamArrangeTable.aspx",
+            "Referer": _examPageUrl,
           },
         ),
       );

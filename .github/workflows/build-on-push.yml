@@ -1,16 +1,16 @@
-name: Daily Release Build
+name: Build on Push
 
 on:
-  schedule:
-    # 每天北京时间 00:00（UTC 16:00）
-    - cron: "0 16 * * *"
+  push:
+    branches:
+      - "**"
   workflow_dispatch:
 
 permissions:
   contents: write
 
 concurrency:
-  group: daily-release-${{ github.ref }}
+  group: build-on-push-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -67,6 +67,9 @@ jobs:
           cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk release-assets/JWHelper-arm64-v8a.apk
           cp build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk release-assets/JWHelper-armeabi-v7a.apk
           cp build/app/outputs/flutter-apk/app-x86_64-release.apk release-assets/JWHelper-x86_64.apk
+          for apk in release-assets/*.apk; do
+            sha1sum "$apk" | awk '{print $1}' > "${apk}.sha1"
+          done
 
       - name: Prepare release metadata
         id: meta
@@ -83,11 +86,14 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: android-apk-${{ steps.meta.outputs.date }}
-          path: release-assets/*.apk
+          path: |
+            release-assets/*.apk
+            release-assets/*.sha1
           if-no-files-found: error
           retention-days: 14
 
       - name: Publish GitHub Release
+        if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
         uses: ncipollo/release-action@v1
         with:
           tag: ${{ steps.meta.outputs.tag }}
@@ -110,6 +116,9 @@ jobs:
             - 大多数手机请下载 `JWHelper-arm64-v8a.apk`
             - 较旧 32 位设备请下载 `JWHelper-armeabi-v7a.apk`
             - 模拟器可尝试 `JWHelper-x86_64.apk`
+            - 每个 APK 均附带同名 `.sha1` 校验文件，可用于验证文件完整性
 
             > 若已在仓库 Settings → Secrets 中配置 Android 签名密钥，将使用正式签名；否则为调试签名包。
-          artifacts: release-assets/*.apk
+          artifacts: |
+            release-assets/*.apk
+            release-assets/*.sha1

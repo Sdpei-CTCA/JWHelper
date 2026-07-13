@@ -47,6 +47,7 @@ object ScheduleWidgetAlarmScheduler {
                     alarmManager.setExact(AlarmManager.RTC_WAKEUP, triggerAt, pendingIntent)
                 }
             } catch (_: SecurityException) {
+                prefs.edit().putBoolean("widget_exact_alarm_denied", true).apply()
                 alarmManager.set(AlarmManager.RTC_WAKEUP, triggerAt, pendingIntent)
             }
         }

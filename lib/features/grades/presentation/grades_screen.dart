@@ -24,9 +24,57 @@ class _GradesScreenState extends State<GradesScreen> {
     }
   }
 
+  Widget _buildEmptyBody({
+    required String message,
+    bool showRefreshButton = false,
+  }) {
+    final gradesLoading =
+        context.select<DataProvider, bool>((d) => d.gradesLoading);
+
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      children: [
+        const SizedBox(height: 120),
+        Icon(Icons.inbox_outlined,
+            size: 64, color: Theme.of(context).colorScheme.outline),
+        const SizedBox(height: 16),
+        Center(
+          child: Text(
+            message,
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+            ),
+          ),
+        ),
+        if (showRefreshButton) ...[
+          const SizedBox(height: 8),
+          TextButton(
+            onPressed: gradesLoading ? null : _refreshGrades,
+            child: gradesLoading
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Text('刷新'),
+          ),
+        ],
+        const SizedBox(height: 8),
+        Center(
+          child: Text(
+            '下拉刷新',
+            style: TextStyle(
+              fontSize: 12,
+              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.45),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    // Only rebuild when grades-related states change
     final gradesLoading = context.select<DataProvider, bool>((d) => d.gradesLoading);
     final grades = context.select<DataProvider, List<dynamic>>((d) => d.grades);
     final rawSemesters = context.select<DataProvider, List<String>>((d) => d.semesterList);
@@ -36,41 +84,24 @@ class _GradesScreenState extends State<GradesScreen> {
     }
 
     if (grades.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.inbox_outlined, size: 64, color: Colors.grey),
-            const SizedBox(height: 16),
-            const Text("暂无成绩数据", style: TextStyle(color: Colors.grey)),
-            TextButton(
-              onPressed: gradesLoading ? null : _refreshGrades,
-              child: gradesLoading
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Text("刷新"),
-            ),
-          ],
+      return RefreshIndicator(
+        onRefresh: _refreshGrades,
+        child: _buildEmptyBody(
+          message: '暂无成绩数据',
+          showRefreshButton: true,
         ),
       );
     }
 
-    // Get unique semesters using optimized getter
     final allOptions = ['全部', ...rawSemesters];
 
-    // Set default selection logic
     if (_selectedSemester == null) {
-      // Default to the latest semester (first in the sorted list) if available
       if (rawSemesters.isNotEmpty) {
         _selectedSemester = rawSemesters.first;
       } else {
         _selectedSemester = '全部';
       }
     } else if (!allOptions.contains(_selectedSemester)) {
-      // If selected semester is no longer valid, reset to default
       _selectedSemester = '全部';
     }
 
@@ -80,8 +111,6 @@ class _GradesScreenState extends State<GradesScreen> {
 
     return Column(
       children: [
-        if (gradesLoading)
-          const LinearProgressIndicator(minHeight: 2),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           color: Theme.of(context).cardTheme.color,
@@ -89,10 +118,13 @@ class _GradesScreenState extends State<GradesScreen> {
             children: [
               const Icon(Icons.filter_list, size: 20, color: Colors.grey),
               const SizedBox(width: 8),
-              Text("学期筛选: ",
-                  style: TextStyle(
-                      fontSize: 16,
-                      color: Theme.of(context).colorScheme.onSurface)),
+              Text(
+                '学期筛选: ',
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
+              ),
               const SizedBox(width: 16),
               Expanded(
                 child: Container(
@@ -110,12 +142,15 @@ class _GradesScreenState extends State<GradesScreen> {
                   child: DropdownButtonHideUnderline(
                     child: DropdownButton<String>(
                       isExpanded: true,
-                      icon: Icon(Icons.keyboard_arrow_down_rounded,
-                          color: Theme.of(context).colorScheme.primary),
+                      icon: Icon(
+                        Icons.keyboard_arrow_down_rounded,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
                       style: TextStyle(
-                          color: Theme.of(context).colorScheme.onSurface,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w500),
+                        color: Theme.of(context).colorScheme.onSurface,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w500,
+                      ),
                       dropdownColor: Theme.of(context).cardTheme.color,
                       borderRadius: BorderRadius.circular(12),
                       value: _selectedSemester,
@@ -141,28 +176,22 @@ class _GradesScreenState extends State<GradesScreen> {
           child: RefreshIndicator(
             onRefresh: _refreshGrades,
             child: filteredGrades.isEmpty
-                ? ListView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    children: const [
-                      SizedBox(height: 100),
-                      Center(child: Text("该学期暂无成绩")),
-                    ],
-                  )
+                ? _buildEmptyBody(message: '该学期暂无成绩')
                 : ListView.builder(
                     padding: const EdgeInsets.all(16),
                     itemCount: filteredGrades.length,
                     cacheExtent: 2000,
                     itemBuilder: (context, index) {
                       final grade = filteredGrades[index];
-                      // 提取 Card 构建逻辑
-                      final card = Card(
+                      return Card(
                         elevation: 0,
                         color: Theme.of(context).cardTheme.color,
                         margin: const EdgeInsets.only(bottom: 12),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                           side: BorderSide(
-                              color: Colors.grey.withValues(alpha: 0.1)),
+                            color: Colors.grey.withValues(alpha: 0.1),
+                          ),
                         ),
                         child: Padding(
                           padding: const EdgeInsets.all(16),
@@ -177,19 +206,24 @@ class _GradesScreenState extends State<GradesScreen> {
                                     child: Text(
                                       grade.courseName,
                                       style: const TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.bold),
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                      ),
                                     ),
                                   ),
                                   Container(
                                     padding: const EdgeInsets.symmetric(
-                                        horizontal: 8, vertical: 4),
+                                      horizontal: 8,
+                                      vertical: 4,
+                                    ),
                                     decoration: BoxDecoration(
                                       color: double.tryParse(grade.score) !=
                                                   null &&
                                               double.parse(grade.score) < 60
                                           ? Colors.red.withValues(alpha: 0.1)
-                                          : Theme.of(context).colorScheme.primary
+                                          : Theme.of(context)
+                                              .colorScheme
+                                              .primary
                                               .withValues(alpha: 0.1),
                                       borderRadius: BorderRadius.circular(4),
                                     ),
@@ -200,7 +234,9 @@ class _GradesScreenState extends State<GradesScreen> {
                                                     null &&
                                                 double.parse(grade.score) < 60
                                             ? Colors.red
-                                            : Theme.of(context).colorScheme.primary,
+                                            : Theme.of(context)
+                                                .colorScheme
+                                                .primary,
                                         fontWeight: FontWeight.bold,
                                       ),
                                     ),
@@ -213,17 +249,23 @@ class _GradesScreenState extends State<GradesScreen> {
                                 runSpacing: 4,
                                 children: [
                                   _buildTag(
-                                      Icons.calendar_today, grade.semester),
-                                  _buildTag(Icons.class_, "${grade.credit} 学分"),
-                                  _buildTag(Icons.grade, "绩点: ${grade.gpa}"),
+                                    Icons.calendar_today,
+                                    grade.semester,
+                                  ),
+                                  _buildTag(
+                                    Icons.class_,
+                                    '${grade.credit} 学分',
+                                  ),
+                                  _buildTag(
+                                    Icons.grade,
+                                    '绩点: ${grade.gpa}',
+                                  ),
                                 ],
                               ),
                             ],
                           ),
                         ),
                       );
-
-                      return card;
                     },
                   ),
           ),
@@ -234,6 +276,7 @@ class _GradesScreenState extends State<GradesScreen> {
 
   Widget _buildTag(IconData icon, String text) {
     return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
         Icon(icon, size: 14, color: Colors.grey),
         const SizedBox(width: 4),

@@ -133,5 +133,6 @@ struct ProgressWidget: Widget {
         .configurationDisplayName("绩点与学分")
         .description("展示绩点与学分进度")
         .supportedFamilies([.systemMedium])
+        .widgetURL(URL(string: "jwhelper://progress?homeWidget=1"))
     }
 }

@@ -21,6 +21,8 @@ import 'package:JWHelper/app/coordinators/logout_coordinator.dart';
 import 'package:JWHelper/app/coordinators/home_navigation_coordinator.dart';
 import 'package:JWHelper/app/coordinators/evaluation_flow_coordinator.dart';
 import 'package:JWHelper/infrastructure/notifications/notification_service.dart';
+import 'package:JWHelper/infrastructure/platform/widget_permission_service.dart';
+import 'package:JWHelper/app/presentation/widget_settings_sheet.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -142,7 +144,15 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     }
 
-    if (mounted) _checkCampusSetting();
+    if (mounted) await _checkCampusSetting();
+  }
+
+  void _promptWidgetPermissionsIfNeeded() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        WidgetPermissionService.promptIfNeeded(context);
+      }
+    });
   }
 
   void _initScheduleViewMode() async {
@@ -152,7 +162,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  void _checkCampusSetting() async {
+  Future<void> _checkCampusSetting() async {
     final prefs = await SharedPreferences.getInstance();
     if (!prefs.containsKey('campus_prompt_shown')) {
       if (!mounted) return;
@@ -205,6 +215,8 @@ class _HomeScreenState extends State<HomeScreen> {
         },
       );
     }
+
+    _promptWidgetPermissionsIfNeeded();
   }
 
   @override
@@ -612,14 +624,15 @@ class _HomeScreenState extends State<HomeScreen> {
                                       if (!status.isGranted) {
                                         status = await Permission.notification.request();
                                       }
-                                      // If still not granted after request, prompt user to go to system settings
-                                      if (!status.isGranted && status.isPermanentlyDenied) {
+                                      if (!status.isGranted) {
                                         if (context.mounted) {
                                           showDialog(
                                             context: context,
                                             builder: (context) => AlertDialog(
                                               title: const Text("需要通知权限"),
-                                              content: const Text("课前提醒功能需要通知权限。请在系统设置中允许通知。"),
+                                              content: const Text(
+                                                "课前提醒功能需要通知权限。请在系统设置中允许「教务小助手」发送通知。",
+                                              ),
                                               actions: [
                                                 TextButton(
                                                   onPressed: () => Navigator.pop(context),
@@ -652,6 +665,27 @@ class _HomeScreenState extends State<HomeScreen> {
                                   },
                                 );
                               },
+                            );
+                          },
+                        ),
+                        const Divider(height: 1, indent: 16, endIndent: 16),
+                        FutureBuilder<List<WidgetPermissionRequirement>>(
+                          future: WidgetPermissionService.getUnmetRequirements(),
+                          builder: (context, snapshot) {
+                            final missing = (snapshot.data ?? const [])
+                                .where((item) => item.detectable)
+                                .toList();
+                            final subtitle = !WidgetPermissionService.isHomeWidgetSupported
+                                ? '当前平台不支持'
+                                : missing.isNotEmpty
+                                    ? '缺少权限：${missing.map((e) => e.title).join('、')}'
+                                    : '添加课表、学业进度到桌面';
+                            return ListTile(
+                              leading: Icon(Icons.widgets_outlined, color: primaryColor),
+                              title: const Text('桌面小组件'),
+                              subtitle: Text(subtitle, style: const TextStyle(fontSize: 12)),
+                              trailing: const Icon(Icons.chevron_right, size: 16, color: Colors.grey),
+                              onTap: () => WidgetSettingsSheet.show(context),
                             );
                           },
                         ),

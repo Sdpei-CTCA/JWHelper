@@ -8,9 +8,10 @@ class LoginDataCoordinator {
     required LoadDataFn loadSchedule,
     required LoadDataFn loadProgress,
     required LoadDataFn loadExamSemesters,
+    Future<void> Function()? refreshMenu,
   }) async {
     await Future.wait([
-      MenuRegistry.instance.refresh(),
+      (refreshMenu ?? MenuRegistry.instance.refresh)(),
       loadGrades(forceRefresh: true),
       loadSchedule(forceRefresh: true),
       loadProgress(forceRefresh: true),

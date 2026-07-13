@@ -5,12 +5,16 @@ void main() {
   group('LoginDataCoordinator', () {
     test('prepareOnline force refreshes all modules without clearing cache',
         () async {
+      var menuRefreshed = false;
       var gradesForceRefresh = false;
       var scheduleForceRefresh = false;
       var progressForceRefresh = false;
       var examForceRefresh = false;
 
       await LoginDataCoordinator.prepareOnline(
+        refreshMenu: () async {
+          menuRefreshed = true;
+        },
         loadGrades: ({bool forceRefresh = false}) async {
           if (forceRefresh) gradesForceRefresh = true;
         },
@@ -25,6 +29,7 @@ void main() {
         },
       );
 
+      expect(menuRefreshed, isTrue);
       expect(gradesForceRefresh, isTrue);
       expect(scheduleForceRefresh, isTrue);
       expect(progressForceRefresh, isTrue);

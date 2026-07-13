@@ -71,6 +71,11 @@ app.*.map.json
 #docs
 /docs/
 
+# GitHub — keep Actions workflows in version control; ignore local tooling
+.github/**
+!.github/workflows/
+!.github/workflows/**
+
 # Local test credentials
 env
 

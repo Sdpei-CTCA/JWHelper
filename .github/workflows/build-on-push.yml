@@ -6,6 +6,8 @@ on:
       - "**"
   workflow_dispatch:
 
+run-name: "${{ github.event.head_commit.message || 'Manual build' }}"
+
 permissions:
   contents: write
 
@@ -14,8 +16,30 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Run tests
+        run: flutter test
+
   build-android:
     name: Build Android APK
+    needs: test
     runs-on: ubuntu-latest
     timeout-minutes: 45
 
@@ -38,9 +62,6 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Run tests
-        run: flutter test
-
       - name: Configure Android signing
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
@@ -62,63 +83,128 @@ jobs:
 
       - name: Build release APK
         run: |
-          flutter build apk --release --split-per-abi
+          flutter build apk --release --obfuscate --split-debug-info=./debug-info --split-per-abi
           mkdir -p release-assets
           cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk release-assets/JWHelper-arm64-v8a.apk
+          cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk.sha1 release-assets/JWHelper-arm64-v8a.apk.sha1
           cp build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk release-assets/JWHelper-armeabi-v7a.apk
+          cp build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk.sha1 release-assets/JWHelper-armeabi-v7a.apk.sha1
           cp build/app/outputs/flutter-apk/app-x86_64-release.apk release-assets/JWHelper-x86_64.apk
-          for apk in release-assets/*.apk; do
-            sha1sum "$apk" | awk '{print $1}' > "${apk}.sha1"
-          done
-
-      - name: Prepare release metadata
-        id: meta
-        run: |
-          VERSION=$(grep '^version:' pubspec.yaml | sed 's/version:[[:space:]]*//' | tr -d '\r')
-          DATE=$(date -u +'%Y-%m-%d')
-          SHORT_SHA=$(git rev-parse --short HEAD)
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "date=$DATE" >> "$GITHUB_OUTPUT"
-          echo "short_sha=$SHORT_SHA" >> "$GITHUB_OUTPUT"
-          echo "tag=daily-${DATE}" >> "$GITHUB_OUTPUT"
+          cp build/app/outputs/flutter-apk/app-x86_64-release.apk.sha1 release-assets/JWHelper-x86_64.apk.sha1
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: android-apk-${{ steps.meta.outputs.date }}
-          path: |
-            release-assets/*.apk
-            release-assets/*.sha1
+          name: release-assets-android
+          path: release-assets/
           if-no-files-found: error
           retention-days: 14
 
+      - name: Upload debug symbols
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-info-${{ github.run_number }}
+          path: debug-info/
+          if-no-files-found: error
+          retention-days: 90
+
+  build-ios:
+    name: Build iOS IPA
+    needs: test
+    runs-on: macos-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Install CocoaPods dependencies
+        run: |
+          cd ios
+          pod install
+
+      - name: Build iOS (no codesign)
+        run: flutter build ios --release --no-codesign
+
+      - name: Package unsigned IPA with Payload
+        run: |
+          APP_PATH="build/ios/iphoneos/Runner.app"
+          if [ ! -d "$APP_PATH" ]; then
+            echo "Runner.app not found at $APP_PATH"
+            exit 1
+          fi
+
+          VERSION=$(grep '^version:' pubspec.yaml | sed 's/version:[[:space:]]*//' | tr -d '\r' | cut -d'+' -f1)
+          IPA_NAME="JWHelper-${VERSION}-nosign.ipa"
+
+          mkdir -p release-assets Payload
+          cp -R "$APP_PATH" Payload/
+          zip -qq -r "release-assets/${IPA_NAME}" Payload
+          rm -rf Payload
+          ls -lh release-assets/
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-assets-ios
+          path: release-assets/
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    name: Publish Pre-release
+    needs: [build-android, build-ios]
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download Android artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: release-assets-android
+          path: release-assets
+
+      - name: Download iOS artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: release-assets-ios
+          path: release-assets
+
+      - name: Prepare release metadata
+        id: meta
+        run: |
+          DATE=$(TZ=Asia/Shanghai date +'%Y-%m-%d')
+          git log -1 --format=%B > release-body.md
+          echo "date=$DATE" >> "$GITHUB_OUTPUT"
+          echo "tag=daily-${DATE}" >> "$GITHUB_OUTPUT"
+          ls -lh release-assets/
+
       - name: Publish GitHub Release
-        if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
         uses: ncipollo/release-action@v1
         with:
           tag: ${{ steps.meta.outputs.tag }}
-          name: JWHelper ${{ steps.meta.outputs.version }} · Daily ${{ steps.meta.outputs.date }}
+          name: ${{ steps.meta.outputs.date }}
           commit: ${{ github.sha }}
           allowUpdates: true
           replacesArtifacts: true
           makeLatest: false
           prerelease: true
-          generateReleaseNotes: true
-          body: |
-            ## 教务小助手每日自动构建
-
-            - **应用版本**：`${{ steps.meta.outputs.version }}`
-            - **构建日期**：`${{ steps.meta.outputs.date }}`
-            - **提交**：`${{ steps.meta.outputs.short_sha }}`
-
-            ### 安装说明
-
-            - 大多数手机请下载 `JWHelper-arm64-v8a.apk`
-            - 较旧 32 位设备请下载 `JWHelper-armeabi-v7a.apk`
-            - 模拟器可尝试 `JWHelper-x86_64.apk`
-            - 每个 APK 均附带同名 `.sha1` 校验文件，可用于验证文件完整性
-
-            > 若已在仓库 Settings → Secrets 中配置 Android 签名密钥，将使用正式签名；否则为调试签名包。
+          generateReleaseNotes: false
+          bodyFile: release-body.md
           artifacts: |
             release-assets/*.apk
             release-assets/*.sha1
+            release-assets/*.ipa

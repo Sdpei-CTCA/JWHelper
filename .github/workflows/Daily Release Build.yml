@@ -1,0 +1,97 @@
+name: Daily Release Build
+on:
+  schedule:
+    # 每天北京时间 00:00（UTC 16:00）
+    - cron: "0 16 * * *"
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: daily-release-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  build-android:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Install dependencies
+        run: flutter pub get
+      - name: Run tests
+        run: flutter test
+      - name: Configure Android signing
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+        run: |
+          if [ -n "$ANDROID_KEYSTORE_BASE64" ]; then
+            echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > android/app/upload-keystore.jks
+            printf '%s\n' \
+              "storePassword=${ANDROID_STORE_PASSWORD}" \
+              "keyPassword=${ANDROID_KEY_PASSWORD}" \
+              "keyAlias=${ANDROID_KEY_ALIAS}" \
+              "storeFile=upload-keystore.jks" > android/key.properties
+            echo "Using release keystore from GitHub Secrets."
+          else
+            echo "No signing secrets configured; building with debug signing."
+          fi
+      - name: Build release APK
+        run: |
+          flutter build apk --release --split-per-abi
+          mkdir -p release-assets
+          cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk release-assets/JWHelper-arm64-v8a.apk
+          cp build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk release-assets/JWHelper-armeabi-v7a.apk
+          cp build/app/outputs/flutter-apk/app-x86_64-release.apk release-assets/JWHelper-x86_64.apk
+      - name: Prepare release metadata
+        id: meta
+        run: |
+          VERSION=$(grep '^version:' pubspec.yaml | sed 's/version:[[:space:]]*//' | tr -d '\r')
+          DATE=$(date -u +'%Y-%m-%d')
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "date=$DATE" >> "$GITHUB_OUTPUT"
+          echo "short_sha=$SHORT_SHA" >> "$GITHUB_OUTPUT"
+          echo "tag=daily-${DATE}" >> "$GITHUB_OUTPUT"
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-apk-${{ steps.meta.outputs.date }}
+          path: release-assets/*.apk
+          if-no-files-found: error
+          retention-days: 14
+      - name: Publish GitHub Release
+        uses: ncipollo/release-action@v1
+        with:
+          tag: ${{ steps.meta.outputs.tag }}
+          name: JWHelper ${{ steps.meta.outputs.version }} · Daily ${{ steps.meta.outputs.date }}
+          commit: ${{ github.sha }}
+          allowUpdates: true
+          replacesArtifacts: true
+          makeLatest: false
+          prerelease: true
+          generateReleaseNotes: true
+          body: |
+            ## 教务小助手每日自动构建
+            - **应用版本**：`${{ steps.meta.outputs.version }}`
+            - **构建日期**：`${{ steps.meta.outputs.date }}`
+            - **提交**：`${{ steps.meta.outputs.short_sha }}`
+            ### 安装说明
+            - 大多数手机请下载 `JWHelper-arm64-v8a.apk`
+            - 较旧 32 位设备请下载 `JWHelper-armeabi-v7a.apk`
+            - 模拟器可尝试 `JWHelper-x86_64.apk`
+            > 若已在仓库 Settings → Secrets 中配置 Android 签名密钥，将使用正式签名；否则为调试签名包。
+          artifacts: release-assets/*.apk

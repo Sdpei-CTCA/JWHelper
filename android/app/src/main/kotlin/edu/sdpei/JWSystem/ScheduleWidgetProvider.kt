@@ -11,79 +11,26 @@ import es.antonborri.home_widget.HomeWidgetProvider
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.Calendar
-import java.util.Locale
-import java.text.SimpleDateFormat
 
 class ScheduleWidgetProvider : HomeWidgetProvider() {
 
-    // Simple time mapping for periods 1-10
-    private val timeMap = mapOf(
-        1 to "08:00-08:45",
-        2 to "08:45-09:30",
-        3 to "10:00-10:45",
-        4 to "10:45-11:30",
-        5 to "13:30-14:15",
-        6 to "14:15-15:00",
-        7 to "15:30-16:15",
-        8 to "16:15-17:00",
-        9 to "19:00-19:45",
-        10 to "19:45-20:30"
-    )
-
-    // Helper to get time range string
-    private fun getTimeRange(start: Int, end: Int): String {
-        val startStr = timeMap[start]?.split("-")?.get(0) ?: "00:00"
-        val endStr = timeMap[end]?.split("-")?.get(1) ?: "00:00"
-        return "$startStr - $endStr"
-    }
-    
-    // Helper to check if a class is "passed" based on current time
-    // Returning true if the class end time is before now
-    private fun isClassPassed(end: Int): Boolean {
-        val now = Calendar.getInstance()
-        val currentHour = now.get(Calendar.HOUR_OF_DAY)
-        val currentMinute = now.get(Calendar.MINUTE)
-        val endStr = timeMap[end]?.split("-")?.get(1) ?: return true
-        val parts = endStr.split(":")
-        if (parts.size != 2) return true
-        
-        val endH = parts[0].toInt()
-        val endM = parts[1].toInt()
-        
-        if (currentHour > endH) return true
-        if (currentHour == endH && currentMinute >= endM) return true
-        return false
-    }
-
-    private fun parseIsoDate(raw: String?): Calendar? {
-        if (raw.isNullOrBlank()) return null
-        return try {
-            val formatter = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-            formatter.isLenient = false
-            val date = formatter.parse(raw) ?: return null
-            Calendar.getInstance().apply { time = date }
-        } catch (_: Exception) {
-            null
-        }
-    }
-
-    private fun isSameDay(left: Calendar, right: Calendar): Boolean {
-        return left.get(Calendar.YEAR) == right.get(Calendar.YEAR) &&
-            left.get(Calendar.DAY_OF_YEAR) == right.get(Calendar.DAY_OF_YEAR)
-    }
+    // 时间表与时间判断逻辑已抽取到 ScheduleWidgetLogic（纯 JVM 逻辑，便于单元测试）。
+    // 本 Provider 只保留：读取小组件数据、解析课程 JSON、渲染 RemoteViews。
 
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray, widgetData: SharedPreferences) {
         appWidgetIds.forEach { widgetId ->
             val views = RemoteViews(context.packageName, R.layout.widget_schedule).apply {
                 val nowCal = Calendar.getInstance()
-                val scheduleCal = parseIsoDate(widgetData.getString("schedule_date_iso", null)) ?: nowCal
+                val scheduleCal = ScheduleWidgetLogic.parseIsoDate(widgetData.getString("schedule_date_iso", null)) ?: nowCal
                 val date = widgetData.getString(
                     "today_date",
                     "${scheduleCal.get(Calendar.MONTH) + 1}月${scheduleCal.get(Calendar.DAY_OF_MONTH)}日"
                 ) ?: "1月1日"
                 val week = widgetData.getString("current_week", "") ?: "" // No longer used in main layout, but maybe debug
                 val jsonString = widgetData.getString("today_schedule", "[]")
-                val isDisplayToday = isSameDay(scheduleCal, nowCal)
+                val isDisplayToday = ScheduleWidgetLogic.isSameDay(scheduleCal, nowCal)
+                // Campus is written by the Flutter side; default to Jinan when missing.
+                val campus = widgetData.getString("campus", "济南") ?: "济南"
                 
                 // Parse Date "X月X日" -> "X.X"
                 val dateNum = date.replace("月", ".").replace("日", "")
@@ -125,7 +72,7 @@ class ScheduleWidgetProvider : HomeWidgetProvider() {
                     var currentIdx = -1
                     if (isDisplayToday) {
                         for (i in allItems.indices) {
-                             if (!isClassPassed(allItems[i].optInt("endUnit"))) {
+                             if (!ScheduleWidgetLogic.isClassPassed(allItems[i].optInt("endUnit"), campus)) {
                                  currentIdx = i
                                  break
                              }
@@ -142,14 +89,14 @@ class ScheduleWidgetProvider : HomeWidgetProvider() {
                          val curr = allItems[currentIdx]
                          setTextViewText(R.id.tv_cur_name, curr.optString("name"))
                          setTextViewText(R.id.tv_cur_info, "${curr.optString("classroom")} ${curr.optString("teacher")}")
-                         setTextViewText(R.id.tv_cur_time, getTimeRange(curr.optInt("startUnit"), curr.optInt("endUnit")))
+                         setTextViewText(R.id.tv_cur_time, ScheduleWidgetLogic.getTimeRange(curr.optInt("startUnit"), curr.optInt("endUnit"), campus))
                          
                          // Next Item
                          if (currentIdx + 1 < allItems.size) {
                              val next = allItems[currentIdx + 1]
                              setTextViewText(R.id.tv_next_name, next.optString("name"))
                              setTextViewText(R.id.tv_next_info, "${next.optString("classroom")} ${next.optString("teacher")}")
-                             setTextViewText(R.id.tv_next_time, getTimeRange(next.optInt("startUnit"), next.optInt("endUnit")))
+                             setTextViewText(R.id.tv_next_time, ScheduleWidgetLogic.getTimeRange(next.optInt("startUnit"), next.optInt("endUnit"), campus))
                          } else {
                              setTextViewText(R.id.tv_next_name, "无课程")
                              setTextViewText(R.id.tv_next_info, "")

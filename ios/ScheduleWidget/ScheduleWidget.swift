@@ -3,24 +3,49 @@ import SwiftUI
 
 // Time helper
 struct TimeHelper {
-    static let map: [Int: String] = [
-        1 : "08:00-08:45",
-        2 : "08:55-09:40",
-        3 : "10:00-10:45",
-        4 : "10:55-11:40",
-        5 : "13:30-14:15",
-        6 : "14:25-15:10",
-        7 : "15:20-16:05",
-        8 : "16:25-17:10",
-        9 : "17:20-18:05",
-        10 : "18:30-19:15",
-        11 : "19:25-20:10",
-        12 : "20:20-21:05"
+    // Official class-period timetable (40-minute periods).
+    // Periods 1-9 are identical on both campuses; the campuses only differ at periods 10-12,
+    // and Jinan campus has no period 10.
+    static let jinanMap: [Int: String] = [
+        1: "08:00-08:40",
+        2: "08:45-09:25",
+        3: "09:45-10:25",
+        4: "10:30-11:10",
+        5: "11:15-11:55",
+        6: "14:00-14:40",
+        7: "14:45-15:25",
+        8: "15:45-16:25",
+        9: "16:30-17:10",
+        11: "18:30-19:10",
+        12: "19:15-19:55"
     ]
-    
-    static func getTimeRange(start: Int, end: Int) -> String {
-        let startStr = map[start]?.components(separatedBy: "-")[0] ?? "00:00"
-        let endStr = map[end]?.components(separatedBy: "-")[1] ?? "00:00"
+
+    static let rizhaoMap: [Int: String] = [
+        1: "08:00-08:40",
+        2: "08:45-09:25",
+        3: "09:45-10:25",
+        4: "10:30-11:10",
+        5: "11:15-11:55",
+        6: "14:00-14:40",
+        7: "14:45-15:25",
+        8: "15:45-16:25",
+        9: "16:30-17:10",
+        10: "17:15-17:55",
+        11: "19:00-19:40",
+        12: "19:45-20:25"
+    ]
+
+    static func map(for campus: String) -> [Int: String] {
+        campus == "日照" ? rizhaoMap : jinanMap
+    }
+
+    /// Returns an empty string when the period does not exist on the campus.
+    static func getTimeRange(start: Int, end: Int, campus: String) -> String {
+        let table = map(for: campus)
+        guard let startStr = table[start]?.components(separatedBy: "-").first,
+              let endStr = table[end]?.components(separatedBy: "-").last else {
+            return ""
+        }
         return "\(startStr) - \(endStr)"
     }
 }
@@ -34,7 +59,8 @@ struct ScheduleProvider: TimelineProvider {
                 ScheduleItemData(name: "数据库原理", teacher: "小越", classroom: "文成楼125", startUnit: 3, endUnit: 4)
             ],
             lastUpdated: Date(),
-            debugEnabled: false
+            debugEnabled: false,
+            campus: "济南"
         )
     }
 
@@ -46,7 +72,8 @@ struct ScheduleProvider: TimelineProvider {
                 ScheduleItemData(name: "数据库原理", teacher: "小越", classroom: "文成楼125", startUnit: 3, endUnit: 4)
             ],
             lastUpdated: Date(),
-            debugEnabled: false
+            debugEnabled: false,
+            campus: "济南"
         )
         completion(entry)
     }
@@ -56,13 +83,17 @@ struct ScheduleProvider: TimelineProvider {
         let now = Date()
         let displayDate = WidgetStore.scheduleDate() ?? now
         let isDisplayToday = Calendar.current.isDate(displayDate, inSameDayAs: now)
+        let campus = WidgetStore.campus()
 
-        let validItems = isDisplayToday ? ScheduleFilter.filterUpcoming(items: items, now: now) : items
+        let validItems = isDisplayToday
+            ? ScheduleFilter.filterUpcoming(items: items, now: now, campus: campus)
+            : items
         let entry = ScheduleEntry(
             date: displayDate,
             items: validItems.isEmpty && !items.isEmpty ? [] : validItems,
             lastUpdated: WidgetStore.date(WidgetKeys.lastUpdated),
-            debugEnabled: WidgetStore.debugEnabled()
+            debugEnabled: WidgetStore.debugEnabled(),
+            campus: campus
         )
 
         let timeline = Timeline(entries: [entry], policy: .atEnd)
@@ -83,6 +114,7 @@ struct ScheduleEntry: TimelineEntry {
     let items: [ScheduleItemData]
     let lastUpdated: Date?
     let debugEnabled: Bool
+    let campus: String
 }
 
 struct ScheduleWidgetEntryView: View {
@@ -95,7 +127,7 @@ struct ScheduleWidgetEntryView: View {
             if entry.items.isEmpty {
                 emptyState
             } else {
-                ScheduleTwoColumn(items: entry.items)
+                ScheduleTwoColumn(items: entry.items, campus: entry.campus)
             }
 
             if entry.debugEnabled {
@@ -156,6 +188,7 @@ struct ScheduleWidgetEntryView: View {
 struct ScheduleRow: View {
     let item: ScheduleItemData
     let index: Int
+    let campus: String
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
@@ -173,7 +206,7 @@ struct ScheduleRow: View {
                     .foregroundColor(.secondary)
                     .lineLimit(1)
 
-                Text(TimeHelper.getTimeRange(start: item.startUnit, end: item.endUnit))
+                Text(TimeHelper.getTimeRange(start: item.startUnit, end: item.endUnit, campus: campus))
                     .font(.caption2)
                     .foregroundColor(.secondary)
             }
@@ -189,15 +222,21 @@ struct ScheduleRow: View {
 
 struct ScheduleTwoColumn: View {
     let items: [ScheduleItemData]
+    let campus: String
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
-            ScheduleColumn(title: "第一节", item: items.first, accent: WidgetColors.accent)
+            ScheduleColumn(title: "第一节", item: items.first, accent: WidgetColors.accent, campus: campus)
 
             Divider()
                 .frame(maxHeight: 90)
 
-            ScheduleColumn(title: "第二节", item: items.count > 1 ? items[1] : nil, accent: WidgetColors.primary)
+            ScheduleColumn(
+                title: "第二节",
+                item: items.count > 1 ? items[1] : nil,
+                accent: WidgetColors.primary,
+                campus: campus
+            )
         }
     }
 }
@@ -206,6 +245,7 @@ struct ScheduleColumn: View {
     let title: String
     let item: ScheduleItemData?
     let accent: Color
+    let campus: String
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -229,7 +269,7 @@ struct ScheduleColumn: View {
                             .foregroundColor(.secondary)
                             .lineLimit(1)
 
-                        Text(TimeHelper.getTimeRange(start: item.startUnit, end: item.endUnit))
+                        Text(TimeHelper.getTimeRange(start: item.startUnit, end: item.endUnit, campus: campus))
                             .font(.caption2)
                             .foregroundColor(.secondary)
                     }
@@ -251,16 +291,18 @@ struct ScheduleColumn: View {
 }
 
 enum ScheduleFilter {
-    static func filterUpcoming(items: [ScheduleItemData], now: Date) -> [ScheduleItemData] {
+    static func filterUpcoming(items: [ScheduleItemData], now: Date, campus: String) -> [ScheduleItemData] {
         let calendar = Calendar.current
         let hour = calendar.component(.hour, from: now)
         let minute = calendar.component(.minute, from: now)
         let nowMinutes = hour * 60 + minute
 
+        let table = TimeHelper.map(for: campus)
         let validItems = items.filter { item in
-            let endRange = TimeHelper.map[item.endUnit] ?? "23:59-23:59"
-            let endTimeStr = endRange.components(separatedBy: "-")[1]
+            let endRange = table[item.endUnit] ?? "23:59-23:59"
+            let endTimeStr = endRange.components(separatedBy: "-").last ?? "23:59"
             let parts = endTimeStr.split(separator: ":").map { Int($0) ?? 0 }
+            guard parts.count == 2 else { return true }
             let endMinutes = parts[0] * 60 + parts[1]
             return endMinutes > nowMinutes
         }

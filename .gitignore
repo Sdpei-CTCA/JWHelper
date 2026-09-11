@@ -70,3 +70,5 @@ app.*.map.json
 /portAppTest/
 #docs
 /docs/
+/instructions/
+/.github/instructions/

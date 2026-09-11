@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:JWHelper/app/state/data_provider.dart';
+import 'package:JWHelper/core/constants/class_schedule.dart';
 import 'package:JWHelper/features/schedule/domain/schedule_item.dart';
 import 'package:JWHelper/shared/theme/wallpaper_provider.dart';
 
@@ -533,50 +534,22 @@ class _WeekScheduleGridViewState extends State<_WeekScheduleGridView> {
     super.dispose();
   }
 
+  /// 返回课表网格中显示在节次下方的两行时间文本，如 `8:00\n8:40`。
+  ///
+  /// 作息时间以官方《教学作息时间安排表》为准，统一由 [ClassSchedule] 提供，
+  /// 不再区分夏令时/冬令时；不存在的节次返回空串。
   String _getTimeForPeriod(int period, String campus) {
-    if (campus == '济南') {
-      switch (period) {
-        case 1: return "8:00\n8:45";
-        case 2: return "8:50\n9:35";
-        case 3: return "10:00\n10:45";
-        case 4: return "10:50\n11:35";
-        case 5: return "13:30\n14:15";
-        case 6: return "14:20\n15:05";
-        case 7: return "15:30\n16:15";
-        case 8: return "16:20\n17:05";
-        case 9: return "18:00\n18:45";
-        case 10: return "18:50\n19:35";
-        case 11: return "20:00\n20:45";
-        case 12: return "20:50\n21:35";
-        default: return "";
-      }
-    } else {
-      // 日照校区
-      final now = DateTime.now();
-      // 判断是否夏令时: 5月1日至10月1日
-      bool isSummer = false;
-      if (now.month > 5 && now.month < 10) {
-        isSummer = true;
-      } else if (now.month == 5 || now.month == 10) {
-        isSummer = now.month == 5; // 5月1日及之后，10月1日也是最后一天，粗略按月份即可：5,6,7,8,9是夏季
-      }
+    final range = ClassSchedule.rangeFor(campus, period);
+    if (range == null) return "";
+    return '${_formatHm(range.$1)}\n${_formatHm(range.$2)}';
+  }
 
-      switch (period) {
-        case 1: return "8:00\n8:45";
-        case 2: return "8:50\n9:35";
-        case 3: return "10:00\n10:45";
-        case 4: return "10:50\n11:35";
-        case 5: return isSummer ? "14:30\n15:15" : "14:00\n14:45";
-        case 6: return isSummer ? "15:20\n16:05" : "14:50\n15:35";
-        case 7: return isSummer ? "16:30\n17:15" : "16:00\n16:45";
-        case 8: return isSummer ? "17:20\n18:05" : "16:50\n17:35";
-        case 9: return "19:00\n19:45";
-        case 10: return "19:50\n20:35";
-        case 11: return "20:40\n21:25";
-        case 12: return "21:30\n22:15";
-        default: return "";
-      }
-    }
+  /// 将 `08:00` 形式的 24 小时制时间转为不补零的 `8:00`。
+  String _formatHm(String hm) {
+    final parts = hm.split(':');
+    if (parts.length != 2) return hm;
+    final hour = int.tryParse(parts[0]);
+    return hour == null ? hm : '$hour:${parts[1]}';
   }
 
   void _showCourseDetails(BuildContext context, ScheduleItem item) {

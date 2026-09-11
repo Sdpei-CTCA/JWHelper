@@ -2,23 +2,12 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:home_widget/home_widget.dart';
+import 'package:JWHelper/core/constants/class_schedule.dart';
 import 'package:JWHelper/features/schedule/domain/schedule_item.dart';
 
 class WidgetService {
   // Use group ID for iOS if needed, usually configured in Xcode
   static const String appGroupId = 'group.com.jwhelper.shared';
-  static const Map<int, int> _periodEndMinutes = {
-    1: 8 * 60 + 45,
-    2: 9 * 60 + 30,
-    3: 10 * 60 + 45,
-    4: 11 * 60 + 30,
-    5: 14 * 60 + 15,
-    6: 15 * 60,
-    7: 16 * 60 + 15,
-    8: 17 * 60,
-    9: 19 * 60 + 45,
-    10: 20 * 60 + 30,
-  };
 
   static bool get _isHomeWidgetSupported {
     if (kIsWeb) return false;
@@ -77,8 +66,9 @@ class WidgetService {
   }
 
   static Future<void> updateScheduleWidget(List<ScheduleItem> allItems,
-      {int currentWeek = 0}) async {
+      {int currentWeek = 0, String? campus}) async {
     if (!_isHomeWidgetSupported) return;
+    final widgetCampus = ClassSchedule.normalizeCampus(campus);
     final now = DateTime.now();
     final todayDate = DateTime(now.year, now.month, now.day);
     // ScheduleItem dayIndex: 0=Mon, 6=Sun
@@ -88,7 +78,7 @@ class WidgetService {
     final todayItems =
         _itemsForDay(allItems, dayIndex: todayIndex, currentWeek: currentWeek);
     final shouldShowNextDay = todayItems.isNotEmpty &&
-        todayItems.every((item) => _isClassPassed(item, now));
+        todayItems.every((item) => _isClassPassed(item, now, widgetCampus));
 
     DateTime displayDate = todayDate;
     int displayDayIndex = todayIndex;
@@ -113,6 +103,7 @@ class WidgetService {
     await HomeWidget.saveWidgetData<String>(
         'schedule_date_iso', _toIsoDate(displayDate));
     await HomeWidget.saveWidgetData<String>('current_week', "第$displayWeek周");
+    await HomeWidget.saveWidgetData<String>('campus', widgetCampus);
     await HomeWidget.saveWidgetData<String>(
       'widget_last_updated',
       DateTime.now().toIso8601String(),
@@ -145,9 +136,12 @@ class WidgetService {
     return true;
   }
 
-  static bool _isClassPassed(ScheduleItem item, DateTime now) {
-    final endMinutes = _periodEndMinutes[item.endUnit];
-    if (endMinutes == null) return false;
+  static bool _isClassPassed(ScheduleItem item, DateTime now, String campus) {
+    final endTime = ClassSchedule.endTime(campus, item.endUnit);
+    if (endTime == null) return false;
+    final parts = endTime.split(':');
+    final endMinutes =
+        (int.tryParse(parts[0]) ?? 0) * 60 + (int.tryParse(parts[1]) ?? 0);
     final nowMinutes = now.hour * 60 + now.minute;
     return nowMinutes >= endMinutes;
   }

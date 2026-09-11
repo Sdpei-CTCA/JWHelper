@@ -71,4 +71,6 @@ dependencies {
     implementation("androidx.work:work-runtime-ktx:2.8.1") {
         because("统一 work-runtime 版本，避免与 glance-appwidget 传递的 2.7.1 冲突")
     }
+    // JVM 单元测试（桌面小组件纯逻辑，见 src/test/.../ScheduleWidgetLogicTest.kt）
+    testImplementation("junit:junit:4.13.2")
 }

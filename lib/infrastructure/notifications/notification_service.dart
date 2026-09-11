@@ -4,6 +4,7 @@ import 'package:timezone/timezone.dart' as tz;
 import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/foundation.dart';
+import 'package:JWHelper/core/constants/class_schedule.dart';
 import 'package:JWHelper/features/schedule/domain/schedule_item.dart';
 
 class NotificationService {
@@ -88,7 +89,7 @@ class NotificationService {
         final daysToAdd = (week - 1) * 7 + item.dayIndex;
         final classBaseDate = startDay.add(Duration(days: daysToAdd));
 
-        final timeStr = _getPeriodStartTime(item.startUnit, campus, classBaseDate);
+        final timeStr = _getPeriodStartTime(item.startUnit, campus);
         if (timeStr == null || timeStr.isEmpty) continue;
 
         final parts = timeStr.split(':');
@@ -123,49 +124,12 @@ class NotificationService {
     debugPrint('Scheduled $scheduledCount class reminders.');
   }
 
-  String? _getPeriodStartTime(int period, String campus, DateTime targetDate) {
-    if (campus == '济南') {
-      switch (period) {
-        case 1: return "08:00";
-        case 2: return "08:50";
-        case 3: return "10:00";
-        case 4: return "10:50";
-        case 5: return "13:30";
-        case 6: return "14:20";
-        case 7: return "15:30";
-        case 8: return "16:20";
-        case 9: return "18:00";
-        case 10: return "18:50";
-        case 11: return "20:00";
-        case 12: return "20:50";
-        default: return null;
-      }
-    } else {
-      // 日照校区
-      // 判断是否夏令时: 5月1日至10月1日
-      bool isSummer = false;
-      if (targetDate.month > 5 && targetDate.month < 10) {
-        isSummer = true;
-      } else if (targetDate.month == 5 || targetDate.month == 10) {
-        isSummer = targetDate.month == 5; 
-      }
-
-      switch (period) {
-        case 1: return "08:00";
-        case 2: return "08:50";
-        case 3: return "10:00";
-        case 4: return "10:50";
-        case 5: return isSummer ? "14:30" : "14:00";
-        case 6: return isSummer ? "15:20" : "14:50";
-        case 7: return isSummer ? "16:30" : "16:00";
-        case 8: return isSummer ? "17:20" : "16:50";
-        case 9: return "19:00";
-        case 10: return "19:50";
-        case 11: return "20:40";
-        case 12: return "21:30";
-        default: return null;
-      }
-    }
+  /// 返回指定节次的开始时间（`HH:mm`），节次不存在时返回 `null`。
+  ///
+  /// 作息时间以官方《教学作息时间安排表》为准，统一由 [ClassSchedule] 提供，
+  /// 不再区分夏令时/冬令时。
+  String? _getPeriodStartTime(int period, String? campus) {
+    return ClassSchedule.startTime(campus, period);
   }
 
   Future<void> _scheduleNotification({

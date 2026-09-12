@@ -14,8 +14,9 @@ import java.util.Calendar
 
 class ScheduleWidgetProvider : HomeWidgetProvider() {
 
-    // 时间表与时间判断逻辑已抽取到 ScheduleWidgetLogic（纯 JVM 逻辑，便于单元测试）。
-    // 本 Provider 只保留：读取小组件数据、解析课程 JSON、渲染 RemoteViews。
+    // 时间判断逻辑已抽取到 ScheduleWidgetLogic（纯 JVM 逻辑，便于单元测试）。
+    // 课节时间（timeRange）与下课时间（endTime）由 Flutter 侧解析后随
+    // today_schedule payload 下发，本 Provider 只做读取与渲染，不再持有作息表。
 
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray, widgetData: SharedPreferences) {
         appWidgetIds.forEach { widgetId ->
@@ -29,8 +30,6 @@ class ScheduleWidgetProvider : HomeWidgetProvider() {
                 val week = widgetData.getString("current_week", "") ?: "" // No longer used in main layout, but maybe debug
                 val jsonString = widgetData.getString("today_schedule", "[]")
                 val isDisplayToday = ScheduleWidgetLogic.isSameDay(scheduleCal, nowCal)
-                // Campus is written by the Flutter side; default to Jinan when missing.
-                val campus = widgetData.getString("campus", "济南") ?: "济南"
                 
                 // Parse Date "X月X日" -> "X.X"
                 val dateNum = date.replace("月", ".").replace("日", "")
@@ -72,10 +71,10 @@ class ScheduleWidgetProvider : HomeWidgetProvider() {
                     var currentIdx = -1
                     if (isDisplayToday) {
                         for (i in allItems.indices) {
-                             if (!ScheduleWidgetLogic.isClassPassed(allItems[i].optInt("endUnit"), campus)) {
-                                 currentIdx = i
-                                 break
-                             }
+                            if (!ScheduleWidgetLogic.isClassPassed(allItems[i].optString("endTime"))) {
+                                currentIdx = i
+                                break
+                            }
                         }
                     } else if (allItems.isNotEmpty()) {
                         currentIdx = 0
@@ -89,14 +88,14 @@ class ScheduleWidgetProvider : HomeWidgetProvider() {
                          val curr = allItems[currentIdx]
                          setTextViewText(R.id.tv_cur_name, curr.optString("name"))
                          setTextViewText(R.id.tv_cur_info, "${curr.optString("classroom")} ${curr.optString("teacher")}")
-                         setTextViewText(R.id.tv_cur_time, ScheduleWidgetLogic.getTimeRange(curr.optInt("startUnit"), curr.optInt("endUnit"), campus))
+                         setTextViewText(R.id.tv_cur_time, curr.optString("timeRange"))
                          
                          // Next Item
                          if (currentIdx + 1 < allItems.size) {
                              val next = allItems[currentIdx + 1]
                              setTextViewText(R.id.tv_next_name, next.optString("name"))
                              setTextViewText(R.id.tv_next_info, "${next.optString("classroom")} ${next.optString("teacher")}")
-                             setTextViewText(R.id.tv_next_time, ScheduleWidgetLogic.getTimeRange(next.optInt("startUnit"), next.optInt("endUnit"), campus))
+                             setTextViewText(R.id.tv_next_time, next.optString("timeRange"))
                          } else {
                              setTextViewText(R.id.tv_next_name, "无课程")
                              setTextViewText(R.id.tv_next_info, "")

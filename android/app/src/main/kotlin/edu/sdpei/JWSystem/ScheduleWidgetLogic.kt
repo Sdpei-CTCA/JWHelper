@@ -9,71 +9,36 @@ import java.util.Locale
  *
  * 从 [ScheduleWidgetProvider] 中抽取，不依赖任何 Android 框架类，
  * 因此可以直接在 JVM 单元测试中验证（见 `src/test` 下的 ScheduleWidgetLogicTest）。
+ *
+ * 作息时间表由 Flutter 侧（`lib/core/constants/class_schedule.dart`）统一维护，
+ * 解析结果（`timeRange` / `endTime` 字段）随 `today_schedule` payload 一并下发；
+ * 原生端不再保留本地时间表，保证 Android / iOS / 应用内三端时间边界一致。
  */
 internal object ScheduleWidgetLogic {
 
-    // Official class-period timetable (40-minute periods).
-    // Periods 1-9 are identical on both campuses; the campuses only differ at periods 10-12,
-    // and Jinan campus has no period 10.
-    private val jinanTimeMap = mapOf(
-        1 to "08:00-08:40",
-        2 to "08:45-09:25",
-        3 to "09:45-10:25",
-        4 to "10:30-11:10",
-        5 to "11:15-11:55",
-        6 to "14:00-14:40",
-        7 to "14:45-15:25",
-        8 to "15:45-16:25",
-        9 to "16:30-17:10",
-        11 to "18:30-19:10",
-        12 to "19:15-19:55"
-    )
-
-    private val rizhaoTimeMap = mapOf(
-        1 to "08:00-08:40",
-        2 to "08:45-09:25",
-        3 to "09:45-10:25",
-        4 to "10:30-11:10",
-        5 to "11:15-11:55",
-        6 to "14:00-14:40",
-        7 to "14:45-15:25",
-        8 to "15:45-16:25",
-        9 to "16:30-17:10",
-        10 to "17:15-17:55",
-        11 to "19:00-19:40",
-        12 to "19:45-20:25"
-    )
-
-    /** 返回校区对应的节次时间表；未知校区默认按济南处理。 */
-    fun timeMapFor(campus: String): Map<Int, String> =
-        if (campus == "日照") rizhaoTimeMap else jinanTimeMap
-
-    /** 返回 "开始 - 结束" 时间区间；该校区不存在对应节次时返回空字符串。 */
-    fun getTimeRange(start: Int, end: Int, campus: String): String {
-        val map = timeMapFor(campus)
-        val startStr = map[start]?.split("-")?.getOrNull(0)
-        val endStr = map[end]?.split("-")?.getOrNull(1)
-        if (startStr == null || endStr == null) return ""
-        return "$startStr - $endStr"
+    /**
+     * 判断以 [endTime]（`HH:mm`）结束的课程在 [now] 时刻是否已经下课。
+     *
+     * 缺少或无法解析 [endTime] 时返回 `false`：宁可让课程多显示一会儿，
+     * 也不要把课程误判为“已上完”而将其隐藏（例如旧缓存或数据异常）。
+     */
+    fun isClassPassed(endTime: String?, now: Calendar = Calendar.getInstance()): Boolean {
+        val endMinutes = parseMinutes(endTime) ?: return false
+        val nowMinutes = now.get(Calendar.HOUR_OF_DAY) * 60 + now.get(Calendar.MINUTE)
+        return nowMinutes >= endMinutes
     }
 
     /**
-     * 判断以第 [end] 节结束的课程在 [now] 时刻是否已经下课。
-     * 节次在对应校区的时间表中不存在时按"已下课"处理。
+     * 将 `HH:mm` 解析为“零点起的分钟数”；输入为空或格式非法时返回 null。
+     * 仅接受 24 小时制，小时 0..23、分钟 0..59。
      */
-    fun isClassPassed(end: Int, campus: String, now: Calendar = Calendar.getInstance()): Boolean {
-        val currentHour = now.get(Calendar.HOUR_OF_DAY)
-        val currentMinute = now.get(Calendar.MINUTE)
-        val endStr = timeMapFor(campus)[end]?.split("-")?.getOrNull(1) ?: return true
-        val parts = endStr.split(":")
-        if (parts.size != 2) return true
-
-        val endH = parts[0].toInt()
-        val endM = parts[1].toInt()
-
-        if (currentHour > endH) return true
-        if (currentHour == endH && currentMinute >= endM) return true
-        return false
+    fun parseMinutes(time: String?): Int? {
+        val parts = time?.trim()?.split(":") ?: return null
+        if (parts.size != 2) return null
+        val hour = parts[0].toIntOrNull() ?: return null
+        val minute = parts[1].toIntOrNull() ?: return null
+        if (hour !in 0..23 || minute !in 0..59) return null
+        return hour * 60 + minute
     }
 
     /**

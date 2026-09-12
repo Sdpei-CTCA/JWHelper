@@ -153,6 +153,7 @@ class _DayScheduleView extends StatelessWidget {
     // Listen to changes in the schedule precisely
     final groupedSchedule = context.select<DataProvider, Map<int, List<ScheduleItem>>>((d) => d.scheduleGroupedByDay);
     final currentWeek = context.select<DataProvider, int>((d) => d.currentWeek);
+    final campus = context.select<DataProvider, String>((d) => d.campus);
 
     final dayItems = groupedSchedule[dayIndex] ?? [];
 
@@ -196,12 +197,15 @@ class _DayScheduleView extends StatelessWidget {
     List<Widget> eveningWidgets = [];
 
     for (var key in sortedKeys) {
-      var item = groupedItems[key]!.first; // Representative for time check
+      var item = groupedItems[key]!.first; // 取该组首门课的开始节次代表整组
       var widget = processGroup(key);
 
-      if (item.startPeriod <= 4) {
+      // 以“开始时间”划分上午/下午/晚上（校区感知），保证三个分组的
+      // 时间边界与小组件、教学作息表完全一致。
+      final session = ClassSchedule.sessionFor(campus, item.startPeriod);
+      if (session == ClassSession.morning) {
         morningWidgets.add(widget);
-      } else if (item.startPeriod <= 8) {
+      } else if (session == ClassSession.afternoon) {
         afternoonWidgets.add(widget);
       } else {
         eveningWidgets.add(widget);

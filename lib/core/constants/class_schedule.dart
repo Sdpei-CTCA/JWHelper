@@ -66,4 +66,28 @@ class ClassSchedule {
     final range = rangeFor(campus, period);
     return range == null ? null : '${range.$1}-${range.$2}';
   }
+
+  /// 课程所在的自然时段（课表页“上午 / 下午 / 晚上”分组依据）。
+  ///
+  /// 按**开始时间**划分（校区感知）：12:00 前为上午，12:00–18:00 为下午，
+  /// 18:00 及以后为晚上。例如第 5 节（11:15 开始）属于上午；
+  /// 日照第 10 节（17:15）属于下午；第 11 节（济南 18:30 / 日照 19:00）起属于晚上。
+  ///
+  /// 若该校区没有对应节次的时间（例如济南没有第 10 节），回退到节次阈值
+  /// （≤4 上午、≤8 下午、其余晚上），保证课程不会因缺少时间而丢失分组。
+  static ClassSession sessionFor(String? campus, int startPeriod) {
+    final start = startTime(campus, startPeriod);
+    final hour = start == null ? null : int.tryParse(start.split(':').first);
+    if (hour == null) {
+      if (startPeriod <= 4) return ClassSession.morning;
+      if (startPeriod <= 8) return ClassSession.afternoon;
+      return ClassSession.evening;
+    }
+    if (hour < 12) return ClassSession.morning;
+    if (hour < 18) return ClassSession.afternoon;
+    return ClassSession.evening;
+  }
 }
+
+/// 课表页“上午 / 下午 / 晚上”分组用的自然时段。
+enum ClassSession { morning, afternoon, evening }

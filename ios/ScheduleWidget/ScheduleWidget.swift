@@ -1,54 +1,8 @@
 import WidgetKit
 import SwiftUI
 
-// Time helper
-struct TimeHelper {
-    // Official class-period timetable (40-minute periods).
-    // Periods 1-9 are identical on both campuses; the campuses only differ at periods 10-12,
-    // and Jinan campus has no period 10.
-    static let jinanMap: [Int: String] = [
-        1: "08:00-08:40",
-        2: "08:45-09:25",
-        3: "09:45-10:25",
-        4: "10:30-11:10",
-        5: "11:15-11:55",
-        6: "14:00-14:40",
-        7: "14:45-15:25",
-        8: "15:45-16:25",
-        9: "16:30-17:10",
-        11: "18:30-19:10",
-        12: "19:15-19:55"
-    ]
-
-    static let rizhaoMap: [Int: String] = [
-        1: "08:00-08:40",
-        2: "08:45-09:25",
-        3: "09:45-10:25",
-        4: "10:30-11:10",
-        5: "11:15-11:55",
-        6: "14:00-14:40",
-        7: "14:45-15:25",
-        8: "15:45-16:25",
-        9: "16:30-17:10",
-        10: "17:15-17:55",
-        11: "19:00-19:40",
-        12: "19:45-20:25"
-    ]
-
-    static func map(for campus: String) -> [Int: String] {
-        campus == "日照" ? rizhaoMap : jinanMap
-    }
-
-    /// Returns an empty string when the period does not exist on the campus.
-    static func getTimeRange(start: Int, end: Int, campus: String) -> String {
-        let table = map(for: campus)
-        guard let startStr = table[start]?.components(separatedBy: "-").first,
-              let endStr = table[end]?.components(separatedBy: "-").last else {
-            return ""
-        }
-        return "\(startStr) - \(endStr)"
-    }
-}
+// 课节时间（timeRange）与下课时间（endTime）由 Flutter 侧解析后随
+// today_schedule payload 下发；小组件只做读取与渲染，不再持有本地作息表。
 
 struct ScheduleProvider: TimelineProvider {
     func placeholder(in context: Context) -> ScheduleEntry {
@@ -59,8 +13,7 @@ struct ScheduleProvider: TimelineProvider {
                 ScheduleItemData(name: "数据库原理", teacher: "小越", classroom: "文成楼125", startUnit: 3, endUnit: 4)
             ],
             lastUpdated: Date(),
-            debugEnabled: false,
-            campus: "济南"
+            debugEnabled: false
         )
     }
 
@@ -72,8 +25,7 @@ struct ScheduleProvider: TimelineProvider {
                 ScheduleItemData(name: "数据库原理", teacher: "小越", classroom: "文成楼125", startUnit: 3, endUnit: 4)
             ],
             lastUpdated: Date(),
-            debugEnabled: false,
-            campus: "济南"
+            debugEnabled: false
         )
         completion(entry)
     }
@@ -83,17 +35,15 @@ struct ScheduleProvider: TimelineProvider {
         let now = Date()
         let displayDate = WidgetStore.scheduleDate() ?? now
         let isDisplayToday = Calendar.current.isDate(displayDate, inSameDayAs: now)
-        let campus = WidgetStore.campus()
 
         let validItems = isDisplayToday
-            ? ScheduleFilter.filterUpcoming(items: items, now: now, campus: campus)
+            ? ScheduleFilter.filterUpcoming(items: items, now: now)
             : items
         let entry = ScheduleEntry(
             date: displayDate,
             items: validItems.isEmpty && !items.isEmpty ? [] : validItems,
             lastUpdated: WidgetStore.date(WidgetKeys.lastUpdated),
-            debugEnabled: WidgetStore.debugEnabled(),
-            campus: campus
+            debugEnabled: WidgetStore.debugEnabled()
         )
 
         let timeline = Timeline(entries: [entry], policy: .atEnd)
@@ -107,6 +57,10 @@ struct ScheduleItemData: Codable {
     let classroom: String
     let startUnit: Int
     let endUnit: Int
+    /// 显示用时间区间（如 "08:00 - 09:25"），由 Flutter 下发；缺失时为空字符串。
+    let timeRange: String? = nil
+    /// 下课时间（如 "09:25"），用于“是否已下课”判定；缺失时为 nil。
+    let endTime: String? = nil
 }
 
 struct ScheduleEntry: TimelineEntry {
@@ -114,7 +68,6 @@ struct ScheduleEntry: TimelineEntry {
     let items: [ScheduleItemData]
     let lastUpdated: Date?
     let debugEnabled: Bool
-    let campus: String
 }
 
 struct ScheduleWidgetEntryView: View {
@@ -127,7 +80,7 @@ struct ScheduleWidgetEntryView: View {
             if entry.items.isEmpty {
                 emptyState
             } else {
-                ScheduleTwoColumn(items: entry.items, campus: entry.campus)
+                ScheduleTwoColumn(items: entry.items)
             }
 
             if entry.debugEnabled {
@@ -188,7 +141,6 @@ struct ScheduleWidgetEntryView: View {
 struct ScheduleRow: View {
     let item: ScheduleItemData
     let index: Int
-    let campus: String
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
@@ -206,7 +158,7 @@ struct ScheduleRow: View {
                     .foregroundColor(.secondary)
                     .lineLimit(1)
 
-                Text(TimeHelper.getTimeRange(start: item.startUnit, end: item.endUnit, campus: campus))
+                Text(item.timeRange ?? "")
                     .font(.caption2)
                     .foregroundColor(.secondary)
             }
@@ -222,11 +174,10 @@ struct ScheduleRow: View {
 
 struct ScheduleTwoColumn: View {
     let items: [ScheduleItemData]
-    let campus: String
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
-            ScheduleColumn(title: "第一节", item: items.first, accent: WidgetColors.accent, campus: campus)
+            ScheduleColumn(title: "第一节", item: items.first, accent: WidgetColors.accent)
 
             Divider()
                 .frame(maxHeight: 90)
@@ -234,8 +185,7 @@ struct ScheduleTwoColumn: View {
             ScheduleColumn(
                 title: "第二节",
                 item: items.count > 1 ? items[1] : nil,
-                accent: WidgetColors.primary,
-                campus: campus
+                accent: WidgetColors.primary
             )
         }
     }
@@ -245,8 +195,6 @@ struct ScheduleColumn: View {
     let title: String
     let item: ScheduleItemData?
     let accent: Color
-    let campus: String
-
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(title)
@@ -269,7 +217,7 @@ struct ScheduleColumn: View {
                             .foregroundColor(.secondary)
                             .lineLimit(1)
 
-                        Text(TimeHelper.getTimeRange(start: item.startUnit, end: item.endUnit, campus: campus))
+                        Text(item.timeRange ?? "")
                             .font(.caption2)
                             .foregroundColor(.secondary)
                     }
@@ -291,23 +239,30 @@ struct ScheduleColumn: View {
 }
 
 enum ScheduleFilter {
-    static func filterUpcoming(items: [ScheduleItemData], now: Date, campus: String) -> [ScheduleItemData] {
+    /// 过滤出“尚未下课”的课程。`endTime` 缺失或非法时返回 true（保持课程可见），
+    /// 与 Dart / Android 侧“宁可多显示，不可误隐藏”的策略保持一致。
+    static func filterUpcoming(items: [ScheduleItemData], now: Date) -> [ScheduleItemData] {
         let calendar = Calendar.current
         let hour = calendar.component(.hour, from: now)
         let minute = calendar.component(.minute, from: now)
         let nowMinutes = hour * 60 + minute
 
-        let table = TimeHelper.map(for: campus)
-        let validItems = items.filter { item in
-            let endRange = table[item.endUnit] ?? "23:59-23:59"
-            let endTimeStr = endRange.components(separatedBy: "-").last ?? "23:59"
-            let parts = endTimeStr.split(separator: ":").map { Int($0) ?? 0 }
-            guard parts.count == 2 else { return true }
-            let endMinutes = parts[0] * 60 + parts[1]
+        return items.filter { item in
+            guard let endMinutes = minutes(from: item.endTime) else { return true }
             return endMinutes > nowMinutes
         }
+    }
 
-        return validItems
+    /// 将 "HH:mm" 解析为“当天已过分钟数”；格式非法时返回 nil。
+    private static func minutes(from time: String?) -> Int? {
+        guard let time = time else { return nil }
+        let parts = time.trimmingCharacters(in: .whitespaces).split(separator: ":")
+        guard parts.count == 2,
+              let hour = Int(parts[0]),
+              let minute = Int(parts[1]),
+              (0...23).contains(hour),
+              (0...59).contains(minute) else { return nil }
+        return hour * 60 + minute
     }
 }
 

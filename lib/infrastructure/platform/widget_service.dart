@@ -95,15 +95,16 @@ class WidgetService {
       displayItems = _itemsForDay(allItems, dayIndex: displayDayIndex, currentWeek: displayWeek);
     }
 
-    // Serialize to JSON
-    final jsonString = jsonEncode(displayItems.map((e) => e.toJson()).toList());
+    // Serialize to JSON（附带解析后的时间信息，见 encodeScheduleItems）
+    final jsonString = encodeScheduleItems(displayItems, widgetCampus);
     await HomeWidget.saveWidgetData<String>('today_schedule', jsonString);
     await HomeWidget.saveWidgetData<String>(
         'today_date', "${displayDate.month}月${displayDate.day}日");
     await HomeWidget.saveWidgetData<String>(
         'schedule_date_iso', _toIsoDate(displayDate));
     await HomeWidget.saveWidgetData<String>('current_week', "第$displayWeek周");
-    await HomeWidget.saveWidgetData<String>('campus', widgetCampus);
+    // 不再下发 campus：时间解析已在本方法完成（payload 已含 timeRange/endTime），
+    // 原生与小组件端不再需要本地作息表。
     await HomeWidget.saveWidgetData<String>(
       'widget_last_updated',
       DateTime.now().toIso8601String(),
@@ -113,6 +114,31 @@ class WidgetService {
       name: 'ScheduleWidgetProvider',
       iOSName: 'ScheduleWidget',
     );
+  }
+
+  /// 将课程序列化为小组件展示用的 JSON 字符串。
+  ///
+  /// 每条记录在原始字段（name/teacher/classroom/startUnit/endUnit/dayIndex 等）
+  /// 之外，附加两个由 [ClassSchedule] 解析后的时间字段：
+  /// * `timeRange` —— 展示用，`"HH:mm - HH:mm"`；该校区的该节次无时间时为 `""`；
+  /// * `endTime`   —— 判定用，`"HH:mm"`；该校区的该节次无时间时为 `""`。
+  ///
+  /// 由 Dart 侧统一解析后随数据下发，Android / iOS 小组件端不再维护本地作息表，
+  /// 三端时间边界因此完全一致（例如济南第 10 节缺行、日照第 10 节为 17:15）。
+  /// 空字符串表示“无时间信息”：端上会保持课程可见，不做“已上完”判定。
+  @visibleForTesting
+  static String encodeScheduleItems(List<ScheduleItem> items, String? campus) {
+    final widgetCampus = ClassSchedule.normalizeCampus(campus);
+    final payload = items.map((item) {
+      final start = ClassSchedule.startTime(widgetCampus, item.startUnit);
+      final end = ClassSchedule.endTime(widgetCampus, item.endUnit);
+      return <String, dynamic>{
+        ...item.toJson(),
+        'timeRange': (start != null && end != null) ? '$start - $end' : '',
+        'endTime': end ?? '',
+      };
+    }).toList();
+    return jsonEncode(payload);
   }
 
   static List<ScheduleItem> _itemsForDay(

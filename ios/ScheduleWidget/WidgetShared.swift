@@ -15,7 +15,6 @@ enum WidgetKeys {
     static let scheduleDateIso = "schedule_date_iso"
     static let lastUpdated = "widget_last_updated"
     static let debugEnabled = "widget_debug_enabled"
-    static let campus = "campus"
 }
 
 struct WidgetStore {
@@ -48,12 +47,6 @@ struct WidgetStore {
 
     static func debugEnabled() -> Bool {
         defaults?.bool(forKey: WidgetKeys.debugEnabled) ?? false
-    }
-
-    /// Campus written by the Flutter side; defaults to Jinan when missing.
-    static func campus() -> String {
-        let value = defaults?.string(forKey: WidgetKeys.campus) ?? ""
-        return value == "日照" ? "日照" : "济南"
     }
 }
 

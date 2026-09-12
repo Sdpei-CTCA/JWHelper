@@ -13,8 +13,8 @@ import java.util.TimeZone
 /**
  * [ScheduleWidgetLogic] 的 JVM 单元测试（无需设备/模拟器）。
  *
- * 覆盖：校区时间表差异、时间区间拼接、下课判定边界（分钟相等）、
- * ISO 日期解析与同日判断。
+ * 覆盖：`HH:mm` 解析（含非法输入）、基于 Flutter 下发 `endTime` 的下课判定边界
+ * （分钟相等即已下课、缺时间信息不隐藏课程）、ISO 日期解析与同日判断。
  *
  * 运行方式：`./gradlew :app:testDebugUnitTest`
  */
@@ -36,68 +36,38 @@ class ScheduleWidgetLogicTest {
             set(Calendar.MILLISECOND, 0)
         }
 
-    // ---------------------------------------------------------------- 时间表
+    // ------------------------------------------ 时间解析与下课判定（endTime 由 Flutter 下发）
 
     @Test
-    fun timeMapFor_rizhaoHasPeriod10() {
-        assertEquals("17:15-17:55", ScheduleWidgetLogic.timeMapFor("日照")[10])
+    fun parseMinutes_parsesValidTimes() {
+        assertEquals(480, ScheduleWidgetLogic.parseMinutes("08:00"))
+        assertEquals(625, ScheduleWidgetLogic.parseMinutes("10:25"))
+        assertEquals(0, ScheduleWidgetLogic.parseMinutes("00:00"))
+        assertEquals(1439, ScheduleWidgetLogic.parseMinutes("23:59"))
     }
 
     @Test
-    fun timeMapFor_jinanHasNoPeriod10() {
-        assertNull(ScheduleWidgetLogic.timeMapFor("济南")[10])
+    fun parseMinutes_returnsNullForNullOrBlank() {
+        assertNull(ScheduleWidgetLogic.parseMinutes(null))
+        assertNull(ScheduleWidgetLogic.parseMinutes(""))
+        assertNull(ScheduleWidgetLogic.parseMinutes("   "))
     }
 
     @Test
-    fun timeMapFor_unknownCampusFallsBackToJinan() {
-        assertEquals(
-            ScheduleWidgetLogic.timeMapFor("济南"),
-            ScheduleWidgetLogic.timeMapFor("unknown")
-        )
+    fun parseMinutes_returnsNullForMalformedInput() {
+        assertNull(ScheduleWidgetLogic.parseMinutes("abc"))
+        assertNull(ScheduleWidgetLogic.parseMinutes("8"))
+        assertNull(ScheduleWidgetLogic.parseMinutes("08:00:00"))
+        assertNull(ScheduleWidgetLogic.parseMinutes("24:00"))
+        assertNull(ScheduleWidgetLogic.parseMinutes("08:60"))
     }
-
-    @Test
-    fun timeMapFor_periods1To9AreIdenticalOnBothCampuses() {
-        for (period in 1..9) {
-            assertEquals(
-                "period $period should match on both campuses",
-                ScheduleWidgetLogic.timeMapFor("济南")[period],
-                ScheduleWidgetLogic.timeMapFor("日照")[period]
-            )
-        }
-    }
-
-    // -------------------------------------------------------------- 时间区间
-
-    @Test
-    fun getTimeRange_joinsStartAndEndOfRange() {
-        // 跨节次课程：取第 1 节的开始时间与第 2 节的结束时间。
-        assertEquals("08:00 - 09:25", ScheduleWidgetLogic.getTimeRange(1, 2, "济南"))
-        // 单节次课程：同一节次的开始与结束时间。
-        assertEquals("09:45 - 10:25", ScheduleWidgetLogic.getTimeRange(3, 3, "济南"))
-    }
-
-    @Test
-    fun getTimeRange_rizhaoLatePeriods() {
-        // 日照校区第 10-11 节：17:15 开始，19:40 结束（济南校区第 10 节不存在）。
-        assertEquals("17:15 - 19:40", ScheduleWidgetLogic.getTimeRange(10, 11, "日照"))
-        // 日照校区第 11-12 节。
-        assertEquals("19:00 - 20:25", ScheduleWidgetLogic.getTimeRange(11, 12, "日照"))
-    }
-
-    @Test
-    fun getTimeRange_emptyWhenPeriodMissingOnCampus() {
-        assertEquals("", ScheduleWidgetLogic.getTimeRange(9, 10, "济南"))
-    }
-
-    // ---------------------------------------------------------- 是否已下课
 
     @Test
     fun isClassPassed_falseBeforeEndTime() {
-        // 第 3 节结束时间为 10:25（两校区一致）。
+        // 济南第 3 节结束时间 10:25 → 10:24 仍未下课。
         assertFalse(
             ScheduleWidgetLogic.isClassPassed(
-                3, "济南", calendarAt(2026, Calendar.MARCH, 5, 10, 24)
+                "10:25", calendarAt(2026, Calendar.MARCH, 5, 10, 24)
             )
         )
     }
@@ -107,7 +77,7 @@ class ScheduleWidgetLogicTest {
         // 边界：分钟相等即视为已下课。
         assertTrue(
             ScheduleWidgetLogic.isClassPassed(
-                3, "济南", calendarAt(2026, Calendar.MARCH, 5, 10, 25)
+                "10:25", calendarAt(2026, Calendar.MARCH, 5, 10, 25)
             )
         )
     }
@@ -116,36 +86,33 @@ class ScheduleWidgetLogicTest {
     fun isClassPassed_trueAfterEndTime() {
         assertTrue(
             ScheduleWidgetLogic.isClassPassed(
-                3, "济南", calendarAt(2026, Calendar.MARCH, 5, 10, 26)
+                "10:25", calendarAt(2026, Calendar.MARCH, 5, 10, 26)
             )
         )
     }
 
     @Test
-    fun isClassPassed_trueWhenLaterHour() {
-        assertTrue(
-            ScheduleWidgetLogic.isClassPassed(
-                5, "济南", calendarAt(2026, Calendar.MARCH, 5, 12, 0)
-            )
-        )
+    fun isClassPassed_falseOnMissingOrInvalidEndTime() {
+        // 缺时间信息时保持课程可见（宁可多显示，不可误隐藏）。
+        val now = calendarAt(2026, Calendar.MARCH, 5, 23, 59)
+        assertFalse(ScheduleWidgetLogic.isClassPassed(null, now))
+        assertFalse(ScheduleWidgetLogic.isClassPassed("", now))
+        assertFalse(ScheduleWidgetLogic.isClassPassed("abc", now))
     }
 
     @Test
-    fun isClassPassed_trueForPeriodMissingOnCampus() {
-        // 济南校区没有第 10 节，因此按"已下课"处理。
-        assertTrue(
-            ScheduleWidgetLogic.isClassPassed(
-                10, "济南", calendarAt(2026, Calendar.MARCH, 5, 8, 0)
-            )
-        )
-    }
-
-    @Test
-    fun isClassPassed_campusDifferenceAtPeriod10() {
-        // 17:30 时：日照第 10 节（17:15-17:55）仍在进行；济南无第 10 节，视为已下课。
+    fun isClassPassed_campusDifferenceReflectedByEndTime() {
+        // 17:30：日照第 10 节（17:15-17:55，endTime 17:55）仍在进行；
+        // 济南第 10 节无时间信息（endTime 为空）→ 同样保持可见。
         val now = calendarAt(2026, Calendar.MARCH, 5, 17, 30)
-        assertFalse(ScheduleWidgetLogic.isClassPassed(10, "日照", now))
-        assertTrue(ScheduleWidgetLogic.isClassPassed(10, "济南", now))
+        assertFalse(ScheduleWidgetLogic.isClassPassed("17:55", now))
+        assertFalse(ScheduleWidgetLogic.isClassPassed("", now))
+        // 18:00：日照第 10 节已下课（endTime 17:55 → true）。
+        assertTrue(
+            ScheduleWidgetLogic.isClassPassed(
+                "17:55", calendarAt(2026, Calendar.MARCH, 5, 18, 0)
+            )
+        )
     }
 
     // ---------------------------------------------------------- 日期解析

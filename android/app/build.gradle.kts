@@ -51,8 +51,14 @@ android {
 
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
+            // R8 无需在此配置：Flutter Gradle 插件会为 release 构建注入
+            // isMinifyEnabled / isShrinkResources，并把 app/proguard-rules.pro 作为
+            // 第三个规则文件加入 proguardFiles
+            // （见 Flutter SDK 的 flutter_tools/gradle/.../FlutterPlugin.kt）。
+            // 仅当脱离该插件、直接以 Gradle 构建时，才需要在这里显式配置上述三项。
+            //
+            // 签名：存在 key.properties 时使用 release 配置，
+            // 否则回退 debug 签名，保证本地 `flutter run --release` 可用。
             signingConfig = if (keystorePropertiesFile.exists()) {
                 signingConfigs.getByName("release")
             } else {

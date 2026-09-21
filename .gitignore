@@ -50,6 +50,9 @@ app.*.map.json
 # Android related
 **/android/local.properties
 **/android/.gradle/
+# Gradle build output. The root-anchored /build/ above does not cover platform
+# directories, so android/build/ (reports, intermediates) was being tracked.
+**/android/build/
 
 # iOS/macOS related
 **/ios/Flutter/ephemeral/
@@ -81,4 +84,3 @@ env
 
 test.md
 *.pu
-docs/

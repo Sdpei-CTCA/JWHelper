@@ -10,7 +10,6 @@ on:
       - "LICENSE"
       - ".gitignore"
       - ".gitattributes"
-      - "codemagic.yaml"
       - "env.sample"
       - ".github/**"
   # PR 只做快速校验（见 build-android / build-ios 的 if），构建留给 main。
@@ -22,7 +21,6 @@ on:
       - "LICENSE"
       - ".gitignore"
       - ".gitattributes"
-      - "codemagic.yaml"
       - "env.sample"
       - ".github/**"
   workflow_dispatch:
@@ -43,6 +41,12 @@ concurrency:
   cancel-in-progress: >-
     ${{ github.ref != format('refs/heads/{0}', github.event.repository.default_branch) }}
 
+# Flutter 版本钉定。项目依赖 Dart 3.11 下限，Android 侧还带着 migrator 写入的
+# Gradle 兼容标志与 kotlin.incremental=false（与 KGP 版本相关），浮动 channel 会让
+# CI 和本地静默漂移。升级时只改这一处，并同步本地 SDK 与 pubspec.lock。
+env:
+  FLUTTER_VERSION: "3.47.5"
+
 jobs:
   test:
     name: Test
@@ -56,7 +60,7 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
 
       - name: Install dependencies
@@ -100,7 +104,7 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
 
       - name: Install dependencies
@@ -162,7 +166,7 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
 
       - name: Install dependencies

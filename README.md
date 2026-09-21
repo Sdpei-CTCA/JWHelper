@@ -180,8 +180,16 @@ flutter build windows --release
 
 仓库包含 GitHub Actions 工作流 `.github/workflows/build-on-push.yml`：
 
-- **触发**：推送到任意分支，或在 Actions 页手动运行（`workflow_dispatch`）
+- **触发**：
+  - **Pull Request → `main`**：只运行 `flutter test`，不构建、不发布，用于快速校验
+  - **push → `main`**：完整流程（测试 → 构建 → 发布）
+  - **手动运行（`workflow_dispatch`）**：可在 Actions 页针对任意分支触发并执行完整构建；
+    由于发布条件绑定默认分支，在非 `main` 分支上手动运行不会产生 Release
+  - 三种触发都带路径过滤：若某次改动**只**涉及 `**.md`、`LICENSE`、`.gitignore`、
+    `.gitattributes`、`codemagic.yaml`、`env.sample` 或 `.github/**`，整条流水线会被跳过。
+    因此**改动 workflow 自身不会自动触发构建**，需要用上面的手动运行来验证
 - **流程**：`flutter test`（未通过则不进入构建）→ 构建 Android Release APK 与 iOS 未签名 ipa
+  （构建仅在 push 到 `main` 或手动运行时执行）
 - **构建命令**：
   - Android：`flutter build apk --release --obfuscate --split-debug-info=./debug-info --split-per-abi`
   - iOS：`flutter build ios --release --no-codesign`，随后封装为 Payload ipa
@@ -193,6 +201,8 @@ flutter build windows --release
 - **发布**：仅当推送到默认分支时创建 Pre-release，标签为 `daily-YYYY-MM-DD`（北京时间）；
   同名标签会更新并替换旧资产。该 Pre-release 为 `prerelease: true` 且 `makeLatest: false`，
   因此不会成为 GitHub 的 Latest，**也不会被 App 内的更新检查识别为可用更新**。
+- **并发**：同一分支上连续推送时，新运行会取消先前的未完成运行，只保留最后一次；但默认分支
+  上的运行不会被取消，以免中断已经进行到一半的发布。
 
 > Android 产物沿用 Flutter 的默认命名。App 内的更新检查是按文件名里的 ABI 关键字
 > （`arm64-v8a` / `armeabi-v7a` / `x86_64`）挑选对应架构的 APK 的，因此重命名时

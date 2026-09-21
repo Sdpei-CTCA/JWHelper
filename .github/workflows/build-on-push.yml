@@ -1,19 +1,47 @@
 name: Build on Push
 
 on:
+  # 只有推送到默认分支才跑构建与发布。这两个 paths-ignore 列表必须保持一致。
   push:
     branches:
-      - "**"
+      - main
+    paths-ignore:
+      - "**.md"
+      - "LICENSE"
+      - ".gitignore"
+      - ".gitattributes"
+      - "codemagic.yaml"
+      - "env.sample"
+      - ".github/**"
+  # PR 只做快速校验（见 build-android / build-ios 的 if），构建留给 main。
+  pull_request:
+    branches:
+      - main
+    paths-ignore:
+      - "**.md"
+      - "LICENSE"
+      - ".gitignore"
+      - ".gitattributes"
+      - "codemagic.yaml"
+      - "env.sample"
+      - ".github/**"
   workflow_dispatch:
 
-run-name: "${{ github.event.head_commit.message || 'Manual build' }}"
+run-name: >-
+  ${{ github.event_name == 'pull_request'
+      && format('PR #{0}: {1}', github.event.pull_request.number, github.event.pull_request.title)
+      || github.event.head_commit.message || 'Manual build' }}
 
+# 默认只读；写权限仅在真正创建 Release 的 publish job 内单独授予。
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
-  group: build-on-push-${{ github.ref }}
-  cancel-in-progress: true
+  # 同一 ref 上后来者取消先到者，避免短时间连续推送堆积构建；
+  # 但默认分支不取消，以免腰斩已经进行到一半的 publish。
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: >-
+    ${{ github.ref != format('refs/heads/{0}', github.event.repository.default_branch) }}
 
 jobs:
   test:
@@ -40,6 +68,8 @@ jobs:
   build-android:
     name: Build Android APK
     needs: test
+    # PR 上只跑 test；workflow_dispatch 手动触发时仍会构建，可用于验证某个分支。
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 45
 
@@ -121,6 +151,7 @@ jobs:
   build-ios:
     name: Build iOS IPA
     needs: test
+    if: github.event_name != 'pull_request'
     runs-on: macos-latest
     timeout-minutes: 60
 
@@ -176,6 +207,9 @@ jobs:
     if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    # 唯一需要写权限的 job（创建/更新 GitHub Release）。
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout

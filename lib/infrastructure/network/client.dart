@@ -92,6 +92,7 @@ class ApiClient {
         if (attempt < NetworkRetry.maxRetries &&
             NetworkRetry.isRetriable(e)) {
           NetworkRetry.markNextAttempt(e.requestOptions);
+          NetworkRetry.prepareForRetry(e.requestOptions);
           debugPrint(
               "Retrying request (${attempt + 1}/${NetworkRetry.maxRetries}): ${e.requestOptions.uri}");
           await Future<void>.delayed(Duration(milliseconds: 400 * (attempt + 1)));

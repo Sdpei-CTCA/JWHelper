@@ -16,6 +16,10 @@ import 'package:JWHelper/features/schedule/presentation/wallpaper_settings_scree
 import 'package:JWHelper/features/exam/presentation/exam_screen.dart';
 import 'package:JWHelper/features/grades/presentation/grades_screen.dart';
 import 'package:JWHelper/features/progress/presentation/progress_screen.dart';
+import 'package:JWHelper/features/attendance/presentation/attendance_screen.dart';
+import 'package:JWHelper/features/attendance/presentation/attendance_account_form.dart';
+import 'package:JWHelper/features/attendance/presentation/attendance_provider.dart';
+import 'package:JWHelper/features/attendance/presentation/attendance_web_actions.dart';
 import 'package:JWHelper/features/auth/presentation/login_screen.dart';
 import 'package:JWHelper/app/coordinators/logout_coordinator.dart';
 import 'package:JWHelper/app/coordinators/home_navigation_coordinator.dart';
@@ -33,6 +37,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
+  bool _attendanceTabOpened = false;
   final ValueNotifier<bool> _isGridSchedule = ValueNotifier(false);
   final ValueNotifier<int> _selectedWeek = ValueNotifier(1);
   final UpdateService _updateService = UpdateService();
@@ -43,7 +48,7 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isAutoLoggingIn = false;
   String? _loginError;
   bool _defaultTabApplied = false;
-  bool _openedFromWidget = false;
+  bool _openedFromExternalEntry = false;
 
   late final List<Widget> _pages;
 
@@ -53,6 +58,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _initScheduleViewMode();
     _pages = [
       ScheduleScreen(isGridViewNotifier: _isGridSchedule, selectedWeekNotifier: _selectedWeek),
+      const AttendanceScreen(),
       const ExamScreen(),
       const GradesScreen(),
       const ProgressScreen(),
@@ -100,6 +106,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     _onDataChanged();
     _checkWidgetLaunch();
+    _initNotificationNavigation();
 
     // Try auto-login only when this session is not already authenticated.
     final prefs = await SharedPreferences.getInstance();
@@ -224,6 +231,10 @@ class _HomeScreenState extends State<HomeScreen> {
     _sub?.cancel();
     context.read<DataProvider>().removeListener(_onDataChanged);
     _updateService.dispose();
+    // 避免通知点击回调继续指到已销毁的 State（例如退出登录后）。
+    if (NotificationService.onNotificationSelected == _openTabForToken) {
+      NotificationService.onNotificationSelected = null;
+    }
     super.dispose();
   }
 
@@ -231,7 +242,7 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       final uri = await HomeWidget.initiallyLaunchedFromHomeWidget();
       if (uri != null) {
-        _openedFromWidget = true;
+        _openedFromExternalEntry = true;
       }
       _handleWidgetClick(uri);
     } catch (e) {
@@ -241,22 +252,44 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _handleWidgetClick(Uri? uri) {
     if (!mounted || uri == null) return;
+    _openTabForToken(uri.host);
+  }
 
-    final nextIndex =
-        HomeNavigationCoordinator.tabIndexFromWidgetHost(uri.host);
+  /// 上课提醒通知：注册点击回调，并处理「点击通知冷启动」的情况。
+  Future<void> _initNotificationNavigation() async {
+    final service = NotificationService();
+    NotificationService.onNotificationSelected = _openTabForToken;
+
+    try {
+      await service.init();
+      final payload = await service.consumeLaunchPayload();
+      if (payload != null && mounted) {
+        _openTabForToken(payload);
+      }
+    } catch (e) {
+      debugPrint("Error checking notification launch: $e");
+    }
+  }
+
+  /// 按外部跳转标识（小组件深链 host / 通知 payload）切换到对应 tab。
+  void _openTabForToken(String? token) {
+    if (!mounted) return;
+
+    final nextIndex = HomeNavigationCoordinator.tabIndexFromToken(token);
     if (nextIndex == null) return;
 
     Navigator.of(context).popUntil((route) => route.isFirst);
 
     setState(() {
       _currentIndex = nextIndex;
-      _openedFromWidget = true;
+      // 用户是明确指定要看的页面，别再被「考试周默认进考试页」覆盖掉。
+      _openedFromExternalEntry = true;
       _defaultTabApplied = true;
     });
   }
 
   void _applyDefaultTabIfNeeded() {
-    if (_defaultTabApplied || _openedFromWidget || !mounted) return;
+    if (_defaultTabApplied || _openedFromExternalEntry || !mounted) return;
 
     final data = context.read<DataProvider>();
     if (!data.scheduleLoaded) return;
@@ -388,8 +421,50 @@ class _HomeScreenState extends State<HomeScreen> {
     _isEvaluationDialogShowing = false;
   }
 
+  /// 设置与关于：更新图标状态（有更新时显示小红点）。
   Widget _buildAboutIcon() {
     return _updateService.buildAboutIcon();
+  }
+
+  /// 考勤 tab 的操作按钮（原来在考勤页自己的工具条上，现移到标题栏这一行）。
+  ///
+  /// 网页版挂载后才会注册回调，因此未打开过考勤页时不显示这些按钮。
+  List<Widget> _buildAttendanceActions() {
+    final actions = context.watch<AttendanceWebActions>();
+    if (!actions.isReady) {
+      return const [];
+    }
+
+    final username = context.select<AttendanceProvider, String>(
+      (provider) => provider.savedUsername,
+    );
+
+    return [
+      IconButton(
+        icon: const Icon(Icons.refresh, size: 20),
+        tooltip: '重新加载考勤页面',
+        visualDensity: VisualDensity.compact,
+        onPressed: actions.reload,
+      ),
+      IconButton(
+        icon: const Icon(Icons.lock_reset, size: 20),
+        tooltip: '重新登录智慧考勤',
+        visualDensity: VisualDensity.compact,
+        onPressed: actions.relogin,
+      ),
+      IconButton(
+        icon: const Icon(Icons.manage_accounts_outlined, size: 20),
+        tooltip: username.isEmpty ? '配置智慧考勤账号' : '智慧考勤账号: $username',
+        visualDensity: VisualDensity.compact,
+        onPressed: actions.editAccount,
+      ),
+      IconButton(
+        icon: const Icon(Icons.open_in_browser, size: 20),
+        tooltip: '用浏览器打开',
+        visualDensity: VisualDensity.compact,
+        onPressed: actions.openInBrowser,
+      ),
+    ];
   }
 
   Widget _buildUpdateSection() {
@@ -442,6 +517,8 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _showSettingsDialog() {
+    // 提前载入考勤账号，避免设置里把已绑定的账号显示成「未配置」。
+    context.read<AttendanceProvider>().ensureLoaded();
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -669,6 +746,24 @@ class _HomeScreenState extends State<HomeScreen> {
                           },
                         ),
                         const Divider(height: 1, indent: 16, endIndent: 16),
+                        Consumer<AttendanceProvider>(
+                          builder: (context, attendanceProvider, child) {
+                            final username = attendanceProvider.savedUsername;
+                            return ListTile(
+                              leading: Icon(Icons.how_to_reg_outlined, color: primaryColor),
+                              title: const Text("智慧考勤账号"),
+                              subtitle: Text(
+                                username.isEmpty
+                                    ? '未配置，考勤签到前需填写学号与密码'
+                                    : '已绑定学号: $username',
+                                style: const TextStyle(fontSize: 12),
+                              ),
+                              trailing: const Icon(Icons.chevron_right, size: 16, color: Colors.grey),
+                              onTap: () => AttendanceAccountDialog.show(context),
+                            );
+                          },
+                        ),
+                        const Divider(height: 1, indent: 16, endIndent: 16),
                         FutureBuilder<List<WidgetPermissionRequirement>>(
                           future: WidgetPermissionService.getUnmetRequirements(),
                           builder: (context, snapshot) {
@@ -785,6 +880,12 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final dataProvider = Provider.of<DataProvider>(context);
+
+    // 首次进入考勤 tab 后让该页常驻，避免切走再回来时 WebView 重建导致网页重新加载。
+    // 这里直接改字段而不 setState：值只会 false→true，本次 build 已经用到了新值。
+    if (_currentIndex == HomeNavigationCoordinator.attendanceTab) {
+      _attendanceTabOpened = true;
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -904,6 +1005,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 );
               },
             ),
+          if (_currentIndex == HomeNavigationCoordinator.attendanceTab)
+            ..._buildAttendanceActions(),
           IconButton(
             icon: _buildAboutIcon(),
             tooltip: "设置",
@@ -913,7 +1016,16 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       body: Stack(
         children: [
-          _pages[_currentIndex],
+          // 考勤页一旦打开就常驻（切走时 Offstage 而非销毁），
+          // 否则每次切 tab 都会重建 WebView 并重新加载考勤网页。
+          Offstage(
+            offstage: _currentIndex != HomeNavigationCoordinator.attendanceTab,
+            child: _attendanceTabOpened
+                ? _pages[HomeNavigationCoordinator.attendanceTab]
+                : const SizedBox.shrink(),
+          ),
+          if (_currentIndex != HomeNavigationCoordinator.attendanceTab)
+            _pages[_currentIndex],
           // Floating login status pill (bottom center)
           if (_isAutoLoggingIn)
             Positioned(
@@ -1071,6 +1183,11 @@ class _HomeScreenState extends State<HomeScreen> {
             icon: Icon(Icons.calendar_today_outlined),
             selectedIcon: Icon(Icons.calendar_today),
             label: '课表',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.how_to_reg_outlined),
+            selectedIcon: Icon(Icons.how_to_reg),
+            label: '考勤',
           ),
           NavigationDestination(
             icon: Icon(Icons.assignment_outlined),

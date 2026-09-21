@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:JWHelper/app/coordinators/home_navigation_coordinator.dart';
 import 'package:JWHelper/features/schedule/domain/schedule_item.dart';
+import 'package:JWHelper/infrastructure/notifications/notification_service.dart';
 
 ScheduleItem _item({int weekStart = 1, int weekEnd = 16}) {
   return ScheduleItem(
@@ -39,17 +40,42 @@ void main() {
       );
     });
 
-    test('tabIndexFromWidgetHost maps schedule and exam hosts', () {
+    test('tabIndexFromToken maps widget hosts and notification payloads', () {
+      // 小组件深链 jwhelper://<host>
       expect(
-        HomeNavigationCoordinator.tabIndexFromWidgetHost('schedule'),
+        HomeNavigationCoordinator.tabIndexFromToken('schedule'),
         HomeNavigationCoordinator.scheduleTab,
       );
       expect(
-        HomeNavigationCoordinator.tabIndexFromWidgetHost('exam'),
+        HomeNavigationCoordinator.tabIndexFromToken('exam'),
         HomeNavigationCoordinator.examTab,
       );
-      expect(HomeNavigationCoordinator.tabIndexFromWidgetHost('progress'), 3);
-      expect(HomeNavigationCoordinator.tabIndexFromWidgetHost(null), isNull);
+      expect(
+        HomeNavigationCoordinator.tabIndexFromToken('progress'),
+        HomeNavigationCoordinator.progressTab,
+      );
+      // 上课提醒通知的 payload
+      expect(
+        HomeNavigationCoordinator.tabIndexFromToken('attendance'),
+        HomeNavigationCoordinator.attendanceTab,
+      );
+      expect(
+        HomeNavigationCoordinator.tabIndexFromToken(
+          NotificationService.attendancePayload,
+        ),
+        HomeNavigationCoordinator.attendanceTab,
+      );
+      expect(HomeNavigationCoordinator.tabIndexFromToken(null), isNull);
+      expect(HomeNavigationCoordinator.tabIndexFromToken('unknown'), isNull);
+    });
+
+    test('tab indices match the bottom navigation order', () {
+      // 底部导航顺序：课表 / 考勤 / 考试 / 成绩 / 进度
+      expect(HomeNavigationCoordinator.scheduleTab, 0);
+      expect(HomeNavigationCoordinator.attendanceTab, 1);
+      expect(HomeNavigationCoordinator.examTab, 2);
+      expect(HomeNavigationCoordinator.gradesTab, 3);
+      expect(HomeNavigationCoordinator.progressTab, 4);
     });
   });
 }

@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:JWHelper/features/auth/presentation/auth_provider.dart';
+import 'package:JWHelper/features/attendance/presentation/attendance_provider.dart';
+import 'package:JWHelper/features/attendance/presentation/attendance_web_actions.dart';
 import 'package:JWHelper/app/state/data_provider.dart';
 import 'package:JWHelper/shared/theme/theme_provider.dart';
 import 'package:JWHelper/shared/theme/wallpaper_provider.dart';
@@ -30,6 +32,9 @@ class MyApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProvider(create: (_) => AttendanceProvider()),
+        // 考勤网页版与首页标题栏之间的操作桥（按钮在标题栏，动作在 tab 页里）
+        ChangeNotifierProvider(create: (_) => AttendanceWebActions()),
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
         ChangeNotifierProvider(create: (_) => WallpaperProvider()),
         ChangeNotifierProxyProvider<AuthProvider, DataProvider>(

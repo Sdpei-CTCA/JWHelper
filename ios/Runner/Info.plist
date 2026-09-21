@@ -45,6 +45,10 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>用于智慧考勤签到与签退时获取当前位置，验证是否在规定区域内。</string>
+	<key>NSCameraUsageDescription</key>
+	<string>用于智慧考勤网页版的到场签到人脸活体校验。</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>

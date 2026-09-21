@@ -1,7 +1,7 @@
 name: JWHelper
 description: A Flutter App for SDPEI JiaoWuSystem.
 publish_to: 'none'
-version: 1.4.1
+version: 1.4.5
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -32,6 +32,12 @@ dependencies:
   image_picker: ^1.1.2
   palette_generator: ^0.3.3+4
   flutter_markdown: ^0.7.7+1
+  # 智慧考勤：统一认证 RSA 加密 + 网页版（WebView）容器
+  encrypt: ^5.0.3
+  pointycastle: ^3.9.1
+  webview_flutter: ^4.13.1
+  # 网页版人脸活体需要放行 WebView 的摄像头请求（Android 默认拒绝）
+  webview_flutter_android: ^4.10.1
 
 dev_dependencies:
   flutter_test:

@@ -16,6 +16,15 @@ class NotificationService {
 
   NotificationService._internal();
 
+  /// 点击上课提醒后要跳转的目标（由 app 层解析成具体 tab）。
+  static const String attendancePayload = 'attendance';
+
+  /// 用户点击通知时回调 payload，由 app 层负责导航。
+  ///
+  /// 与 `ApiClient.onSessionExpired` 一样，用静态回调让基础设施层不必依赖
+  /// 具体的页面与导航实现。
+  static void Function(String? payload)? onNotificationSelected;
+
   final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
       FlutterLocalNotificationsPlugin();
 
@@ -44,8 +53,34 @@ class NotificationService {
 
     await flutterLocalNotificationsPlugin.initialize(
         settings: initializationSettings,
-        onDidReceiveNotificationResponse: (response) {});
+        onDidReceiveNotificationResponse: (response) {
+          onNotificationSelected?.call(response.payload);
+        });
     _initialized = true;
+  }
+
+  /// 如果本次启动是用户点击通知触发的，返回该通知的 payload。
+  ///
+  /// 应用没在运行时点击通知会走冷启动，`onDidReceiveNotificationResponse`
+  /// 不会触发，只能通过这里取回跳转目标。
+  Future<String?> consumeLaunchPayload() async {
+    if (!_initialized) await init();
+
+    final launchDetails =
+        await flutterLocalNotificationsPlugin.getNotificationAppLaunchDetails();
+    if (launchDetails?.didNotificationLaunchApp != true) {
+      return null;
+    }
+
+    return launchDetails?.notificationResponse?.payload;
+  }
+
+  /// 上课提醒的通知正文（含点击跳转提示）。
+  static String buildClassReminderBody({
+    required String courseName,
+    required String classroom,
+  }) {
+    return '$courseName 还有10分钟在 $classroom 上课，不要迟到哦！点击可进入考勤签到';
   }
 
   Future<bool> get isEnabled async {
@@ -116,7 +151,11 @@ class NotificationService {
           await _scheduleNotification(
             id: (reminderTime.millisecondsSinceEpoch ~/ 1000).remainder(100000), // Randomish ID that is max 32bit int
             title: '上课提醒',
-            body: '${item.name} 还有10分钟在 ${item.classroom} 上课，不要迟到哦！',
+            body: buildClassReminderBody(
+              courseName: item.name,
+              classroom: item.classroom,
+            ),
+            payload: attendancePayload,
             scheduledDate: reminderTime,
           );
           scheduledCount++;
@@ -132,12 +171,14 @@ class NotificationService {
     required String title,
     required String body,
     required DateTime scheduledDate,
+    String? payload,
   }) async {
     await flutterLocalNotificationsPlugin.zonedSchedule(
       id: id,
       title: title,
       body: body,
       scheduledDate: tz.TZDateTime.from(scheduledDate, tz.local),
+      payload: payload,
       notificationDetails: const NotificationDetails(
         android: AndroidNotificationDetails(
           'class_reminder_channel',

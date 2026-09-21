@@ -176,7 +176,9 @@ class UpdateService {
   Future<ParsedRelease?> _fetchGithubRelease() async {
     try {
       final response = await _dio.get(_githubLatestApi);
-      return _parseReleaseData(
+      // 必须 await：_parseReleaseData 是异步的，不 await 的话它的异常不会进入下面的
+      // catch，而是让整个 Future.wait 失败，Gitee 的兜底结果也就一起丢了。
+      return await _parseReleaseData(
         response.data as Map<String, dynamic>,
         platform: ReleasePlatform.github,
       );
@@ -188,7 +190,8 @@ class UpdateService {
   Future<ParsedRelease?> _fetchGiteeRelease() async {
     try {
       final response = await _dio.get(_giteeLatestApi);
-      return _parseReleaseData(
+      // 同上：解析失败应降级为 null，交由另一平台的结果兜底。
+      return await _parseReleaseData(
         response.data as Map<String, dynamic>,
         platform: ReleasePlatform.gitee,
       );

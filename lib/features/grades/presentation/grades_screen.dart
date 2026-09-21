@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+// ScrollCacheExtent 由 rendering 库导出（widgets/material 都只转出其中极少部分），
+// 用 show 限定只引入这一个名字，避免和 material 的命名空间冲突。
+import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'package:provider/provider.dart';
 import 'package:JWHelper/app/state/data_provider.dart';
 
@@ -180,7 +183,7 @@ class _GradesScreenState extends State<GradesScreen> {
                 : ListView.builder(
                     padding: const EdgeInsets.all(16),
                     itemCount: filteredGrades.length,
-                    cacheExtent: 2000,
+                    scrollCacheExtent: const ScrollCacheExtent.pixels(2000),
                     itemBuilder: (context, index) {
                       final grade = filteredGrades[index];
                       return Card(

@@ -245,7 +245,7 @@ enum WidgetRefreshTimes {
         let startOfDay = calendar.startOfDay(for: now)
 
         for period in 1...12 {
-            guard let endMinutes = WidgetTimeTable.periodEndMinutes(period: period, campus: campus, date: now) else {
+            guard let endMinutes = WidgetTimeTable.periodEndMinutes(period: period, campus: campus) else {
                 continue
             }
             var components = calendar.dateComponents([.year, .month, .day], from: startOfDay)
@@ -272,98 +272,88 @@ enum WidgetRefreshTimes {
 }
 
 enum WidgetTimeTable {
+    /// 济南：第 1-9 节与日照相同，第 10 节不存在，第 11-12 节早于日照。
     private static let jinanStartMinutes: [Int: Int] = [
         1: 8 * 60,
         2: 8 * 60 + 45,
-        3: 10 * 60,
-        4: 10 * 60 + 45,
-        5: 13 * 60 + 30,
-        6: 14 * 60 + 15,
-        7: 15 * 60 + 30,
-        8: 16 * 60 + 15,
-        9: 19 * 60,
-        10: 19 * 60 + 45,
-        11: 20 * 60 + 30,
-        12: 21 * 60 + 15,
+        3: 9 * 60 + 45,
+        4: 10 * 60 + 30,
+        5: 11 * 60 + 15,
+        6: 14 * 60,
+        7: 14 * 60 + 45,
+        8: 15 * 60 + 45,
+        9: 16 * 60 + 30,
+        11: 18 * 60 + 30,
+        12: 19 * 60 + 15,
     ]
 
     private static let jinanEndMinutes: [Int: Int] = [
-        1: 8 * 60 + 45,
-        2: 9 * 60 + 30,
-        3: 10 * 60 + 45,
-        4: 11 * 60 + 30,
-        5: 14 * 60 + 15,
-        6: 15 * 60,
-        7: 16 * 60 + 15,
-        8: 17 * 60,
-        9: 19 * 60 + 45,
-        10: 20 * 60 + 30,
-        11: 21 * 60 + 15,
-        12: 22 * 60,
+        1: 8 * 60 + 40,
+        2: 9 * 60 + 25,
+        3: 10 * 60 + 25,
+        4: 11 * 60 + 10,
+        5: 11 * 60 + 55,
+        6: 14 * 60 + 40,
+        7: 15 * 60 + 25,
+        8: 16 * 60 + 25,
+        9: 17 * 60 + 10,
+        11: 19 * 60 + 10,
+        12: 19 * 60 + 55,
     ]
 
-    static func isSummer(_ date: Date) -> Bool {
-        let month = Calendar.current.component(.month, from: date)
-        if month > 5 && month < 10 { return true }
-        if month == 5 { return true }
-        return false
+    private static let rizhaoStartMinutes: [Int: Int] = [
+        1: 8 * 60,
+        2: 8 * 60 + 45,
+        3: 9 * 60 + 45,
+        4: 10 * 60 + 30,
+        5: 11 * 60 + 15,
+        6: 14 * 60,
+        7: 14 * 60 + 45,
+        8: 15 * 60 + 45,
+        9: 16 * 60 + 30,
+        10: 17 * 60 + 15,
+        11: 19 * 60,
+        12: 19 * 60 + 45,
+    ]
+
+    private static let rizhaoEndMinutes: [Int: Int] = [
+        1: 8 * 60 + 40,
+        2: 9 * 60 + 25,
+        3: 10 * 60 + 25,
+        4: 11 * 60 + 10,
+        5: 11 * 60 + 55,
+        6: 14 * 60 + 40,
+        7: 15 * 60 + 25,
+        8: 16 * 60 + 25,
+        9: 17 * 60 + 10,
+        10: 17 * 60 + 55,
+        11: 19 * 60 + 40,
+        12: 20 * 60 + 25,
+    ]
+
+    static func periodStartMinutes(period: Int, campus: String) -> Int? {
+        campus == "日照" ? rizhaoStartMinutes[period] : jinanStartMinutes[period]
     }
 
-    static func periodStartMinutes(period: Int, campus: String, date: Date) -> Int? {
-        if campus != "日照" {
-            return jinanStartMinutes[period]
-        }
-        if period <= 4 {
-            return jinanStartMinutes[period]
-        }
-
-        let summer = isSummer(date)
-        switch period {
-        case 5: return summer ? 14 * 60 + 30 : 14 * 60
-        case 6: return summer ? 15 * 60 + 20 : 14 * 60 + 50
-        case 7: return summer ? 16 * 60 + 30 : 16 * 60
-        case 8: return summer ? 17 * 60 + 20 : 16 * 60 + 50
-        case 9: return 19 * 60
-        case 10: return 19 * 60 + 50
-        case 11: return 20 * 60 + 40
-        case 12: return 21 * 60 + 30
-        default: return nil
-        }
+    static func periodEndMinutes(period: Int, campus: String) -> Int? {
+        campus == "日照" ? rizhaoEndMinutes[period] : jinanEndMinutes[period]
     }
 
-    static func periodEndMinutes(period: Int, campus: String, date: Date) -> Int? {
-        if campus != "日照" {
-            return jinanEndMinutes[period]
-        }
-        if period <= 4 {
-            return jinanEndMinutes[period]
-        }
-
-        let summer = isSummer(date)
-        switch period {
-        case 5: return summer ? 15 * 60 + 10 : 14 * 60 + 40
-        case 6: return summer ? 16 * 60 : 15 * 60 + 30
-        case 7: return summer ? 17 * 60 + 10 : 16 * 60 + 40
-        case 8: return summer ? 18 * 60 : 17 * 60 + 30
-        case 9: return 20 * 60 + 30
-        case 10: return 21 * 60 + 20
-        case 11: return 22 * 60 + 10
-        case 12: return 23 * 60
-        default: return nil
-        }
-    }
-
-    static func endMinutesForUnit(_ endUnit: Int, campus: String, date: Date) -> Int {
-        periodEndMinutes(period: endUnit, campus: campus, date: date) ?? (23 * 60 + 59)
+    /// 该校区该节次的下课时间（零点起的分钟数）。
+    ///
+    /// 节次不存在时（例如济南的第 10 节）返回当天最后一分钟，使调用方的
+    /// “是否已下课”判定退化为“保持可见”，不会把课程误判为已结束而隐藏。
+    static func endMinutesForUnit(_ endUnit: Int, campus: String) -> Int {
+        periodEndMinutes(period: endUnit, campus: campus) ?? (23 * 60 + 59)
     }
 
     static func formatMinutes(_ minutes: Int) -> String {
         String(format: "%02d:%02d", minutes / 60, minutes % 60)
     }
 
-    static func formatTimeRange(startPeriod: Int, endPeriod: Int, campus: String, date: Date) -> String {
-        let start = periodStartMinutes(period: startPeriod, campus: campus, date: date) ?? 0
-        let end = periodEndMinutes(period: endPeriod, campus: campus, date: date) ?? 0
+    static func formatTimeRange(startPeriod: Int, endPeriod: Int, campus: String) -> String {
+        let start = periodStartMinutes(period: startPeriod, campus: campus) ?? 0
+        let end = periodEndMinutes(period: endPeriod, campus: campus) ?? 0
         return "\(formatMinutes(start)) - \(formatMinutes(end))"
     }
 }

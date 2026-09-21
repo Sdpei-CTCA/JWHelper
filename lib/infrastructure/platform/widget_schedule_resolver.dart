@@ -34,7 +34,6 @@ class WidgetScheduleResolver {
     final endMinutes = PeriodTimeTable.endMinutesForUnit(
       item.endUnit,
       campus: campus,
-      date: now,
     );
     final nowMinutes = now.hour * 60 + now.minute;
     return nowMinutes >= endMinutes;

@@ -3,95 +3,89 @@ package edu.sdpei.JWSystem
 import java.util.Calendar
 import java.util.Locale
 
+/**
+ * 各校区教学作息时间表（官方《教学作息时间安排表》的正本）。
+ *
+ * 与 Dart 侧 `lib/core/constants/period_time_table.dart` 逐行对应，两者必须同时更新。
+ *
+ * * 每节 40 分钟。第 1-9 节两校区完全一致，仅第 10-12 节不同。
+ * * 济南校区没有第 10 节（官方表中该行为 `/`），故其映射中不含 10。
+ * * 官方表格不分夏令时/冬令时，全天候使用同一张表。
+ */
 object ScheduleWidgetTimeTable {
+    /** 济南：第 1-9 节与日照相同，第 10 节不存在，第 11-12 节早于日照。 */
     private val jinanStartMinutes = mapOf(
         1 to 8 * 60,
         2 to 8 * 60 + 45,
-        3 to 10 * 60,
-        4 to 10 * 60 + 45,
-        5 to 13 * 60 + 30,
-        6 to 14 * 60 + 15,
-        7 to 15 * 60 + 30,
-        8 to 16 * 60 + 15,
-        9 to 19 * 60,
-        10 to 19 * 60 + 45,
-        11 to 20 * 60 + 30,
-        12 to 21 * 60 + 15,
+        3 to 9 * 60 + 45,
+        4 to 10 * 60 + 30,
+        5 to 11 * 60 + 15,
+        6 to 14 * 60,
+        7 to 14 * 60 + 45,
+        8 to 15 * 60 + 45,
+        9 to 16 * 60 + 30,
+        11 to 18 * 60 + 30,
+        12 to 19 * 60 + 15,
     )
 
     private val jinanEndMinutes = mapOf(
-        1 to 8 * 60 + 45,
-        2 to 9 * 60 + 30,
-        3 to 10 * 60 + 45,
-        4 to 11 * 60 + 30,
-        5 to 14 * 60 + 15,
-        6 to 15 * 60,
-        7 to 16 * 60 + 15,
-        8 to 17 * 60,
-        9 to 19 * 60 + 45,
-        10 to 20 * 60 + 30,
-        11 to 21 * 60 + 15,
-        12 to 22 * 60,
+        1 to 8 * 60 + 40,
+        2 to 9 * 60 + 25,
+        3 to 10 * 60 + 25,
+        4 to 11 * 60 + 10,
+        5 to 11 * 60 + 55,
+        6 to 14 * 60 + 40,
+        7 to 15 * 60 + 25,
+        8 to 16 * 60 + 25,
+        9 to 17 * 60 + 10,
+        11 to 19 * 60 + 10,
+        12 to 19 * 60 + 55,
     )
 
-    fun isSummer(date: Calendar): Boolean {
-        val month = date.get(Calendar.MONTH) + 1
-        return when {
-            month > 5 && month < 10 -> true
-            month == 5 -> true
-            else -> false
-        }
-    }
+    private val rizhaoStartMinutes = mapOf(
+        1 to 8 * 60,
+        2 to 8 * 60 + 45,
+        3 to 9 * 60 + 45,
+        4 to 10 * 60 + 30,
+        5 to 11 * 60 + 15,
+        6 to 14 * 60,
+        7 to 14 * 60 + 45,
+        8 to 15 * 60 + 45,
+        9 to 16 * 60 + 30,
+        10 to 17 * 60 + 15,
+        11 to 19 * 60,
+        12 to 19 * 60 + 45,
+    )
 
-    fun periodStartMinutes(period: Int, campus: String, date: Calendar): Int? {
-        if (campus != "日照") {
-            return jinanStartMinutes[period]
-        }
+    private val rizhaoEndMinutes = mapOf(
+        1 to 8 * 60 + 40,
+        2 to 9 * 60 + 25,
+        3 to 10 * 60 + 25,
+        4 to 11 * 60 + 10,
+        5 to 11 * 60 + 55,
+        6 to 14 * 60 + 40,
+        7 to 15 * 60 + 25,
+        8 to 16 * 60 + 25,
+        9 to 17 * 60 + 10,
+        10 to 17 * 60 + 55,
+        11 to 19 * 60 + 40,
+        12 to 20 * 60 + 25,
+    )
 
-        if (period <= 4) {
-            return jinanStartMinutes[period]
-        }
+    fun periodStartMinutes(period: Int, campus: String): Int? =
+        if (campus == "日照") rizhaoStartMinutes[period] else jinanStartMinutes[period]
 
-        val summer = isSummer(date)
-        return when (period) {
-            5 -> if (summer) 14 * 60 + 30 else 14 * 60
-            6 -> if (summer) 15 * 60 + 20 else 14 * 60 + 50
-            7 -> if (summer) 16 * 60 + 30 else 16 * 60
-            8 -> if (summer) 17 * 60 + 20 else 16 * 60 + 50
-            9 -> 19 * 60
-            10 -> 19 * 60 + 50
-            11 -> 20 * 60 + 40
-            12 -> 21 * 60 + 30
-            else -> null
-        }
-    }
+    fun periodEndMinutes(period: Int, campus: String): Int? =
+        if (campus == "日照") rizhaoEndMinutes[period] else jinanEndMinutes[period]
 
-    fun periodEndMinutes(period: Int, campus: String, date: Calendar): Int? {
-        if (campus != "日照") {
-            return jinanEndMinutes[period]
-        }
-
-        if (period <= 4) {
-            return jinanEndMinutes[period]
-        }
-
-        val summer = isSummer(date)
-        return when (period) {
-            5 -> if (summer) 15 * 60 + 10 else 14 * 60 + 40
-            6 -> if (summer) 16 * 60 else 15 * 60 + 30
-            7 -> if (summer) 17 * 60 + 10 else 16 * 60 + 40
-            8 -> if (summer) 18 * 60 else 17 * 60 + 30
-            9 -> 20 * 60 + 30
-            10 -> 21 * 60 + 20
-            11 -> 22 * 60 + 10
-            12 -> 23 * 60
-            else -> null
-        }
-    }
-
-    fun endMinutesForUnit(endUnit: Int, campus: String, date: Calendar): Int {
-        return periodEndMinutes(endUnit, campus, date) ?: (23 * 60 + 59)
-    }
+    /**
+     * 该校区该节次的下课时间（零点起的分钟数）。
+     *
+     * 节次不存在时（例如济南的第 10 节）返回当天最后一分钟，使调用方的
+     * “是否已下课”判定退化为“保持可见”，不会把课程误判为已结束而隐藏。
+     */
+    fun endMinutesForUnit(endUnit: Int, campus: String): Int =
+        periodEndMinutes(endUnit, campus) ?: (23 * 60 + 59)
 
     fun formatMinutes(minutes: Int): String {
         val hour = minutes / 60
@@ -99,14 +93,14 @@ object ScheduleWidgetTimeTable {
         return String.format(Locale.getDefault(), "%02d:%02d", hour, minute)
     }
 
-    fun formatTimeRange(startPeriod: Int, endPeriod: Int, campus: String, date: Calendar): String {
-        val start = periodStartMinutes(startPeriod, campus, date) ?: 0
-        val end = periodEndMinutes(endPeriod, campus, date) ?: 0
+    fun formatTimeRange(startPeriod: Int, endPeriod: Int, campus: String): String {
+        val start = periodStartMinutes(startPeriod, campus) ?: 0
+        val end = periodEndMinutes(endPeriod, campus) ?: 0
         return "${formatMinutes(start)} - ${formatMinutes(end)}"
     }
 
     fun periodEndMillisToday(period: Int, campus: String, now: Calendar = Calendar.getInstance()): Long? {
-        val endMinutes = periodEndMinutes(period, campus, now) ?: return null
+        val endMinutes = periodEndMinutes(period, campus) ?: return null
         val trigger = now.clone() as Calendar
         trigger.set(Calendar.HOUR_OF_DAY, endMinutes / 60)
         trigger.set(Calendar.MINUTE, endMinutes % 60)

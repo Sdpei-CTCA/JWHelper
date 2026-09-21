@@ -92,7 +92,6 @@ class NotificationService {
         final timeStr = PeriodTimeTable.periodStartTime(
           item.startUnit,
           campus: campus,
-          date: classBaseDate,
         );
         if (timeStr == null || timeStr.isEmpty) continue;
 

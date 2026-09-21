@@ -3,12 +3,11 @@ import SwiftUI
 
 // Time helper
 struct TimeHelper {
-    static func getTimeRange(start: Int, end: Int, campus: String, date: Date) -> String {
+    static func getTimeRange(start: Int, end: Int, campus: String) -> String {
         WidgetTimeTable.formatTimeRange(
             startPeriod: start,
             endPeriod: end,
-            campus: campus,
-            date: date
+            campus: campus
         )
     }
 }
@@ -259,8 +258,7 @@ struct ScheduleRow: View {
                 Text(TimeHelper.getTimeRange(
                     start: item.startUnit,
                     end: item.endUnit,
-                    campus: campus,
-                    date: displayDate
+                    campus: campus
                 ))
                     .font(.caption2)
                     .foregroundColor(.secondary)
@@ -402,8 +400,7 @@ struct ScheduleColumn: View {
                         Text(TimeHelper.getTimeRange(
                             start: item.startUnit,
                             end: item.endUnit,
-                            campus: campus,
-                            date: displayDate
+                            campus: campus
                         ))
                             .font(.caption2)
                             .foregroundColor(.secondary)
@@ -437,7 +434,7 @@ enum ScheduleFilter {
         let nowMinutes = hour * 60 + minute
 
         return items.filter { item in
-            let endMinutes = WidgetTimeTable.endMinutesForUnit(item.endUnit, campus: campus, date: date)
+            let endMinutes = WidgetTimeTable.endMinutesForUnit(item.endUnit, campus: campus)
             return endMinutes > nowMinutes
         }
     }

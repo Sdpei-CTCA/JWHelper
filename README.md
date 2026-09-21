@@ -174,14 +174,28 @@ flutter build windows --release
 
 ## CI / 自动发布
 
-仓库包含 GitHub Actions 工作流 `.github/workflows/daily-release.yml`：
+仓库包含 GitHub Actions 工作流 `.github/workflows/build-on-push.yml`：
 
-- **触发**：每天北京时间 00:00 自动构建，也可在 Actions 页手动运行
-- **流程**：`flutter test` → 构建 Android Release APK（按 ABI 拆分）→ 发布 Pre-release
-- **标签**：`daily-YYYY-MM-DD`
-- **产物**：`JWHelper-arm64-v8a.apk` 等，见 [Releases](https://github.com/Sdpei-CTCA/JWHelper/releases)
+- **触发**：推送到任意分支，或在 Actions 页手动运行（`workflow_dispatch`）
+- **流程**：`flutter test`（未通过则不进入构建）→ 构建 Android Release APK 与 iOS 未签名 ipa
+- **构建命令**：
+  - Android：`flutter build apk --release --obfuscate --split-debug-info=./debug-info --split-per-abi`
+  - iOS：`flutter build ios --release --no-codesign`，随后封装为 Payload ipa
+- **产物**：
+  - `app-arm64-v8a-release.apk`、`app-armeabi-v7a-release.apk`、`app-x86_64-release.apk`
+  - 每个 APK 附同名 `.sha1` 校验文件
+  - `JWHelper-<版本>-nosign.ipa`（未签名，需自行签名后安装）
+  - 混淆符号表 `debug-info-<run_number>`（保留 90 天，用于还原混淆后的堆栈）
+- **发布**：仅当推送到默认分支时创建 Pre-release，标签为 `daily-YYYY-MM-DD`（北京时间）；
+  同名标签会更新并替换旧资产。该 Pre-release 为 `prerelease: true` 且 `makeLatest: false`，
+  因此不会成为 GitHub 的 Latest，**也不会被 App 内的更新检查识别为可用更新**。
 
-可选在仓库 Secrets 中配置 Android 签名（`ANDROID_KEYSTORE_BASE64` 等），未配置时使用调试签名。
+> Android 产物沿用 Flutter 的默认命名。App 内的更新检查是按文件名里的 ABI 关键字
+> （`arm64-v8a` / `armeabi-v7a` / `x86_64`）挑选对应架构的 APK 的，因此重命名时
+> 必须保留 ABI 片段，否则会下载到错误架构的安装包。
+
+可选在仓库 Secrets 中配置 Android 签名（`ANDROID_KEYSTORE_BASE64`、`ANDROID_KEY_ALIAS`、
+`ANDROID_KEY_PASSWORD`、`ANDROID_STORE_PASSWORD`）；未配置时使用调试签名。
 
 ## 常用开发命令
 

@@ -395,12 +395,13 @@ class _DayScheduleView extends StatelessWidget {
         onPrimaryChanged: onPrimaryChanged,
       );
 
-      if (primary.startPeriod <= 4) {
-        morningWidgets.add(widget);
-      } else if (primary.startPeriod <= 8) {
-        afternoonWidgets.add(widget);
-      } else {
-        eveningWidgets.add(widget);
+      switch (PeriodTimeTable.sessionForPeriod(primary.startPeriod)) {
+        case ClassSession.morning:
+          morningWidgets.add(widget);
+        case ClassSession.afternoon:
+          afternoonWidgets.add(widget);
+        case ClassSession.evening:
+          eveningWidgets.add(widget);
       }
     }
 
@@ -807,7 +808,6 @@ class _WeekScheduleGridViewState extends State<_WeekScheduleGridView> {
     return PeriodTimeTable.formatScheduleCell(
       period,
       campus: campus,
-      date: DateTime.now(),
     );
   }
 

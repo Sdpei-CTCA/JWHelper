@@ -90,7 +90,8 @@ lib/
 
 - Flutter SDK：3.32.0+
 - Dart SDK：>= 3.9.0 < 4.0.0
-- Android 开发：Android Studio 或可用 Android SDK
+- Android 开发：Android Studio 或可用 Android SDK，另需 **JDK 17**（AGP 9 的最低要求）
+- Android 构建链：**Gradle 9.3.1 / AGP 9.1.0 / Kotlin 2.4.0**（与 Flutter 3.47 模板一致；低于这套版本时 `flutter build` 会给出「soon be dropped」预警，下个 Flutter 稳定版将直接构建失败）
 - iOS 开发：macOS + Xcode
 - Windows 桌面开发：Visual Studio C++ 桌面组件
 
@@ -285,6 +286,8 @@ flutter clean
   - **定位**：签到/签退要上报位置，网页里的 `navigator.geolocation` 只有在宿主 App 获得定位授权后才会返回坐标。Android 的 WebView 默认拒绝该请求，应用会在网页发起定位时申请系统权限再放行（`ACCESS_FINE_LOCATION` / `ACCESS_COARSE_LOCATION` 已声明）；iOS 交给系统弹窗（已声明 `NSLocationWhenInUseUsageDescription`）。若被永久拒绝，页面会提示并在提示条上提供「去设置」。
   - **相机**：到场签到的人脸活体需要相机。Android 同样由应用申请系统权限后放行（`CAMERA` 已声明）；iOS 交给系统弹窗（已声明 `NSCameraUsageDescription`）。若个别机型仍无法调起相机，请用网页版顶部的「用浏览器打开」。
 - Web 端可能受浏览器跨域限制影响，部分登录或数据请求能力不如原生端稳定。
+- Android 构建链已升级到 **Gradle 9.3.1 / AGP 9.1.0 / Kotlin 2.4.0**（JDK 17）。`android/gradle.properties` 中保留了两条 Flutter 迁移器写入的兼容开关（`android.newDsl=false`、`android.builtInKotlin=false`），即 AGP 9 的「内置 Kotlin」尚未启用；`device_info_plus`、`flutter_timezone`、`home_widget`、`package_info_plus`、`shared_preferences_android`、`webview_flutter_android` 目前仍自行应用 Kotlin Gradle Plugin，**未来版本的 Flutter 会拒绝构建这类插件**，需等它们升级后再切到内置 Kotlin。
+- `gradle.properties` 里的 `kotlin.incremental=false` 是刻意保留：依赖插件的 Kotlin 源码在 pub 缓存（与应用不在同一磁盘/根目录），而构建目录被 Flutter 重定位，Kotlin 增量编译缓存无法计算相对路径，Kotlin 2.4 起会直接导致编译失败。
 - 小组件能力依赖平台插件实现，优先在 Android/iOS 真机验证；Android 12+ 需单独授予「闹钟和提醒」权限。
 - MaterialIcons tree-shaken 构建提示通常属于正常优化，不是错误。
 

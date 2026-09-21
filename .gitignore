@@ -62,6 +62,9 @@ app.*.map.json
 **/windows/flutter/ephemeral/
 **/linux/flutter/ephemeral/
 
+# Gradle 产物（构建目录被重定位到 /build/，但根项目的报表仍写在 android/build/）
+/android/build/
+
 # Debug info (from split-debug-info)
 /debug-info/
 # payload folder
@@ -75,6 +78,12 @@ app.*.map.json
 .github/**
 !.github/workflows/
 !.github/workflows/**
+
+# Local agent tooling — per-session scratch state, never part of the project
+.zcode/
+.mimosa/
+.claude/
+.cursor/
 
 # Local test credentials
 env

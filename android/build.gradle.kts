@@ -24,10 +24,14 @@ subprojects {
     project.evaluationDependsOn(":app")
 }
 
+// 依赖插件统一按 Java 11 编译（历史兼容补丁）；:app 除外——它由自己的
+// compileOptions 指定 Java 17，Kotlin 的 jvmTarget 必须与之保持一致。
 subprojects {
-    tasks.withType<JavaCompile>().configureEach {
-        sourceCompatibility = JavaVersion.VERSION_11.toString()
-        targetCompatibility = JavaVersion.VERSION_11.toString()
+    if (name != "app") {
+        tasks.withType<JavaCompile>().configureEach {
+            sourceCompatibility = JavaVersion.VERSION_11.toString()
+            targetCompatibility = JavaVersion.VERSION_11.toString()
+        }
     }
 }
 

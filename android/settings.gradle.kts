@@ -23,8 +23,10 @@ pluginManagement {
 
 plugins {
     id("dev.flutter.flutter-plugin-loader") version "1.0.0"
-    id("com.android.application") version "8.11.1" apply false
-    id("org.jetbrains.kotlin.android") version "2.2.20" apply false
+    // 与 Flutter SDK 模板保持一致的组合（Gradle 9.3.1 / AGP 9.1.0 / Kotlin 2.4.0），
+    // 低于这套版本时 flutter build 会给出「soon be dropped」预警。
+    id("com.android.application") version "9.1.0" apply false
+    id("org.jetbrains.kotlin.android") version "2.4.0" apply false
 }
 
 include(":app")

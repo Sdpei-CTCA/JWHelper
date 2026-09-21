@@ -293,8 +293,10 @@ void main() {
     expect(find.textContaining('请输入图形验证码'), findsOneWidget);
     expect(sso.fetchCaptchaCalls, 1);
 
-    // 点图片换一张。
-    await tester.tap(find.byType(Image));
+    // 点图片换一张。点击目标用 Tooltip 而不是 Image：测试环境里图片字节是异步解码的，
+    // 未解码完成时 RenderImage 尺寸为 0，tap 会打空并打印 hit-test 警告——真正接收
+    // 点击的是外层承担 onTap 的 InkWell，用 Tooltip 定位才能准确命中可点区域。
+    await tester.tap(find.byTooltip('点击换一张'));
     await tester.pumpAndSettle();
     expect(sso.fetchCaptchaCalls, 2);
     expect(find.widgetWithText(TextField, '图形验证码'), findsOneWidget);

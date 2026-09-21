@@ -1,3 +1,6 @@
+import 'dart:io';
+
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:JWHelper/infrastructure/network/client.dart';
 import 'package:JWHelper/features/auth/data/auth_service.dart';
@@ -10,7 +13,26 @@ import 'package:JWHelper/app/domain/schedule_term_state.dart';
 import '../helpers/test_env.dart';
 
 void main() {
+  // 没有它时 ApiClient.init 会打印「Cookie persistence initialization failed:
+  // Binding has not yet been initialized」并退化；更要紧的是 client.dart 的
+  // _notifySessionExpired 依赖 SchedulerBinding.instance，登录过期回调在这里
+  // 同样跑不到。
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   setUpAll(() async {
+    // path_provider 在测试环境没有实现，若不接管，ApiClient.init 会退化成内存 Cookie，
+    // 生产实际使用的 PersistCookieJar 路径就永远得不到验证。这里让它返回一个临时目录。
+    final Directory cookieDir =
+        await Directory.systemTemp.createTemp('jwhelper_it_cookies');
+    const MethodChannel channel = MethodChannel('plugins.flutter.io/path_provider');
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (MethodCall call) async {
+      if (call.method == 'getApplicationDocumentsDirectory') {
+        return cookieDir.path;
+      }
+      return null;
+    });
+
     await TestEnv.load();
   });
 

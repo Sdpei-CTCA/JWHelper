@@ -225,9 +225,10 @@ void main() {
   });
 
   testWidgets('冷启动已有凭据时直接进入网页版，不再要求重新填写', (tester) async {
-    // 模拟上次已经保存好账号密码、App 重启后的磁盘状态。
+    // 模拟上次已保存好账号密码、且校验通过、App 重启后的磁盘状态。
     SharedPreferences.setMockInitialValues({
       'attendance_sso_username': '20230000000',
+      'attendance_sso_verified': true,
     });
     FlutterSecureStorage.setMockInitialValues({
       'attendance_sso_password': 'correct-password',
@@ -245,6 +246,29 @@ void main() {
     );
     expect(provider.isLoaded, isTrue);
     expect(provider.isConfigured, isTrue);
+  });
+
+  testWidgets('校验失败的凭据在重启后仍要求重新校验', (tester) async {
+    // 密码存着但从未校验通过（例如上次输错后直接退出了 App）。
+    SharedPreferences.setMockInitialValues({
+      'attendance_sso_username': '20230000000',
+    });
+    FlutterSecureStorage.setMockInitialValues({
+      'attendance_sso_password': 'wrong-password',
+    });
+
+    await pumpAttendanceScreen(tester);
+
+    // 不能带着未验证的凭据进网页版，应停在绑定表单。
+    expect(find.byType(CampusWebViewScreen), findsNothing);
+    expect(find.text('首次使用请配置智慧考勤账号'), findsOneWidget);
+
+    final provider = Provider.of<AttendanceProvider>(
+      tester.element(find.byType(AttendanceScreen)),
+      listen: false,
+    );
+    expect(provider.isConfigured, isFalse);
+    expect(provider.hasUnverifiedCredentials, isTrue);
   });
 
   testWidgets('服务端要求验证码时表单出现验证码输入与图片', (tester) async {

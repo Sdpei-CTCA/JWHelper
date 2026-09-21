@@ -205,6 +205,7 @@ void main() {
     test('已有凭据时直接进入已配置状态，无需重新填写', () async {
       SharedPreferences.setMockInitialValues({
         'attendance_sso_username': '20230000000',
+        'attendance_sso_verified': true,
       });
       FlutterSecureStorage.setMockInitialValues({
         'attendance_sso_password': 'correct-password',
@@ -225,6 +226,56 @@ void main() {
 
       expect(provider.isLoaded, isTrue);
       expect(provider.isConfigured, isFalse);
+    });
+
+    test('校验失败的凭据重启后不算已配置', () async {
+      // 先存一份校验不通过的密码（服务端拒绝，且没有触发验证码）。
+      final first = AttendanceProvider(ssoTokenService: _FakeSsoTokenService());
+      final error = await first.saveCredentials(
+        username: '20230000000',
+        password: 'wrong-password',
+      );
+      expect(error, isNotNull);
+      expect(first.isConfigured, isFalse);
+
+      // 模拟重启：同一个磁盘状态，新的 provider 实例。
+      final restarted = AttendanceProvider(ssoTokenService: _FakeSsoTokenService());
+      await restarted.ensureLoaded();
+
+      expect(restarted.isConfigured, isFalse);
+      // 学号仍然记着，便于表单预填、只补密码。
+      expect(restarted.savedUsername, '20230000000');
+      expect(restarted.hasUnverifiedCredentials, isTrue);
+    });
+
+    test('校验成功的凭据重启后仍然是已配置', () async {
+      final first = AttendanceProvider(ssoTokenService: _FakeSsoTokenService());
+      expect(
+        await first.saveCredentials(
+          username: '20230000000',
+          password: 'correct-password',
+        ),
+        isNull,
+      );
+
+      final restarted = AttendanceProvider(ssoTokenService: _FakeSsoTokenService());
+      await restarted.ensureLoaded();
+
+      expect(restarted.isConfigured, isTrue);
+      expect(restarted.hasUnverifiedCredentials, isFalse);
+    });
+
+    test('清除账号会同时作废已校验标记', () async {
+      final provider = AttendanceProvider(ssoTokenService: _FakeSsoTokenService());
+      await provider.saveCredentials(
+        username: '20230000000',
+        password: 'correct-password',
+      );
+      await provider.clearCredentials();
+
+      final restarted = AttendanceProvider(ssoTokenService: _FakeSsoTokenService());
+      await restarted.ensureLoaded();
+      expect(restarted.isConfigured, isFalse);
     });
   });
 

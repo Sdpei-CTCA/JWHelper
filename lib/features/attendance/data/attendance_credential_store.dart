@@ -28,6 +28,7 @@ class AttendanceCredentialStore {
   static const String _userTokenKey = 'attendance_sso_user_token';
   static const String _ctTicketKey = 'attendance_sso_ctticket';
   static const String _appCtTicketKey = 'attendance_sso_appctticket';
+  static const String _verifiedKey = 'attendance_sso_verified';
 
   static const FlutterSecureStorage _secureStorage = FlutterSecureStorage(
     aOptions: AndroidOptions(encryptedSharedPreferences: true),
@@ -41,6 +42,25 @@ class AttendanceCredentialStore {
   static Future<String> readPassword() async {
     final value = await _secureStorage.read(key: _securePasswordKey);
     return value ?? '';
+  }
+
+  /// 这份凭据是否已经成功通过统一认证校验。
+  ///
+  /// 只判断「密码非空」是不够的：密码可能校验失败，或正卡在图形验证码那一步，
+  /// 此时它已落盘但并不可用。重启后必须靠这个标记来区分，否则会带着未验证的
+  /// 凭据直接进入考勤页。
+  static Future<bool> readVerified() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_verifiedKey) ?? false;
+  }
+
+  static Future<void> saveVerified({required bool verified}) async {
+    final prefs = await SharedPreferences.getInstance();
+    if (verified) {
+      await prefs.setBool(_verifiedKey, true);
+    } else {
+      await prefs.remove(_verifiedKey);
+    }
   }
 
   static Future<bool> hasCredentials() async {
@@ -57,12 +77,15 @@ class AttendanceCredentialStore {
   }) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(usernameKey, username);
+    // 换了凭据就要重新校验，先作废标记。
+    await prefs.remove(_verifiedKey);
     await _secureStorage.write(key: _securePasswordKey, value: password);
   }
 
   static Future<void> clearCredentials() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(usernameKey);
+    await prefs.remove(_verifiedKey);
     await _secureStorage.delete(key: _securePasswordKey);
     await clearTokens();
   }

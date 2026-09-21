@@ -13,6 +13,7 @@ class AttendanceWebActions extends ChangeNotifier {
   VoidCallback? _relogin;
   VoidCallback? _editAccount;
   VoidCallback? _openInBrowser;
+  bool _disposed = false;
 
   /// 网页版是否已挂载并注册了回调。
   bool get isReady =>
@@ -20,6 +21,21 @@ class AttendanceWebActions extends ChangeNotifier {
       _relogin != null &&
       _editAccount != null &&
       _openInBrowser != null;
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
+  }
+
+  /// 注销是在帧末执行的（见 CampusWebViewScreen.dispose），那时本对象可能已随
+  /// provider 一起被销毁，因此这里必须跳过通知，否则会抛 "used after being disposed"。
+  void _notifyListeners() {
+    if (_disposed) {
+      return;
+    }
+    notifyListeners();
+  }
 
   void register({
     required VoidCallback reload,
@@ -31,7 +47,7 @@ class AttendanceWebActions extends ChangeNotifier {
     _relogin = relogin;
     _editAccount = editAccount;
     _openInBrowser = openInBrowser;
-    notifyListeners();
+    _notifyListeners();
   }
 
   void unregister() {
@@ -42,7 +58,7 @@ class AttendanceWebActions extends ChangeNotifier {
     _relogin = null;
     _editAccount = null;
     _openInBrowser = null;
-    notifyListeners();
+    _notifyListeners();
   }
 
   /// 重新加载网页（保留当前登录态）。

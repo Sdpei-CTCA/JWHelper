@@ -30,8 +30,10 @@ class CampusWebViewScreen extends StatefulWidget {
 }
 
 class _CampusWebViewScreenState extends State<CampusWebViewScreen> {
-  final WebViewCookieManager _cookieManager = WebViewCookieManager();
-  late final WebViewController _controller;
+  // 这两个对象都要求平台实现存在，因此只在支持的平台创建（见 initState）。
+  WebViewCookieManager? _cookieManager;
+  WebViewController? _controller;
+  bool _isSupportedPlatform = true;
   String _activeToken = '';
   bool _isLoading = true;
   bool _isPreparing = true;
@@ -42,22 +44,33 @@ class _CampusWebViewScreenState extends State<CampusWebViewScreen> {
   @override
   void initState() {
     super.initState();
-    _controller = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setBackgroundColor(const Color(0x00000000))
-      ..setNavigationDelegate(
-        NavigationDelegate(
-          onPageStarted: (String url) {
-            if (mounted) setState(() => _isLoading = true);
-          },
-          onPageFinished: (String url) async {
-            await _injectTokenToWebStorage();
-            if (mounted) setState(() => _isLoading = false);
-          },
-        ),
-      );
 
-    _configureAndroidWebViewPermissions();
+    // Windows / Linux 上没有任何 WebView 实现（插件只覆盖 Android/iOS/macOS），
+    // 直接构造控制器会抛异常。这类平台不建控制器，改为给出浏览器入口。
+    _isSupportedPlatform = WebViewPlatform.instance != null;
+
+    if (_isSupportedPlatform) {
+      _cookieManager = WebViewCookieManager();
+      _controller = WebViewController()
+        ..setJavaScriptMode(JavaScriptMode.unrestricted)
+        ..setBackgroundColor(const Color(0x00000000))
+        ..setNavigationDelegate(
+          NavigationDelegate(
+            onPageStarted: (String url) {
+              if (mounted) setState(() => _isLoading = true);
+            },
+            onPageFinished: (String url) async {
+              await _injectTokenToWebStorage();
+              if (mounted) setState(() => _isLoading = false);
+            },
+          ),
+        );
+
+      _configureAndroidWebViewPermissions();
+    } else {
+      _isLoading = false;
+      _isPreparing = false;
+    }
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -93,7 +106,7 @@ class _CampusWebViewScreenState extends State<CampusWebViewScreen> {
   /// 定位是签到/签退的必要条件：网页里的 `navigator.geolocation` 只有在宿主 App
   /// 拿到定位授权后才会返回坐标，所以这里申请系统权限后再决定是否放行。
   void _configureAndroidWebViewPermissions() {
-    final platformController = _controller.platform;
+    final platformController = _controller?.platform;
     if (platformController is! AndroidWebViewController) {
       return;
     }
@@ -142,6 +155,11 @@ class _CampusWebViewScreenState extends State<CampusWebViewScreen> {
   }
 
   Future<void> _prepareAndLoad() async {
+    // 没有 WebView 实现时（Windows/Linux）页面只有浏览器入口，无需加载。
+    if (!_isSupportedPlatform) {
+      return;
+    }
+
     if (mounted) {
       setState(() {
         _isPreparing = true;
@@ -151,8 +169,8 @@ class _CampusWebViewScreenState extends State<CampusWebViewScreen> {
 
     try {
       final provider = context.read<AttendanceProvider>();
-      // 已配置账号时先确保令牌可用（失败也继续，网页版自己还有登录入口）。
-      if (provider.isConfigured) {
+      // 有凭据就先确保令牌可用（失败也继续，网页版自己还有登录入口）。
+      if (provider.hasSavedCredentials) {
         await provider.ensureAuthorizedWithRecovery();
       }
 
@@ -174,7 +192,7 @@ class _CampusWebViewScreenState extends State<CampusWebViewScreen> {
         if (_activeToken.isNotEmpty) 'X-User-Token': _activeToken,
       };
 
-      await _controller.loadRequest(targetUri, headers: headers);
+      await _controller?.loadRequest(targetUri, headers: headers);
       if (mounted) {
         setState(() {
           _isPreparing = false;
@@ -194,7 +212,7 @@ class _CampusWebViewScreenState extends State<CampusWebViewScreen> {
   /// 重新登录并重载页面（网页版里登录态失效时使用）。
   Future<void> _refreshAuth() async {
     final provider = context.read<AttendanceProvider>();
-    if (!provider.isConfigured) {
+    if (!provider.hasSavedCredentials) {
       _showSnack('未配置智慧考勤账号，请在设置中填写学号与密码');
       return;
     }
@@ -269,17 +287,17 @@ class _CampusWebViewScreenState extends State<CampusWebViewScreen> {
 
     for (final domain in domains) {
       if (userToken.isNotEmpty) {
-        await _cookieManager.setCookie(
+        await _cookieManager?.setCookie(
           WebViewCookie(name: 'userToken', value: userToken, domain: domain, path: '/'),
         );
       }
       if (ctTicket.isNotEmpty) {
-        await _cookieManager.setCookie(
+        await _cookieManager?.setCookie(
           WebViewCookie(name: 'CTTICKET', value: ctTicket, domain: domain, path: '/'),
         );
       }
       if (appCtTicket.isNotEmpty) {
-        await _cookieManager.setCookie(
+        await _cookieManager?.setCookie(
           WebViewCookie(name: 'APPCTTICKET', value: appCtTicket, domain: domain, path: '/'),
         );
       }
@@ -294,7 +312,7 @@ class _CampusWebViewScreenState extends State<CampusWebViewScreen> {
         .replaceAll('\\', '\\\\')
         .replaceAll("'", "\\'");
     try {
-      await _controller.runJavaScript(
+      await _controller?.runJavaScript(
         "window.localStorage.setItem('userToken', '$escaped');"
         "window.sessionStorage.setItem('userToken', '$escaped');",
       );
@@ -304,9 +322,17 @@ class _CampusWebViewScreenState extends State<CampusWebViewScreen> {
   }
 
   Future<void> _openInBrowser() async {
+    // 浏览器兜底同样希望带上登录态：先把令牌准备好；
+    // 准备失败也照常打开，网页内可以自己登录。
+    final provider = context.read<AttendanceProvider>();
+    if (provider.hasSavedCredentials) {
+      await provider.ensureAuthorizedWithRecovery();
+    }
+    if (!mounted) return;
+
     final uri = _buildTargetUri(
       CampusWebViewScreen.attendanceWebUrl,
-      _activeToken,
+      provider.userToken,
     );
     if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
       if (!mounted) return;
@@ -318,19 +344,63 @@ class _CampusWebViewScreenState extends State<CampusWebViewScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (!_isSupportedPlatform) {
+      return _buildUnsupportedPlatformView();
+    }
+
     return Column(
       children: [
         if (_prepareError != null) _buildPrepareBanner(_prepareError!),
         Expanded(
           child: Stack(
             children: [
-              WebViewWidget(controller: _controller),
+              WebViewWidget(controller: _controller!),
               if (_isPreparing || _isLoading)
                 const Center(child: CircularProgressIndicator()),
             ],
           ),
         ),
       ],
+    );
+  }
+
+  /// Windows / Linux 等没有 WebView 实现的平台：给出浏览器入口，而不是崩溃。
+  Widget _buildUnsupportedPlatformView() {
+    final theme = Theme.of(context);
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.web_asset_off,
+              size: 40,
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              '当前平台不支持应用内考勤网页',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '可以改用系统浏览器打开考勤页面，签到、签退与统计功能一致。',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: _openInBrowser,
+              icon: const Icon(Icons.open_in_browser, size: 18),
+              label: const Text('用浏览器打开'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 

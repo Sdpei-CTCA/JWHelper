@@ -25,6 +25,7 @@ class AttendanceProvider with ChangeNotifier {
   Future<void>? _loadingFuture;
   String _savedUsername = '';
   bool _hasPassword = false;
+  bool _verified = false;
   AttendanceSsoTokens _tokens = const AttendanceSsoTokens();
   String _lastError = '';
   SsoCaptchaChallenge? _captcha;
@@ -32,8 +33,20 @@ class AttendanceProvider with ChangeNotifier {
   /// 本地凭据是否已读取完成。未完成时不应据此判断「未配置」。
   bool get isLoaded => _loaded;
 
-  /// 是否已保存完整的账号密码。
-  bool get isConfigured => _savedUsername.isNotEmpty && _hasPassword;
+  /// 是否已保存一份**校验通过**的账号密码。
+  ///
+  /// 三个条件缺一不可：学号非空、密码已落盘、且这份凭据成功通过过统一认证。
+  /// 只看前两条会让「密码输错」或「卡在验证码」的状态在重启后被误判为可用。
+  bool get isConfigured => _savedUsername.isNotEmpty && _hasPassword && _verified;
+
+  /// 学号与密码都已保存在本地，但未必校验通过。
+  ///
+  /// 「要不要尝试登录」看这个；「要不要直接进考勤页」看 [isConfigured]。
+  bool get hasSavedCredentials => _savedUsername.isNotEmpty && _hasPassword;
+
+  /// 密码已保存但尚未通过校验（例如校验失败或等待输入验证码）。
+  bool get hasUnverifiedCredentials =>
+      hasSavedCredentials && !_verified;
 
   /// 服务端要求图形验证码，等待用户填写。
   bool get needsCaptcha => _captcha != null;
@@ -63,6 +76,7 @@ class AttendanceProvider with ChangeNotifier {
     try {
       _savedUsername = await AttendanceCredentialStore.readUsername();
       _hasPassword = (await AttendanceCredentialStore.readPassword()).isNotEmpty;
+      _verified = await AttendanceCredentialStore.readVerified();
       _tokens = await AttendanceCredentialStore.readTokens();
     } catch (e) {
       // 读失败时按「未配置」处理，用户可在设置里重新填写。
@@ -98,6 +112,8 @@ class AttendanceProvider with ChangeNotifier {
     _tokens = const AttendanceSsoTokens();
     _savedUsername = username;
     _hasPassword = true;
+    // 新凭据在被校验通过之前不算「已配置」（落盘状态里也已经作废）。
+    _verified = false;
     _captcha = null;
 
     final error = await _refreshSsoTokens();
@@ -183,6 +199,7 @@ class AttendanceProvider with ChangeNotifier {
     await AttendanceCredentialStore.clearCredentials();
     _savedUsername = '';
     _hasPassword = false;
+    _verified = false;
     _tokens = const AttendanceSsoTokens();
     _lastError = '';
     _captcha = null;
@@ -262,7 +279,9 @@ class AttendanceProvider with ChangeNotifier {
 
   Future<String?> _ensureAuthorizedInternal({required bool force}) async {
     await ensureLoaded();
-    if (!isConfigured) {
+    // 这里判断的是「有没有凭据可以尝试登录」：校验失败的凭据重启后也要给一次
+    // 重新登录的机会，成功后才把 isConfigured 置为真。
+    if (!hasSavedCredentials) {
       return '尚未配置智慧考勤账号';
     }
 
@@ -321,6 +340,9 @@ class AttendanceProvider with ChangeNotifier {
       appCtTicket: session.appCtTicket,
     );
     await AttendanceCredentialStore.saveTokens(_tokens);
+    // 登录成功 = 这份凭据确实可用，记下标记，重启后不必重新校验。
+    _verified = true;
+    await AttendanceCredentialStore.saveVerified(verified: true);
     return null;
   }
 

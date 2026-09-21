@@ -114,13 +114,13 @@ class ScheduleWidgetProvider : HomeWidgetProvider() {
                         val curr = allItems[currentIdx]
                         setTextViewText(R.id.tv_cur_name, curr.optString("name"))
                         setTextViewText(R.id.tv_cur_info, "${curr.optString("classroom")} ${curr.optString("teacher")}")
-                         setTextViewText(R.id.tv_cur_time, getTimeRange(curr.optInt("startUnit"), curr.optInt("endUnit"), campus, nowCal))
+                         setTextViewText(R.id.tv_cur_time, getTimeRange(curr.optInt("startUnit"), curr.optInt("endUnit"), campus))
 
                         if (currentIdx + 1 < allItems.size) {
                             val next = allItems[currentIdx + 1]
                             setTextViewText(R.id.tv_next_name, next.optString("name"))
                             setTextViewText(R.id.tv_next_info, "${next.optString("classroom")} ${next.optString("teacher")}")
-                             setTextViewText(R.id.tv_next_time, getTimeRange(next.optInt("startUnit"), next.optInt("endUnit"), campus, nowCal))
+                             setTextViewText(R.id.tv_next_time, getTimeRange(next.optInt("startUnit"), next.optInt("endUnit"), campus))
                         } else {
                             setTextViewText(R.id.tv_next_name, "无课程")
                             setTextViewText(R.id.tv_next_info, "")
@@ -147,12 +147,12 @@ class ScheduleWidgetProvider : HomeWidgetProvider() {
             }
         }
 
-        private fun getTimeRange(start: Int, end: Int, campus: String, date: Calendar): String {
-            return ScheduleWidgetTimeTable.formatTimeRange(start, end, campus, date)
+        private fun getTimeRange(start: Int, end: Int, campus: String): String {
+            return ScheduleWidgetTimeTable.formatTimeRange(start, end, campus)
         }
 
         private fun isClassPassed(end: Int, campus: String, now: Calendar): Boolean {
-            val endMinutes = ScheduleWidgetTimeTable.endMinutesForUnit(end, campus, now)
+            val endMinutes = ScheduleWidgetTimeTable.endMinutesForUnit(end, campus)
             val currentMinutes = now.get(Calendar.HOUR_OF_DAY) * 60 + now.get(Calendar.MINUTE)
             return currentMinutes >= endMinutes
         }

@@ -72,7 +72,12 @@ class UpdateCheckResult {
 }
 
 class UpdateService {
-  final Dio _dio = Dio(
+  /// [dio] 仅用于测试时注入假传输层；生产走默认配置。
+  UpdateService({Dio? dio}) : _dio = dio ?? _createDefaultDio();
+
+  final Dio _dio;
+
+  static Dio _createDefaultDio() => Dio(
     BaseOptions(
       headers: const {
         'User-Agent': 'JWHelper-App',

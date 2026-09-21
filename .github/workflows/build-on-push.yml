@@ -53,6 +53,20 @@ jobs:
           distribution: temurin
           java-version: "17"
 
+      # Flutter 的 Gradle 插件只处理 Flutter 侧，Gradle 自身不在其缓存范围内：
+      # 不缓存时每次运行都要重新下载 Gradle 发行包（约 150MB，落在 ~/.gradle/wrapper）
+      # 和全部依赖（~/.gradle/caches），而 Android 作业里构建步骤占了约 489s，
+      # 其中相当一部分是这类重复下载。key 绑定 Gradle 配置文件，改动时自动重建。
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:

@@ -10,11 +10,22 @@ pluginManagement {
 
     includeBuild("$flutterSdkPath/packages/flutter_tools/gradle")
 
+    // 与 build.gradle.kts 同一套策略：CI（CI=true）走官方源，本地走国内镜像；
+    // Flutter 引擎仓库加 content 过滤，避免 androidx 等构件撞上镜像的 502。
+    val isCi: Boolean = System.getenv("CI") == "true"
     repositories {
-        maven { url = uri("https://storage.flutter-io.cn/download.flutter.io") }
-        maven { url = uri("https://maven.aliyun.com/repository/google") }
-        maven { url = uri("https://maven.aliyun.com/repository/public") }
-        maven { url = uri("https://maven.aliyun.com/repository/gradle-plugin") }
+        maven {
+            url = uri(
+                if (isCi) "https://storage.googleapis.com/download.flutter.io"
+                else "https://storage.flutter-io.cn/download.flutter.io"
+            )
+            content { includeGroupByRegex("io\\.flutter.*") }
+        }
+        if (!isCi) {
+            maven { url = uri("https://maven.aliyun.com/repository/google") }
+            maven { url = uri("https://maven.aliyun.com/repository/public") }
+            maven { url = uri("https://maven.aliyun.com/repository/gradle-plugin") }
+        }
         google()
         mavenCentral()
         gradlePluginPortal()

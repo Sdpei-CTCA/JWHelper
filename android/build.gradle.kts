@@ -3,11 +3,28 @@ import org.gradle.api.tasks.compile.JavaCompile
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
+// GitHub Actions 等绝大多数 CI 会自动设置环境变量 CI=true。
+// CI 机器（境外）直连官方仓库又快又稳；本地（国内网络）走国内镜像。
+// 本文件与 settings.gradle.kts 的 pluginManagement 采用同一套策略，需同步修改。
+val isCi: Boolean = System.getenv("CI") == "true"
+
 allprojects {
     repositories {
-        maven { url = uri("https://storage.flutter-io.cn/download.flutter.io") }
-        maven { url = uri("https://maven.aliyun.com/repository/google") }
-        maven { url = uri("https://maven.aliyun.com/repository/public") }
+        // Flutter 引擎构件仓库。它只托管 io.flutter.* 的包，必须加 content 过滤：
+        // 不过滤时 androidx 等所有构件都会先请求它，而 storage.flutter-io.cn 对
+        // 不存在的路径返回 502 而非 404，Gradle 会判定该仓库故障并直接判死整个构建
+        // ——这正是 GitHub Actions 上 mergeReleaseNativeLibs 解析失败的原因。
+        maven {
+            url = uri(
+                if (isCi) "https://storage.googleapis.com/download.flutter.io"
+                else "https://storage.flutter-io.cn/download.flutter.io"
+            )
+            content { includeGroupByRegex("io\\.flutter.*") }
+        }
+        if (!isCi) {
+            maven { url = uri("https://maven.aliyun.com/repository/google") }
+            maven { url = uri("https://maven.aliyun.com/repository/public") }
+        }
         google()
         mavenCentral()
     }

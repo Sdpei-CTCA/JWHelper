@@ -4,7 +4,8 @@ publish_to: 'none'
 version: 1.4.5
 
 environment:
-  sdk: '>=3.11.0 <4.0.0'
+  sdk: '>=3.12.0 <4.0.0'
+  flutter: '>=3.44.0'
 
 dependencies:
   flutter:
@@ -15,19 +16,17 @@ dependencies:
   path_provider: ^2.1.1
   html: ^0.15.4
   provider: ^6.0.5
-  shared_preferences: ^2.2.1
-  flutter_secure_storage: ^9.2.4
+  shared_preferences: ^2.5.5
+  flutter_secure_storage: ^10.0.0
   intl: ^0.18.1
-  cupertino_icons: ^1.0.2
-  google_fonts: ^6.1.0
   flutter_animate: ^4.2.0+1
   url_launcher: ^6.3.2
-  package_info_plus: ^9.0.0
-  device_info_plus: ^10.1.2
-  home_widget: ^0.7.0
+  package_info_plus: ^10.2.1
+  device_info_plus: ^13.2.0
+  home_widget: ^0.10.0
   flutter_local_notifications: ^20.1.0
   timezone: ^0.10.1
-  flutter_timezone: 5.0.2
+  flutter_timezone: ^5.1.0
   permission_handler: ^11.3.1
   image_picker: ^1.1.2
   palette_generator: ^0.3.3+4
@@ -35,9 +34,9 @@ dependencies:
   # 智慧考勤：统一认证 RSA 加密 + 网页版（WebView）容器
   encrypt: ^5.0.3
   pointycastle: ^3.9.1
-  webview_flutter: ^4.13.1
+  webview_flutter: ^4.14.1
   # 网页版人脸活体需要放行 WebView 的摄像头请求（Android 默认拒绝）
-  webview_flutter_android: ^4.10.1
+  webview_flutter_android: ^4.14.1
 
 dev_dependencies:
   flutter_test:

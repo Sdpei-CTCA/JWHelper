@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:JWHelper/features/auth/presentation/auth_provider.dart';
 import 'package:JWHelper/features/attendance/presentation/attendance_provider.dart';
@@ -109,7 +108,6 @@ class MyApp extends StatelessWidget {
               ),
               dividerColor: Colors.grey.withValues(alpha: 0.15),
               useMaterial3: true,
-              textTheme: GoogleFonts.notoSansTextTheme(),
             ),
 
             // ── Dark theme ──────────────────────────────────────
@@ -166,7 +164,6 @@ class MyApp extends StatelessWidget {
               ),
               dividerColor: Colors.white.withValues(alpha: 0.08),
               useMaterial3: true,
-              textTheme: GoogleFonts.notoSansTextTheme(ThemeData.dark().textTheme),
             ),
             home: const HomeScreen(),
             debugShowCheckedModeBanner: false,

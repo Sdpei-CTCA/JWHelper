@@ -19,7 +19,7 @@ class AttendanceSsoTokens {
 /// 智慧考勤账号（智慧山体统一认证学号/密码）与令牌的本地持久化。
 ///
 /// 密码与三个登录令牌都属于凭据：密码、`userToken` 存加密存储
-/// （Android 走 Keystore 支撑的 EncryptedSharedPreferences，iOS 走 Keychain），
+/// （Android 走 Keystore 支撑的加密存储，iOS 走 Keychain），
 /// 只有学号这类非敏感信息留在 SharedPreferences。
 /// 账号与教务系统登录相互独立，因此退出登录不会清除这里的凭据。
 class AttendanceCredentialStore {
@@ -30,9 +30,9 @@ class AttendanceCredentialStore {
   static const String _appCtTicketKey = 'attendance_sso_appctticket';
   static const String _verifiedKey = 'attendance_sso_verified';
 
-  static const FlutterSecureStorage _secureStorage = FlutterSecureStorage(
-    aOptions: AndroidOptions(encryptedSharedPreferences: true),
-  );
+  // flutter_secure_storage v10 起 Jetpack EncryptedSharedPreferences 已废弃,
+  // 旧数据会在首次访问时自动迁移到新的自定义加密方案,无需任何参数。
+  static const FlutterSecureStorage _secureStorage = FlutterSecureStorage();
 
   static Future<String> readUsername() async {
     final prefs = await SharedPreferences.getInstance();

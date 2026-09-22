@@ -162,7 +162,10 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                 alignment: wallpaperProvider.wallpaperAlignment,
                 // 壁纸原图可达 12MP(约 48MB 解码内存),背景层叠加透明度
                 // 后细节不可见,按屏幕物理宽度解码即可,内存降一个数量级
-                cacheWidth: 1440,
+                cacheWidth:
+                    (MediaQuery.sizeOf(context).width *
+                            MediaQuery.devicePixelRatioOf(context))
+                        .round(),
                 errorBuilder: (context, error, stackTrace) {
                   return const SizedBox.shrink();
                 },

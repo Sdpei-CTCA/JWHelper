@@ -30,9 +30,9 @@ class AttendanceCredentialStore {
   static const String _appCtTicketKey = 'attendance_sso_appctticket';
   static const String _verifiedKey = 'attendance_sso_verified';
 
-  static const FlutterSecureStorage _secureStorage = FlutterSecureStorage(
-    aOptions: AndroidOptions(encryptedSharedPreferences: true),
-  );
+  // flutter_secure_storage v10 起 Jetpack EncryptedSharedPreferences 已废弃,
+  // 旧数据会在首次访问时自动迁移到新的自定义加密方案,无需任何参数。
+  static const FlutterSecureStorage _secureStorage = FlutterSecureStorage();
 
   static Future<String> readUsername() async {
     final prefs = await SharedPreferences.getInstance();

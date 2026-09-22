@@ -10,9 +10,9 @@ import 'package:JWHelper/app/cache/offline_cache_keys.dart';
 class AuthProvider with ChangeNotifier {
   final AuthService _authService = AuthService();
   static const String _securePasswordKey = 'auth_saved_password';
-  static const FlutterSecureStorage _secureStorage = FlutterSecureStorage(
-    aOptions: AndroidOptions(encryptedSharedPreferences: true),
-  );
+  // flutter_secure_storage v10 起 Jetpack EncryptedSharedPreferences 已废弃,
+  // 旧数据会在首次访问时自动迁移到新的自定义加密方案,无需任何参数。
+  static const FlutterSecureStorage _secureStorage = FlutterSecureStorage();
   bool _isLoggedIn = false;
   bool _isLoading = false;
   Uint8List? _captchaImage;

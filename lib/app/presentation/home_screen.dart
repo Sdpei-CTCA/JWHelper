@@ -576,6 +576,8 @@ class _HomeScreenState extends State<HomeScreen> {
                             child: Image.asset(
                               'assets/images/logo.png',
                               fit: BoxFit.cover,
+                              // 显示尺寸仅 70px,限制解码分辨率避免 2048 原图全量解码
+                              cacheWidth: 240,
                               errorBuilder: (context, error, stackTrace) => Container(
                                 color: primaryColor,
                                 child: const Icon(Icons.school, size: 40, color: Colors.white),

@@ -26,6 +26,11 @@ android {
         resValues = true
     }
 
+    androidResources {
+        // 应用只有中文界面,裁掉依赖库携带的 80+ 种语言翻译资源
+        localeFilters.addAll(listOf("zh", "en"))
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17

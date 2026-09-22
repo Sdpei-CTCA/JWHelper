@@ -201,8 +201,10 @@ flutter build windows --release
   - 每个 APK 附同名 `.sha1` 校验文件
   - `JWHelper-<版本>-nosign.ipa`（未签名，需自行签名后安装）
   - 混淆符号表 `debug-info-<run_number>`（保留 90 天，用于还原混淆后的堆栈）
-- **发布**：仅当推送到默认分支时创建 Pre-release，标签为 `daily-YYYY-MM-DD`（北京时间）；
-  同名标签会更新并替换旧资产。该 Pre-release 为 `prerelease: true` 且 `makeLatest: false`，
+- **发布**：仅当推送到默认分支时创建 Pre-release，标签为 `pr<编号>-YYYY-MM-DD`（北京时间）。
+  编号取自该提交所属的 PR：先从合并提交标题解析，squash / rebase 合并再问一次 API，
+  直接推送到默认分支时取不到编号，标签只用日期。同名标签会更新并替换旧资产。
+  该 Pre-release 为 `prerelease: true` 且 `makeLatest: false`，
   因此不会成为 GitHub 的 Latest，**也不会被 App 内的更新检查识别为可用更新**。
 - **并发**：同一分支上连续推送时，新运行会取消先前的未完成运行，只保留最后一次；但默认分支
   上的运行不会被取消，以免中断已经进行到一半的发布。

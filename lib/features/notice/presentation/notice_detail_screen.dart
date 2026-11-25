@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:JWHelper/features/notice/data/notice_source.dart';
 import 'package:JWHelper/features/notice/domain/notice_detail.dart';
 import 'package:JWHelper/features/notice/domain/notice_item.dart';
@@ -68,6 +69,55 @@ class _NoticeDetailScreenState extends State<NoticeDetailScreen> {
 
   void _openWeb() {
     NoticeWebScreen.open(context, url: Uri.parse(widget.item.url));
+  }
+
+  /// 附件下载地址需要登录态，系统浏览器会跳到统一认证。
+  /// 所以先打开应用内网页版，让用户在原页面里下载。
+  void _openAttachment(NoticeAttachment attachment) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('「${attachment.name}」需登录态下载，已打开网页版'),
+        duration: const Duration(seconds: 3),
+      ),
+    );
+    _openWeb();
+  }
+
+  Future<void> _openExternal(String link) async {
+    var url = link.trim();
+    if (!url.startsWith('http')) {
+      url = 'http://$url';
+    }
+    final uri = Uri.tryParse(url);
+    if (uri == null) return;
+    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('无法打开链接')),
+      );
+    }
+  }
+
+  IconData _attachmentIcon(String suffix) {
+    switch (suffix.toLowerCase()) {
+      case 'pdf':
+        return Icons.picture_as_pdf_outlined;
+      case 'doc':
+      case 'docx':
+        return Icons.description_outlined;
+      case 'xls':
+      case 'xlsx':
+        return Icons.table_chart_outlined;
+      case 'ppt':
+      case 'pptx':
+        return Icons.slideshow_outlined;
+      case 'zip':
+      case 'rar':
+      case '7z':
+        return Icons.folder_zip_outlined;
+      default:
+        return Icons.insert_drive_file_outlined;
+    }
   }
 
   @override
@@ -150,6 +200,19 @@ class _NoticeDetailScreenState extends State<NoticeDetailScreen> {
               ),
             ),
           ),
+        if (detail.externalLink.isNotEmpty)
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.link),
+            title: const Text('这条通知指向外部链接'),
+            subtitle: Text(
+              detail.externalLink,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            trailing: const Icon(Icons.open_in_new, size: 18),
+            onTap: () => _openExternal(detail.externalLink),
+          ),
         if (detail.attachments.isNotEmpty) ...[
           const SizedBox(height: 8),
           Text(
@@ -160,17 +223,14 @@ class _NoticeDetailScreenState extends State<NoticeDetailScreen> {
           for (final attachment in detail.attachments)
             ListTile(
               contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.insert_drive_file_outlined),
+              leading: Icon(_attachmentIcon(attachment.suffix)),
               title: Text(
                 attachment.name,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
               trailing: const Icon(Icons.open_in_new, size: 18),
-              onTap: () => NoticeWebScreen.open(
-                context,
-                url: Uri.parse(attachment.url),
-              ),
+              onTap: () => _openAttachment(attachment),
             ),
         ],
         const SizedBox(height: 16),

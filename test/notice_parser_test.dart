@@ -1,192 +1,159 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:JWHelper/features/notice/data/notice_parser.dart';
 
 void main() {
-  final baseUri = Uri.parse('https://pubinfo.sdpei.edu.cn/index.jsp');
+  final origin = Uri.parse('https://pubinfo.sdpei.edu.cn');
 
-  group('列表解析', () {
-    test('从 ul/li 结构里认出标题、部门与日期', () {
-      const html = '''
-<html><body>
-  <div class="nav">
-    <a href="index.jsp">首页</a>
-    <a href="login.jsp">登录</a>
-    <a href="list.jsp?id=2">更多</a>
-  </div>
-  <ul class="news-list">
-    <li>
-      <span class="dept">教务处</span>
-      <a href="/2026/1120/c1234a5678/page.htm"
-         title="关于2026-2027学年第一学期期末考试安排的通知">关于2026-2027学年第一学期期末考试安排…</a>
-      <span class="date">2026-11-20</span>
-    </li>
-    <li>
-      <span class="dept">学生工作处</span>
-      <a href="/2026/1118/c1234a5600/page.htm">关于开展冬季安全教育主题班会的通知</a>
-      <span class="date">2026-11-18</span>
-    </li>
-  </ul>
-</body></html>
+  group('列表接口解析', () {
+    // 取自真实接口的裁剪样本，字段名与取值保持不变。
+    const rawJson = '''
+{
+  "iTotalRecords": 88,
+  "aaData": [
+    {
+      "ms_id": 21707,
+      "ms_title": "关于智慧考勤系统升级的通知",
+      "ms_link": "",
+      "sffj": 1,
+      "releasetime": 1792891499086,
+      "create_time": 1792891499086,
+      "dwbzmc": "网络信息中心"
+    },
+    {
+      "ms_id": 21636,
+      "ms_title": "易校园使用说明",
+      "ms_link": "https://static.sdpei.edu.cn/yingxin/help.html",
+      "sffj": 0,
+      "releasetime": 1724468207362,
+      "dwbzmc": "网络信息中心"
+    },
+    {
+      "ms_id": 21500,
+      "ms_title": "   ",
+      "sffj": 0
+    }
+  ]
+}
 ''';
 
-      final result = NoticeParser.parseList(html, baseUri);
+    test('取出主键、标题、部门、时间与附件标记', () {
+      final json = jsonDecode(rawJson) as Map<String, dynamic>;
+      final items = NoticeParser.parseListJson(json, origin);
 
-      expect(result.items.length, 2, reason: '导航链接不应被当成通知');
-      expect(result.items.first.title, '关于2026-2027学年第一学期期末考试安排的通知');
-      expect(result.items.first.publishedAt, DateTime(2026, 11, 20));
-      expect(result.items.first.department, '教务处');
-      expect(result.items.first.url,
-          'https://pubinfo.sdpei.edu.cn/2026/1120/c1234a5678/page.htm');
-      expect(result.items.last.publishedAt, DateTime(2026, 11, 18));
-      // 倒序：新的在前
-      expect(result.items.first.publishedAt!.isAfter(result.items.last.publishedAt!),
-          isTrue);
+      expect(items.length, 2, reason: '标题为空的行应被丢弃');
+      expect(items.first.id, '21707');
+      expect(items.first.title, '关于智慧考勤系统升级的通知');
+      expect(items.first.department, '网络信息中心');
+      expect(items.first.hasAttachment, isTrue);
+      expect(items.first.publishedAt,
+          DateTime.fromMillisecondsSinceEpoch(1792891499086));
+      expect(items.first.url,
+          'https://pubinfo.sdpei.edu.cn/page/infomation/infoxq.jsp?id=21707');
+      expect(items.last.hasAttachment, isFalse);
     });
 
-    test('表格布局同样能解析', () {
-      const html = '''
-<html><body>
-<table class="list">
-  <tr><th>标题</th><th>部门</th><th>日期</th></tr>
-  <tr>
-    <td><a href="detail.jsp?id=101">关于做好2027届毕业生图像采集工作的通知</a></td>
-    <td>教务处</td>
-    <td>2026/11/22</td>
-  </tr>
-  <tr>
-    <td><a href="detail.jsp?id=102">2026年冬季校园招聘会安排</a></td>
-    <td>就业指导中心</td>
-    <td>2026/11/21</td>
-  </tr>
-</table>
-</body></html>
-''';
+    test('保持接口顺序，不按时间重排（置顶通知要留在前面）', () {
+      final json = jsonDecode(rawJson) as Map<String, dynamic>;
+      final items = NoticeParser.parseListJson(json, origin);
 
-      final result = NoticeParser.parseList(html, baseUri);
-
-      expect(result.items.length, 2);
-      expect(result.items.first.title, '关于做好2027届毕业生图像采集工作的通知');
-      expect(result.items.first.publishedAt, DateTime(2026, 11, 22));
-      expect(result.items.first.department, '教务处');
+      expect(items.first.id, '21707');
+      expect(
+        items.first.publishedAt!.isAfter(items.last.publishedAt!),
+        isTrue,
+        reason: '这条样本里接口顺序恰好也是时间倒序',
+      );
     });
 
-    test('没有日期的列表行仍然保留，但纯导航链接被过滤', () {
-      const html = '''
-<html><body>
-  <a href="index.jsp">首页</a>
-  <ul>
-    <li><a href="/info/1024/1234.htm">关于公布教学改革立项名单的通知</a></li>
-  </ul>
-</body></html>
-''';
-
-      final result = NoticeParser.parseList(html, baseUri);
-
-      expect(result.items.length, 1);
-      expect(result.items.single.publishedAt, isNull);
-    });
-
-    test('同一链接重复出现只保留一条', () {
-      const html = '''
-<html><body>
-  <ul>
-    <li><a href="/2026/1120/c1a2/page.htm">关于开展实验室安全检查的通知</a> 2026-11-20</li>
-    <li><a href="/2026/1120/c1a2/page.htm">关于开展实验室安全检查的通知</a> 2026-11-20</li>
-  </ul>
-</body></html>
-''';
-
-      final result = NoticeParser.parseList(html, baseUri);
-      expect(result.items.length, 1);
-    });
-
-    test('页面里没有任何通知时返回空列表而不是抛异常', () {
-      const html = '<html><body><h1>系统维护中</h1></body></html>';
-      final result = NoticeParser.parseList(html, baseUri);
-      expect(result.items, isEmpty);
-    });
-
-    test('解析失败时能给出可反馈的结构摘要', () {
-      const html = '''
-<html><body>
-  <div id="main" class="notice-list">
-    <a href="/2026/1101/c1a1/page.htm">关于做好期末考试安排的通知</a>
-    <a href="/2026/1102/c1a2/page.htm">关于开展教学检查工作的通知</a>
-  </div>
-</body></html>
-''';
-      final summary = NoticeParser.summarizeStructure(html, baseUri);
-
-      expect(summary, contains('div#main.notice-list'));
-      expect(summary, contains('2 链接'));
-      expect(summary, contains('/2026/1101/c1a1/page.htm'));
+    test('缺少 aaData 时返回空列表而不是抛异常', () {
+      expect(NoticeParser.parseListJson({}, origin), isEmpty);
+      expect(NoticeParser.parseListJson({'aaData': 'oops'}, origin), isEmpty);
     });
   });
 
-  group('详情解析', () {
-    const html = '''
-<html><head><title>关于开展实验室安全检查的通知-山东体育学院</title></head>
-<body>
-  <h1>关于开展实验室安全检查的通知</h1>
-  <div class="info">教务处 2026-11-20</div>
-  <div id="vsb_content">
-    <p>各教学单位：</p>
-    <p>为进一步加强实验室安全管理，定于本周开展专项检查。</p>
-    <p>请各单位做好准备。<br>特此通知。</p>
-    <p><img src="/upload/2026/11/20/a.jpg"></p>
-    <p><a href="/upload/files/check-list.pdf">实验室安全检查表.pdf</a></p>
-  </div>
-</body></html>
+  group('详情接口解析', () {
+    const rawJson = '''
+{
+  "ms_id": 21707,
+  "ms_title": "关于智慧考勤系统升级的通知",
+  "ms_link": "",
+  "releasetime": 1792891499086,
+  "content": "<p>各位同学：</p><p>&nbsp;&nbsp;&nbsp;结合前期反馈，系统计划于本周日升级。<br/></p><p><img src=\\"http://x/a.jpg\\"/></p>",
+  "fj": [
+    {"mia_id": 35257, "ms_id": 21707, "fjname": "操作说明-学生分册.pdf", "suffix": "pdf"}
+  ],
+  "fj_count": 1
+}
 ''';
 
-    test('正文段落、图片标记与附件都能取到', () {
-      final detail = NoticeParser.parseDetail(
-        html,
-        Uri.parse('https://pubinfo.sdpei.edu.cn/2026/1120/c1a2/page.htm'),
-      );
+    test('正文转段落，附件与图片标记都能取到', () {
+      final json = jsonDecode(rawJson) as Map<String, dynamic>;
+      final detail = NoticeParser.parseDetailJson(json, origin);
 
-      expect(detail.title, '关于开展实验室安全检查的通知');
-      expect(detail.paragraphs.first, '各教学单位：');
-      expect(detail.paragraphs.any((p) => p.contains('专项检查')), isTrue);
-      expect(detail.paragraphs.any((p) => p.contains('特此通知')), isTrue);
+      expect(detail.title, '关于智慧考勤系统升级的通知');
+      expect(detail.paragraphs.length, 2);
+      expect(detail.paragraphs.first, '各位同学：');
+      expect(detail.paragraphs.last.contains('系统计划于本周日升级'), isTrue);
+      // &nbsp; 与缩进不应留在正文里
+      expect(detail.paragraphs.last.startsWith('结合'), isTrue);
       expect(detail.hasImages, isTrue);
       expect(detail.attachments.length, 1);
-      expect(detail.attachments.single.name, '实验室安全检查表.pdf');
+      expect(detail.attachments.single.name, '操作说明-学生分册.pdf');
+      expect(detail.attachments.single.suffix, 'pdf');
       expect(detail.attachments.single.url,
-          'https://pubinfo.sdpei.edu.cn/upload/files/check-list.pdf');
+          'https://pubinfo.sdpei.edu.cn/info/downfile?id=35257&infoid=21707');
+      expect(detail.url,
+          'https://pubinfo.sdpei.edu.cn/page/infomation/infoxq.jsp?id=21707');
+      expect(detail.isEmpty, isFalse);
     });
 
-    test('没有明确正文容器时也能兜底取到文字', () {
-      const plain = '''
-<html><body>
-  <div><div><p>第一段内容，足够长以便通过正文长度判断。</p>
-  <p>第二段内容，同样需要有一定的长度，避免被当作空白页。</p></div></div>
-</body></html>
-''';
-      final detail = NoticeParser.parseDetail(
-        plain,
-        Uri.parse('https://pubinfo.sdpei.edu.cn/2026/1120/c9a9/page.htm'),
-        fallbackTitle: '兜底标题',
-      );
+    test('外部链接会被保留', () {
+      final detail = NoticeParser.parseDetailJson({
+        'ms_id': 21636,
+        'ms_title': '易校园使用说明',
+        'ms_link': 'https://static.sdpei.edu.cn/yingxin/help.html',
+        'content': '<p>详见链接。</p>',
+      }, origin);
 
-      expect(detail.paragraphs, isNotEmpty);
-      expect(detail.isEmpty, isFalse);
+      expect(detail.externalLink,
+          'https://static.sdpei.edu.cn/yingxin/help.html');
+    });
+
+    test('没有正文时 isEmpty 为真，交给界面提示看原文', () {
+      final detail = NoticeParser.parseDetailJson({
+        'ms_id': 1,
+        'ms_title': '只有附件的通知',
+        'content': '',
+      }, origin);
+
+      expect(detail.isEmpty, isTrue);
     });
   });
 
-  group('日期识别', () {
-    test('跳过不成立的年份区间，取真正的发布日期', () {
-      final date = NoticeParser.extractDate('关于2026-2027学年期末考试 2026-11-20');
-      expect(date, DateTime(2026, 11, 20));
+  group('正文 HTML 转段落', () {
+    test('br 与块级标签都当换行，表格单元格不会粘成一行', () {
+      final paragraphs = NoticeParser.contentToParagraphs(
+        '<div>第一行<br/>第二行</div><table><tr><td>甲</td><td>乙</td></tr></table>',
+      );
+
+      expect(paragraphs, contains('第一行'));
+      expect(paragraphs, contains('第二行'));
+      expect(paragraphs, contains('甲'));
+      expect(paragraphs, contains('乙'));
     });
 
-    test('支持中文日期与紧凑格式', () {
-      expect(NoticeParser.extractDate('2026年11月20日'), DateTime(2026, 11, 20));
-      expect(NoticeParser.extractDate('20261120'), DateTime(2026, 11, 20));
+    test('空内容返回空列表', () {
+      expect(NoticeParser.contentToParagraphs('   '), isEmpty);
+      expect(NoticeParser.contentToParagraphs('<p></p>'), isEmpty);
     });
+  });
 
-    test('没有日期时返回 null', () {
-      expect(NoticeParser.extractDate('关于期末考试安排的通知'), isNull);
+  group('失败诊断', () {
+    test('响应片段会被截断成可复制的文本', () {
+      final summary = NoticeParser.summarizeBody('x' * 900);
+      expect(summary.contains('响应长度 900'), isTrue);
+      expect(summary.length < 500, isTrue);
     });
   });
 }

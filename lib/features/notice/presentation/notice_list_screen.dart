@@ -331,6 +331,15 @@ class _NoticeTile extends StatelessWidget {
                     ),
                   ),
                 ),
+                if (item.hasAttachment)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 6, top: 3),
+                    child: Icon(
+                      Icons.attach_file,
+                      size: 14,
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.35),
+                    ),
+                  ),
               ],
             ),
             if (meta.isNotEmpty) ...[

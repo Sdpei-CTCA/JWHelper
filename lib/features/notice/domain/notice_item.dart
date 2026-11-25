@@ -2,8 +2,8 @@ import 'package:flutter/foundation.dart';
 
 /// 一条通知公告。
 ///
-/// [id] 直接使用归一化后的详情页地址：学校发布平台没有稳定的对外主键，
-/// 但同一条通知的链接在多次抓取之间是稳定的，用它做已读标记与去重最可靠。
+/// 学校发布平台（`pubinfo.sdpei.edu.cn`）的列表接口直接给出主键 `ms_id`、
+/// 标题、发布部门与发布时间，因此不再需要解析 HTML 去猜。
 @immutable
 class NoticeItem {
   const NoticeItem({
@@ -12,16 +12,25 @@ class NoticeItem {
     required this.url,
     this.publishedAt,
     this.department = '',
+    this.hasAttachment = false,
     this.isRead = false,
   });
 
+  /// 平台主键（`ms_id`）。
   final String id;
+
   final String title;
+
+  /// 网页版详情地址，用于「查看原文」与解析失败时的兜底。
   final String url;
+
   final DateTime? publishedAt;
 
-  /// 发布部门；列表页没给就留空，界面上不占位。
+  /// 发布部门名（接口字段 `dwbzmc`）。
   final String department;
+
+  /// 是否带附件（接口字段 `sffj`），列表里给个小回形针提示。
+  final bool hasAttachment;
 
   final bool isRead;
 
@@ -32,6 +41,7 @@ class NoticeItem {
       url: url,
       publishedAt: publishedAt,
       department: department,
+      hasAttachment: hasAttachment,
       isRead: isRead ?? this.isRead,
     );
   }
@@ -43,6 +53,7 @@ class NoticeItem {
       'url': url,
       'publishedAt': publishedAt?.millisecondsSinceEpoch,
       'department': department,
+      'hasAttachment': hasAttachment,
     };
   }
 
@@ -59,10 +70,10 @@ class NoticeItem {
       id: id,
       title: title,
       url: url,
-      publishedAt: millis is int
-          ? DateTime.fromMillisecondsSinceEpoch(millis)
-          : null,
+      publishedAt:
+          millis is int ? DateTime.fromMillisecondsSinceEpoch(millis) : null,
       department: json['department']?.toString() ?? '',
+      hasAttachment: json['hasAttachment'] == true,
     );
   }
 

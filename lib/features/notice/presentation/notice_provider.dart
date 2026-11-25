@@ -1,0 +1,345 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
+import 'package:JWHelper/features/attendance/presentation/attendance_provider.dart';
+import 'package:JWHelper/features/notice/data/notice_cache_store.dart';
+import 'package:JWHelper/features/notice/data/notice_source.dart';
+import 'package:JWHelper/features/notice/data/pubinfo_notice_source.dart';
+import 'package:JWHelper/features/notice/domain/notice_detail.dart';
+import 'package:JWHelper/features/notice/domain/notice_item.dart';
+import 'package:JWHelper/infrastructure/notifications/notification_service.dart';
+
+/// 通知公告的全局状态。
+///
+/// 登录态直接复用考勤模块的智慧山体 SSO（[AttendanceProvider]）：同一套统一
+/// 认证，同一份 `CTTICKET`。因此「没绑定智慧考勤账号」时通知也读不了，界面会
+/// 引导用户去绑定，而不是假装空列表。
+class NoticeProvider with ChangeNotifier {
+  NoticeProvider({
+    NoticeSource? source,
+    NoticeCacheStore? store,
+    NotificationService? notifications,
+  })  : _source = source ?? PubinfoNoticeSource(),
+        _store = store ?? NoticeCacheStore(),
+        _notifications = notifications ?? NotificationService();
+
+  /// 后台静默检查的最小间隔：太频繁会白白耗流量，也会让「新通知」提醒变噪音。
+  static const Duration backgroundCheckInterval = Duration(minutes: 20);
+
+  final NoticeSource _source;
+  final NoticeCacheStore _store;
+  final NotificationService _notifications;
+
+  AttendanceProvider? _auth;
+  String _username = '';
+
+  List<NoticeItem> _items = const [];
+  Set<String> _readIds = <String>{};
+  Set<String> _knownIds = <String>{};
+  final Map<String, NoticeDetail> _detailCache = {};
+
+  bool _isLoading = false;
+  bool _isRefreshing = false;
+  bool _hasLoaded = false;
+  bool _reminderEnabled = true;
+  bool _initialized = false;
+  bool _initializing = false;
+  bool _disposed = false;
+
+  String? _errorMessage;
+  NoticeErrorKind? _errorKind;
+  String _diagnostics = '';
+
+  List<NoticeItem> get items => _items;
+  bool get isLoading => _isLoading;
+  bool get isRefreshing => _isRefreshing;
+  bool get hasLoaded => _hasLoaded;
+  bool get reminderEnabled => _reminderEnabled;
+  String? get errorMessage => _errorMessage;
+  NoticeErrorKind? get errorKind => _errorKind;
+  String get diagnostics => _diagnostics;
+
+  /// 当前账号已保存智慧山体账号密码（不论是否校验通过）。
+  bool get hasCredentials => _auth?.hasSavedCredentials ?? false;
+
+  int get unreadCount {
+    if (_readIds.isEmpty) return _items.length;
+    return _items.where((e) => !_readIds.contains(e.id)).length;
+  }
+
+  /// 由 `ChangeNotifierProxyProvider` 在每次依赖更新时调用。
+  ///
+  /// 考勤页里改绑账号后 `AttendanceProvider` 会通知一次，这里要跟着重新按新
+  /// 账号初始化（换人后不能沿用上一个人的已读状态），因此不能只在首次调用时
+  /// 才干活。
+  void attachAuth(AttendanceProvider auth) {
+    _auth = auth;
+    unawaited(initialize());
+  }
+
+  /// 首次进入时读缓存；有账号的话再静默刷新一次。
+  Future<void> initialize() async {
+    final auth = _auth;
+    if (auth == null || _initializing) return;
+
+    _initializing = true;
+    try {
+      await auth.ensureLoaded();
+      final username = auth.savedUsername;
+      if (_initialized && username == _username) {
+        return;
+      }
+
+      // 换绑了智慧山体账号：清空上一个人的列表与已读状态，避免串号。
+      if (_initialized) {
+        _items = const [];
+        _readIds = <String>{};
+        _knownIds = <String>{};
+        _detailCache.clear();
+        _hasLoaded = false;
+        _errorMessage = null;
+        _errorKind = null;
+        _diagnostics = '';
+      }
+
+      _initialized = true;
+      _username = username;
+      _readIds = await _store.readReadIds(username);
+      _knownIds = await _store.readKnownIds(username);
+      _reminderEnabled = await _store.readReminderEnabled();
+
+      final cached = await _store.readList(username);
+      if (cached.isNotEmpty) {
+        _items = _applyReadFlags(cached);
+        _hasLoaded = true;
+        _notify();
+      }
+
+      // 有缓存时先展示缓存，再用后台刷新覆盖；没缓存则直接转圈加载。
+      if (auth.hasSavedCredentials) {
+        if (_items.isEmpty) {
+          _isLoading = true;
+          _notify();
+        }
+        await refresh(silent: _items.isNotEmpty);
+      } else {
+        _errorKind = NoticeErrorKind.notConfigured;
+        _errorMessage = '还没绑定智慧山体账号，绑定后即可查看学校通知';
+        _hasLoaded = true;
+        _notify();
+      }
+    } finally {
+      _initializing = false;
+    }
+  }
+
+  /// 下拉刷新 / 首次加载。
+  ///
+  /// [silent] 为 true 时不显示整页 loading、不弹错误条（用于后台检查）。
+  Future<void> refresh({bool silent = false}) async {
+    if (_disposed) return;
+
+    if (_isRefreshing) return;
+    _isRefreshing = true;
+    if (!silent) {
+      _errorMessage = null;
+      _errorKind = null;
+    }
+    _notify();
+
+    try {
+      await _authorize();
+      _source.updateCredentials(
+        userToken: _auth?.userToken ?? '',
+        ctTicket: _auth?.ctTicket ?? '',
+        appCtTicket: _auth?.appCtTicket ?? '',
+      );
+
+      final fetched = await _source.fetchList();
+      final source = _source;
+      _diagnostics =
+          source is PubinfoNoticeSource ? source.lastDiagnostics : '';
+
+      final isFirstRun = _knownIds.isEmpty && _items.isEmpty;
+      final freshIds = fetched
+          .map((e) => e.id)
+          .where((id) => !_knownIds.contains(id))
+          .toSet();
+
+      _items = _applyReadFlags(fetched);
+      _hasLoaded = true;
+      _errorMessage = null;
+      _errorKind = null;
+
+      _knownIds = {
+        ..._knownIds,
+        ...fetched.map((e) => e.id),
+      };
+      // 只保留最近的一批，避免 SharedPreferences 无限增长。
+      if (_knownIds.length > 600) {
+        _knownIds = fetched.map((e) => e.id).toSet();
+      }
+
+      await _store.saveList(_username, fetched);
+      await _store.saveKnownIds(_username, _knownIds);
+      await _store.saveLastCheckAt(DateTime.now());
+
+      // 首次安装时把当前全部通知视为「已见过」，避免一进来就弹一堆提醒。
+      if (!isFirstRun && freshIds.isNotEmpty && silent) {
+        await _maybeNotify(freshIds.length, fetched.first.title);
+      }
+    } on NoticeException catch (e) {
+      // 后台静默刷新失败时不覆盖界面上已有的内容与错误提示：
+      // 用户正看着缓存列表，不该因为一次网络抖动就变成整页报错。
+      if (!silent || _items.isEmpty) {
+        _errorKind = e.kind;
+        _errorMessage = e.message;
+      }
+      debugPrint('Notice refresh failed (${e.kind.name}): ${e.message}');
+      if (e.kind == NoticeErrorKind.notConfigured ||
+          e.kind == NoticeErrorKind.authFailed) {
+        _hasLoaded = true;
+      }
+    } catch (e) {
+      if (!silent || _items.isEmpty) {
+        _errorKind = NoticeErrorKind.network;
+        _errorMessage = '加载通知失败：$e';
+      }
+      debugPrint('Notice refresh failed: $e');
+    } finally {
+      _isRefreshing = false;
+      _isLoading = false;
+      _notify();
+    }
+  }
+
+  /// 后台检查：限流、无 UI 反馈，只在有新通知时弹一条本地提醒。
+  ///
+  /// 调用时机是「App 启动完成」与「从后台回到前台」，不引入后台任务插件。
+  Future<void> checkForNewInBackground({bool force = false}) async {
+    if (_disposed) return;
+    if (_auth?.hasSavedCredentials != true) return;
+
+    if (!force) {
+      final last = await _store.readLastCheckAt();
+      if (last != null &&
+          DateTime.now().difference(last) < backgroundCheckInterval) {
+        return;
+      }
+    }
+
+    // 先记下尝试时间：失败（比如断网）也按节流算，避免每次回前台都重试。
+    await _store.saveLastCheckAt(DateTime.now());
+    await refresh(silent: true);
+  }
+
+  Future<void> markRead(NoticeItem item) async {
+    if (_readIds.contains(item.id)) return;
+    _readIds = {..._readIds, item.id};
+    _items = _applyReadFlags(_items);
+    await _store.saveReadIds(_username, _readIds);
+    _notify();
+  }
+
+  Future<void> markAllRead() async {
+    final ids = _items.map((e) => e.id).toSet();
+    if (ids.isEmpty) return;
+    _readIds = {..._readIds, ...ids};
+    _items = _applyReadFlags(_items);
+    await _store.saveReadIds(_username, _readIds);
+    _notify();
+  }
+
+  Future<void> clearReadState() async {
+    _readIds = <String>{};
+    _items = _applyReadFlags(_items);
+    await _store.clearReadState(_username);
+    _notify();
+  }
+
+  Future<NoticeDetail> loadDetail(NoticeItem item) async {
+    final cached = _detailCache[item.id];
+    if (cached != null) return cached;
+
+    await _authorize();
+    _source.updateCredentials(
+      userToken: _auth?.userToken ?? '',
+      ctTicket: _auth?.ctTicket ?? '',
+      appCtTicket: _auth?.appCtTicket ?? '',
+    );
+
+    final detail = await _source.fetchDetail(item);
+    _detailCache[item.id] = detail;
+    return detail;
+  }
+
+  Future<void> setReminderEnabled(bool value) async {
+    _reminderEnabled = value;
+    await _store.saveReminderEnabled(value);
+    _notify();
+  }
+
+  Future<String?> _authorize() async {
+    final auth = _auth;
+    if (auth == null) {
+      throw const NoticeException(
+        NoticeErrorKind.notConfigured,
+        '还没绑定智慧山体账号，绑定后即可查看学校通知',
+      );
+    }
+
+    await auth.ensureLoaded();
+    if (!auth.hasSavedCredentials) {
+      throw const NoticeException(
+        NoticeErrorKind.notConfigured,
+        '还没绑定智慧山体账号，绑定后即可查看学校通知',
+      );
+    }
+
+    final error = await auth.ensureAuthorizedWithRecovery();
+    if (error != null) {
+      throw NoticeException(
+        NoticeErrorKind.authFailed,
+        error.isEmpty ? '统一认证登录失败，请重新登录' : error,
+      );
+    }
+    return null;
+  }
+
+  Future<void> _maybeNotify(int count, String latestTitle) async {
+    if (!_reminderEnabled || count <= 0) return;
+
+    final today = _dayKey(DateTime.now());
+    final lastDay = await _store.readLastNotifyDay();
+    if (lastDay == today) return;
+
+    await _notifications.showNoticeSummary(
+      count: count,
+      latestTitle: latestTitle,
+    );
+    await _store.saveLastNotifyDay(today);
+  }
+
+  List<NoticeItem> _applyReadFlags(List<NoticeItem> items) {
+    return items
+        .map((e) => e.copyWith(isRead: _readIds.contains(e.id)))
+        .toList(growable: false);
+  }
+
+  String _dayKey(DateTime time) {
+    final month = time.month.toString().padLeft(2, '0');
+    final day = time.day.toString().padLeft(2, '0');
+    return '${time.year}-$month-$day';
+  }
+
+  void _notify() {
+    if (_disposed) return;
+    notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
+  }
+}

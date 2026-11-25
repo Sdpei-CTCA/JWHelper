@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:JWHelper/features/auth/presentation/auth_provider.dart';
 import 'package:JWHelper/features/attendance/presentation/attendance_provider.dart';
 import 'package:JWHelper/features/attendance/presentation/attendance_web_actions.dart';
+import 'package:JWHelper/features/notice/presentation/notice_provider.dart';
 import 'package:JWHelper/app/state/data_provider.dart';
 import 'package:JWHelper/shared/theme/theme_provider.dart';
 import 'package:JWHelper/shared/theme/wallpaper_provider.dart';
@@ -40,6 +41,11 @@ class MyApp extends StatelessWidget {
           create: (_) => DataProvider(),
           update: (_, auth, data) =>
               data!..updateUsername(auth.currentUsername),
+        ),
+        // 通知公告复用考勤模块的统一认证登录态，因此挂在 AttendanceProvider 之后。
+        ChangeNotifierProxyProvider<AttendanceProvider, NoticeProvider>(
+          create: (_) => NoticeProvider(),
+          update: (_, attendance, notice) => notice!..attachAuth(attendance),
         ),
       ],
       child: Consumer2<ThemeProvider, WallpaperProvider>(

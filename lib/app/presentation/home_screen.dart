@@ -20,6 +20,8 @@ import 'package:JWHelper/features/attendance/presentation/attendance_screen.dart
 import 'package:JWHelper/features/attendance/presentation/attendance_account_form.dart';
 import 'package:JWHelper/features/attendance/presentation/attendance_provider.dart';
 import 'package:JWHelper/features/attendance/presentation/attendance_web_actions.dart';
+import 'package:JWHelper/features/notice/presentation/notice_list_screen.dart';
+import 'package:JWHelper/features/notice/presentation/notice_provider.dart';
 import 'package:JWHelper/features/auth/presentation/login_screen.dart';
 import 'package:JWHelper/app/coordinators/logout_coordinator.dart';
 import 'package:JWHelper/app/coordinators/home_navigation_coordinator.dart';
@@ -35,7 +37,7 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   int _currentIndex = 0;
   bool _attendanceTabOpened = false;
   final ValueNotifier<bool> _isGridSchedule = ValueNotifier(false);
@@ -50,11 +52,15 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _defaultTabApplied = false;
   bool _openedFromExternalEntry = false;
 
+  /// 通知冷启动：等自动登录完成后再打开通知中心，避免被登录页覆盖。
+  bool _pendingNoticeOpen = false;
+
   late final List<Widget> _pages;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _initScheduleViewMode();
     _pages = [
       ScheduleScreen(isGridViewNotifier: _isGridSchedule, selectedWeekNotifier: _selectedWeek),
@@ -152,6 +158,10 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     if (mounted) await _checkCampusSetting();
+
+    // 通知检查不阻塞首屏：静默拉一次，并处理「点通知冷启动」的待办跳转。
+    unawaited(_checkNoticesInBackground());
+    _maybeOpenPendingNotice();
   }
 
   void _promptWidgetPermissionsIfNeeded() {
@@ -228,6 +238,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _sub?.cancel();
     context.read<DataProvider>().removeListener(_onDataChanged);
     _updateService.dispose();
@@ -236,6 +247,55 @@ class _HomeScreenState extends State<HomeScreen> {
       NotificationService.onNotificationSelected = null;
     }
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // 回到前台时顺手查一次新通知；内部有 20 分钟节流，不会频繁请求。
+    if (state == AppLifecycleState.resumed) {
+      unawaited(_checkNoticesInBackground());
+    }
+  }
+
+  /// 静默检查新通知：失败只写日志，不影响任何界面。
+  Future<void> _checkNoticesInBackground() async {
+    if (!mounted) return;
+    try {
+      await context.read<NoticeProvider>().checkForNewInBackground();
+    } catch (e) {
+      debugPrint('Notice background check failed: $e');
+    }
+  }
+
+  /// 打开通知中心（从铃铛或通知点击进入）。
+  void _openNoticeCenter() {
+    if (!mounted) return;
+    Navigator.of(context).popUntil((route) => route.isFirst);
+    NoticeListScreen.open(context);
+  }
+
+  /// 冷启动时点通知，要等自动登录结束再打开，否则会被登录页顶掉。
+  void _maybeOpenPendingNotice() {
+    if (!_pendingNoticeOpen || !mounted) return;
+    if (!context.read<AuthProvider>().isLoggedIn) return;
+    _pendingNoticeOpen = false;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _openNoticeCenter();
+    });
+  }
+
+  /// 标题栏的通知入口：铃铛 + 未读数角标。
+  Widget _buildNoticeAction(BuildContext context) {
+    final unread = context.select<NoticeProvider, int>((p) => p.unreadCount);
+    return IconButton(
+      tooltip: unread > 0 ? '通知公告（$unread 条未读）' : '通知公告',
+      onPressed: _openNoticeCenter,
+      icon: Badge(
+        isLabelVisible: unread > 0,
+        label: Text(unread > 99 ? '99+' : '$unread'),
+        child: const Icon(Icons.notifications_none),
+      ),
+    );
   }
 
   void _checkWidgetLaunch() async {
@@ -274,6 +334,13 @@ class _HomeScreenState extends State<HomeScreen> {
   /// 按外部跳转标识（小组件深链 host / 通知 payload）切换到对应 tab。
   void _openTabForToken(String? token) {
     if (!mounted) return;
+
+    // 通知提醒不是 tab，冷启动时先挂起，等登录完成后再打开。
+    if (token == NotificationService.noticePayload) {
+      _pendingNoticeOpen = true;
+      _maybeOpenPendingNotice();
+      return;
+    }
 
     final nextIndex = HomeNavigationCoordinator.tabIndexFromToken(token);
     if (nextIndex == null) return;
@@ -1012,6 +1079,8 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           if (_currentIndex == HomeNavigationCoordinator.attendanceTab)
             ..._buildAttendanceActions(),
+          if (_currentIndex != HomeNavigationCoordinator.attendanceTab)
+            _buildNoticeAction(context),
           IconButton(
             icon: _buildAboutIcon(),
             tooltip: "设置",

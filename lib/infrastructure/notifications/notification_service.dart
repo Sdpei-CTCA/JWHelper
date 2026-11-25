@@ -19,6 +19,9 @@ class NotificationService {
   /// 点击上课提醒后要跳转的目标（由 app 层解析成具体 tab）。
   static const String attendancePayload = 'attendance';
 
+  /// 点击「新通知」提醒后要跳转的目标（由 app 层打开通知中心）。
+  static const String noticePayload = 'notice';
+
   /// 用户点击通知时回调 payload，由 app 层负责导航。
   ///
   /// 与 `ApiClient.onSessionExpired` 一样，用静态回调让基础设施层不必依赖
@@ -198,6 +201,44 @@ class NotificationService {
         ),
       ),
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+    );
+  }
+
+  /// 新通知提醒：同类消息聚合成一条，避免一次装十条通知刷屏。
+  ///
+  /// 与上课提醒用不同渠道：重要性取默认值、不占用「闹钟」类别，这样用户可以在
+  /// 系统设置里单独关掉它而不影响课前提醒。
+  Future<void> showNoticeSummary({
+    required int count,
+    String? latestTitle,
+  }) async {
+    if (!_initialized) await init();
+
+    final body = (latestTitle == null || latestTitle.isEmpty)
+        ? '学校发布了 $count 条新通知，点击查看'
+        : '$latestTitle${count > 1 ? ' 等 $count 条' : ''}，点击查看';
+
+    await flutterLocalNotificationsPlugin.show(
+      id: 9100,
+      title: count > 1 ? '有 $count 条新通知' : '有 1 条新通知',
+      body: body,
+      notificationDetails: const NotificationDetails(
+        android: AndroidNotificationDetails(
+          'notice_channel',
+          '通知公告',
+          channelDescription: '学校发布新通知时提醒',
+          importance: Importance.defaultImportance,
+          priority: Priority.defaultPriority,
+          playSound: true,
+          visibility: NotificationVisibility.public,
+        ),
+        iOS: DarwinNotificationDetails(
+          presentSound: true,
+          presentAlert: true,
+          presentBadge: true,
+        ),
+      ),
+      payload: noticePayload,
     );
   }
 

@@ -149,13 +149,9 @@ class NoticeProvider with ChangeNotifier {
 
     try {
       await _authorize();
-      _source.updateCredentials(
-        userToken: _auth?.userToken ?? '',
-        ctTicket: _auth?.ctTicket ?? '',
-        appCtTicket: _auth?.appCtTicket ?? '',
-      );
+      _applyCredentials();
 
-      final fetched = await _source.fetchList();
+      final fetched = await _withAuthRetry(() => _source.fetchList());
       final source = _source;
       _diagnostics =
           source is PubinfoNoticeSource ? source.lastDiagnostics : '';
@@ -262,13 +258,9 @@ class NoticeProvider with ChangeNotifier {
     if (cached != null) return cached;
 
     await _authorize();
-    _source.updateCredentials(
-      userToken: _auth?.userToken ?? '',
-      ctTicket: _auth?.ctTicket ?? '',
-      appCtTicket: _auth?.appCtTicket ?? '',
-    );
+    _applyCredentials();
 
-    final detail = await _source.fetchDetail(item);
+    final detail = await _withAuthRetry(() => _source.fetchDetail(item));
     _detailCache[item.id] = detail;
     return detail;
   }
@@ -277,6 +269,35 @@ class NoticeProvider with ChangeNotifier {
     _reminderEnabled = value;
     await _store.saveReminderEnabled(value);
     _notify();
+  }
+
+  void _applyCredentials() {
+    _source.updateCredentials(
+      userToken: _auth?.userToken ?? '',
+      ctTicket: _auth?.ctTicket ?? '',
+      appCtTicket: _auth?.appCtTicket ?? '',
+    );
+  }
+
+  /// 票据被通知平台拒绝时，强制重登一次再试。
+  ///
+  /// 与考勤页的 `withAuthRetry` 同思路：缓存的统一认证令牌放几天后失效是最
+  /// 常见的失败原因，重登一次通常就好了，不该直接把错误甩给用户。
+  Future<T> _withAuthRetry<T>(Future<T> Function() action) async {
+    try {
+      return await action();
+    } on NoticeException catch (e) {
+      if (e.kind != NoticeErrorKind.authFailed) rethrow;
+      final auth = _auth;
+      if (auth == null) rethrow;
+
+      debugPrint('Notice ticket rejected, re-authorizing once: ${e.message}');
+      final error = await auth.ensureAuthorized(force: true);
+      if (error != null) rethrow;
+
+      _applyCredentials();
+      return action();
+    }
   }
 
   Future<String?> _authorize() async {

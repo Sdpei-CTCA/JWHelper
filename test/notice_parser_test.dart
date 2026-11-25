@@ -105,6 +105,22 @@ void main() {
       final result = NoticeParser.parseList(html, baseUri);
       expect(result.items, isEmpty);
     });
+
+    test('解析失败时能给出可反馈的结构摘要', () {
+      const html = '''
+<html><body>
+  <div id="main" class="notice-list">
+    <a href="/2026/1101/c1a1/page.htm">关于做好期末考试安排的通知</a>
+    <a href="/2026/1102/c1a2/page.htm">关于开展教学检查工作的通知</a>
+  </div>
+</body></html>
+''';
+      final summary = NoticeParser.summarizeStructure(html, baseUri);
+
+      expect(summary, contains('div#main.notice-list'));
+      expect(summary, contains('2 链接'));
+      expect(summary, contains('/2026/1101/c1a1/page.htm'));
+    });
   });
 
   group('详情解析', () {

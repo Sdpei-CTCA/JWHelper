@@ -49,6 +49,7 @@ class NoticeProvider with ChangeNotifier {
   String? _errorMessage;
   NoticeErrorKind? _errorKind;
   String _diagnostics = '';
+  String _structureSummary = '';
 
   List<NoticeItem> get items => _items;
   bool get isLoading => _isLoading;
@@ -58,6 +59,9 @@ class NoticeProvider with ChangeNotifier {
   String? get errorMessage => _errorMessage;
   NoticeErrorKind? get errorKind => _errorKind;
   String get diagnostics => _diagnostics;
+
+  /// 解析失败时的页面结构摘要；用户可一键复制反馈。
+  String get structureSummary => _structureSummary;
 
   /// 当前账号已保存智慧山体账号密码（不论是否校验通过）。
   bool get hasCredentials => _auth?.hasSavedCredentials ?? false;
@@ -100,6 +104,7 @@ class NoticeProvider with ChangeNotifier {
         _errorMessage = null;
         _errorKind = null;
         _diagnostics = '';
+        _structureSummary = '';
       }
 
       _initialized = true;
@@ -185,6 +190,7 @@ class NoticeProvider with ChangeNotifier {
         await _maybeNotify(freshIds.length, fetched.first.title);
       }
     } on NoticeException catch (e) {
+      _captureSourceDiagnostics();
       // 后台静默刷新失败时不覆盖界面上已有的内容与错误提示：
       // 用户正看着缓存列表，不该因为一次网络抖动就变成整页报错。
       if (!silent || _items.isEmpty) {
@@ -277,6 +283,16 @@ class NoticeProvider with ChangeNotifier {
       ctTicket: _auth?.ctTicket ?? '',
       appCtTicket: _auth?.appCtTicket ?? '',
     );
+  }
+
+  /// 把数据源里的诊断信息同步到状态层，供「复制诊断」使用。
+  void _captureSourceDiagnostics() {
+    final source = _source;
+    if (source is! PubinfoNoticeSource) return;
+    if (source.lastDiagnostics.isNotEmpty) {
+      _diagnostics = source.lastDiagnostics;
+    }
+    _structureSummary = source.lastStructureSummary;
   }
 
   /// 票据被通知平台拒绝时，强制重登一次再试。

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:JWHelper/features/attendance/presentation/attendance_account_form.dart';
@@ -63,6 +64,22 @@ class _NoticeListScreenState extends State<NoticeListScreen> {
       context,
       url: Uri.parse(PubinfoNoticeSource.origin),
       title: '通知公告',
+    );
+  }
+
+  /// 复制诊断信息。Release 包拿不到私有目录里的原始页面，这个按钮是唯一
+  /// 能把「页面到底长什么样」反馈出来的通道。
+  Future<void> _copyDiagnostics(NoticeProvider notice) async {
+    final text = [
+      notice.errorMessage ?? '',
+      notice.diagnostics,
+      notice.structureSummary,
+    ].where((e) => e.trim().isNotEmpty).join('\n\n');
+
+    await Clipboard.setData(ClipboardData(text: text));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('诊断信息已复制，可直接粘贴反馈')),
     );
   }
 
@@ -247,6 +264,14 @@ class _NoticeListScreenState extends State<NoticeListScreen> {
             style: theme.textTheme.bodySmall?.copyWith(
               color: theme.colorScheme.onSurface.withValues(alpha: 0.35),
               fontSize: 11,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Center(
+            child: TextButton.icon(
+              onPressed: () => _copyDiagnostics(notice),
+              icon: const Icon(Icons.copy, size: 16),
+              label: const Text('复制诊断信息'),
             ),
           ),
         ],

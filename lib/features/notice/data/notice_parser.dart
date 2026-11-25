@@ -86,6 +86,62 @@ class NoticeParser {
     'h6',
   };
 
+  /// 生成页面结构摘要，用于「解析失败时把现场发给开发者」。
+  ///
+  /// Release 包的私有目录用户取不到，所以这里只挑结构信息（容器选择器 +
+  /// 链接数 + 前若干条链接），几十行文本就能判断该写哪种选择器。
+  static String summarizeStructure(String html, Uri baseUri) {
+    final document = html_parser.parse(html);
+    for (final node in document.querySelectorAll('script, style, noscript')) {
+      node.remove();
+    }
+
+    final buffer = StringBuffer();
+    buffer.writeln('## 候选容器（按链接数排序）');
+
+    final containers = document
+        .querySelectorAll('div, ul, table, tbody, section, main')
+        .where((e) => e.querySelectorAll('a').length >= 2)
+        .toList()
+      ..sort((a, b) => b
+          .querySelectorAll('a')
+          .length
+          .compareTo(a.querySelectorAll('a').length));
+
+    for (final element in containers.take(8)) {
+      final tag = element.localName ?? '?';
+      final id = element.id.isEmpty ? '' : '#${element.id}';
+      final classes = element.className
+          .trim()
+          .split(RegExp(r'\s+'))
+          .where((c) => c.isNotEmpty)
+          .take(3)
+          .map((c) => '.$c')
+          .join();
+      final linkCount = element.querySelectorAll('a').length;
+      final textLength = _clean(element.text).length;
+      buffer.writeln('$tag$id$classes → $linkCount 链接 / $textLength 字');
+    }
+
+    buffer.writeln('## 前 25 条链接');
+    var index = 0;
+    for (final anchor in document.querySelectorAll('a')) {
+      if (index >= 25) break;
+      final href = (anchor.attributes['href'] ?? '').trim();
+      if (href.isEmpty) continue;
+      index++;
+      final text = _clean(anchor.text);
+      final shortText = text.length > 28 ? '${text.substring(0, 28)}…' : text;
+      buffer.writeln('$shortText | $href');
+    }
+
+    buffer.writeln('## 基本信息');
+    buffer.writeln('base=${baseUri.toString()}');
+    buffer.writeln('anchors=${document.querySelectorAll('a').length}');
+
+    return buffer.toString();
+  }
+
   /// 解析列表页。
   static NoticeListParseResult parseList(String html, Uri baseUri) {
     final document = html_parser.parse(html);

@@ -33,6 +33,9 @@ class PubinfoNoticeSource implements NoticeSource {
   /// 最近一次请求的诊断信息，解析失败时展示给用户，便于反馈问题。
   String lastDiagnostics = '';
 
+  /// 解析失败时的页面结构摘要（可复制给开发者定位选择器）。
+  String lastStructureSummary = '';
+
   static Dio _buildDio() {
     return Dio(BaseOptions(
       connectTimeout: const Duration(seconds: 12),
@@ -69,6 +72,8 @@ class PubinfoNoticeSource implements NoticeSource {
 
   @override
   Future<List<NoticeItem>> fetchList() async {
+    lastDiagnostics = '';
+    lastStructureSummary = '';
     final response = await _request(listPath, referer: '$origin/');
     final html = response.data?.toString() ?? '';
 
@@ -85,6 +90,7 @@ class PubinfoNoticeSource implements NoticeSource {
         'HTTP ${response.statusCode} · ${html.length} 字节 · 链接 ${result.anchorCount} · 命中 ${result.items.length} 条（带日期 ${result.datedCount}）';
 
     if (result.items.isEmpty) {
+      lastStructureSummary = NoticeParser.summarizeStructure(html, uri);
       await _dumpDebugHtml(html, 'index');
       throw NoticeException(
         NoticeErrorKind.parse,

@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:JWHelper/features/auth/presentation/auth_provider.dart';
 import 'package:JWHelper/features/attendance/presentation/attendance_provider.dart';
 import 'package:JWHelper/features/attendance/presentation/attendance_web_actions.dart';
+import 'package:JWHelper/features/notice/presentation/notice_entry_style.dart';
 import 'package:JWHelper/features/notice/presentation/notice_provider.dart';
 import 'package:JWHelper/app/state/data_provider.dart';
 import 'package:JWHelper/shared/theme/theme_provider.dart';
@@ -13,6 +16,7 @@ import 'package:JWHelper/app/navigation/app_navigator.dart';
 import 'package:JWHelper/app/presentation/home_screen.dart';
 import 'package:JWHelper/infrastructure/network/client.dart';
 import 'package:JWHelper/infrastructure/platform/widget_service.dart';
+import 'package:JWHelper/app/background/background_sync.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -21,6 +25,8 @@ Future<void> main() async {
   SharedPreferences.getInstance();
   // WidgetService.init() runs in background, doesn't block app launch
   WidgetService.init();
+  // 后台轮询：注册回调并按开关状态安排/取消周期任务，失败不影响启动
+  unawaited(BackgroundSync.initialize());
   runApp(const MyApp());
 }
 
@@ -47,6 +53,7 @@ class MyApp extends StatelessWidget {
           create: (_) => NoticeProvider(),
           update: (_, attendance, notice) => notice!..attachAuth(attendance),
         ),
+        ChangeNotifierProvider(create: (_) => NoticeEntryStyleProvider()),
       ],
       child: Consumer2<ThemeProvider, WallpaperProvider>(
         builder: (context, themeProvider, wallpaperProvider, child) {

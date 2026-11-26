@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:JWHelper/features/attendance/presentation/attendance_provider.dart';
 import 'package:JWHelper/features/notice/data/notice_cache_store.dart';
 import 'package:JWHelper/features/notice/data/notice_source.dart';
@@ -300,6 +302,50 @@ class NoticeProvider with ChangeNotifier {
       _imageCache[url] = null;
       return null;
     }
+  }
+
+  /// 下载附件到本地缓存目录，返回文件路径；失败返回 null。
+  ///
+  /// 附件地址需要登录态，所以必须用带 Cookie 的 [NoticeSource.fetchBytes]
+  /// 取字节，拿到本地文件后再交给系统查看器打开。
+  Future<String?> downloadAttachment(NoticeAttachment attachment) async {
+    try {
+      _applyCredentials();
+      var bytes = await _source.fetchBytes(attachment.url);
+
+      if (bytes == null && (_auth?.hasSavedCredentials ?? false)) {
+        final error = await _auth?.ensureAuthorized(force: true);
+        if (error == null) {
+          _applyCredentials();
+          bytes = await _source.fetchBytes(attachment.url);
+        }
+      }
+
+      if (bytes == null || bytes.isEmpty) return null;
+
+      final dir = await getTemporaryDirectory();
+      final folder = Directory('${dir.path}/notice_attachments');
+      await folder.create(recursive: true);
+
+      final file = File('${folder.path}/${_safeFileName(attachment.name)}');
+      await file.writeAsBytes(bytes, flush: true);
+      return file.path;
+    } catch (e) {
+      debugPrint('Notice attachment download failed: $e');
+      return null;
+    }
+  }
+
+  /// 文件名里去掉系统不接受的字符，避免写入失败；保留中文。
+  String _safeFileName(String name) {
+    final trimmed = name.trim();
+    final cleaned = trimmed.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
+    if (cleaned.isEmpty) return 'attachment';
+    if (cleaned.length <= 80) return cleaned;
+    final dot = cleaned.lastIndexOf('.');
+    if (dot <= 0 || cleaned.length - dot > 8) return cleaned.substring(0, 80);
+    final ext = cleaned.substring(dot);
+    return '${cleaned.substring(0, 80 - ext.length)}$ext';
   }
 
   Future<void> setReminderEnabled(bool value) async {

@@ -1,4 +1,5 @@
 import 'package:JWHelper/core/constants/period_time_table.dart';
+import 'package:flutter/services.dart' show PlatformException;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
@@ -120,6 +121,7 @@ class NotificationService {
     final now = DateTime.now();
     int scheduledCount = 0;
     final scheduledIds = <int>[];
+    DateTime? nextReminderAt;
 
     for (var item in schedule) {
       if (scheduledCount >= 60) break; // iOS limit is 64, leave some buffer
@@ -154,17 +156,26 @@ class NotificationService {
             reminderTime.isBefore(now.add(const Duration(days: 14)))) {
           
           final id = (reminderTime.millisecondsSinceEpoch ~/ 1000).remainder(100000);
-          await _scheduleNotification(
-            id: id,
-            title: '上课提醒',
-            body: buildClassReminderBody(
-              courseName: item.name,
-              classroom: item.classroom,
-            ),
-            payload: attendancePayload,
-            scheduledDate: reminderTime,
-          );
+          try {
+            await _scheduleNotification(
+              id: id,
+              title: '上课提醒',
+              body: buildClassReminderBody(
+                courseName: item.name,
+                classroom: item.classroom,
+              ),
+              payload: attendancePayload,
+              scheduledDate: reminderTime,
+            );
+          } catch (e) {
+            // 单条排不上不该让整批中断（比如个别机型拒绝精确闹钟）。
+            debugPrint('Schedule class reminder failed: $e');
+            continue;
+          }
           scheduledIds.add(id);
+          if (nextReminderAt == null || reminderTime.isBefore(nextReminderAt)) {
+            nextReminderAt = reminderTime;
+          }
           scheduledCount++;
           if (scheduledCount >= 60) break;
         }
@@ -172,7 +183,28 @@ class NotificationService {
     }
 
     await _saveScheduledClassReminderIds(scheduledIds);
+    await _saveScheduleSummary(
+      count: scheduledIds.length,
+      nextAt: nextReminderAt,
+    );
     debugPrint('Scheduled $scheduledCount class reminders.');
+  }
+
+  static const String _scheduleCountKey = 'class_reminder_count';
+  static const String _nextReminderKey = 'class_reminder_next_at';
+
+  /// 记下「排了多少条、下一条什么时候」，供设置里的自检面板展示。
+  Future<void> _saveScheduleSummary({
+    required int count,
+    required DateTime? nextAt,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_scheduleCountKey, count);
+    if (nextAt == null) {
+      await prefs.remove(_nextReminderKey);
+    } else {
+      await prefs.setInt(_nextReminderKey, nextAt.millisecondsSinceEpoch);
+    }
   }
 
   static const String _scheduledIdsKey = 'class_reminder_notification_ids';
@@ -211,32 +243,51 @@ class NotificationService {
     required DateTime scheduledDate,
     String? payload,
   }) async {
-    await flutterLocalNotificationsPlugin.zonedSchedule(
-      id: id,
-      title: title,
-      body: body,
-      scheduledDate: tz.TZDateTime.from(scheduledDate, tz.local),
-      payload: payload,
-      notificationDetails: const NotificationDetails(
-        android: AndroidNotificationDetails(
-          'class_reminder_channel',
-          '上课提醒',
-          channelDescription: '课前十分钟提醒',
-          importance: Importance.max,
-          priority: Priority.high,
-          playSound: true,
-          enableVibration: true,
-          visibility: NotificationVisibility.public,
-          category: AndroidNotificationCategory.alarm,
-        ),
-        iOS: DarwinNotificationDetails(
-          presentSound: true,
-          presentAlert: true,
-          presentBadge: true,
-        ),
+    const details = NotificationDetails(
+      android: AndroidNotificationDetails(
+        'class_reminder_channel',
+        '上课提醒',
+        channelDescription: '课前十分钟提醒',
+        importance: Importance.max,
+        priority: Priority.high,
+        playSound: true,
+        enableVibration: true,
+        visibility: NotificationVisibility.public,
+        category: AndroidNotificationCategory.alarm,
       ),
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      iOS: DarwinNotificationDetails(
+        presentSound: true,
+        presentAlert: true,
+        presentBadge: true,
+      ),
     );
+
+    final when = tz.TZDateTime.from(scheduledDate, tz.local);
+
+    Future<void> schedule(AndroidScheduleMode mode) {
+      return flutterLocalNotificationsPlugin.zonedSchedule(
+        id: id,
+        title: title,
+        body: body,
+        scheduledDate: when,
+        payload: payload,
+        notificationDetails: details,
+        androidScheduleMode: mode,
+      );
+    }
+
+    try {
+      await schedule(AndroidScheduleMode.exactAllowWhileIdle);
+    } on PlatformException catch (e) {
+      // Android 12+ 没给「闹钟和提醒」权限时，精确闹钟会被系统拒绝。
+      // 退回非精确闹钟：可能晚几分钟，但总比一条都不发强。
+      if (e.code == 'exact_alarms_not_permitted') {
+        debugPrint('Exact alarm not permitted, falling back to inexact.');
+        await schedule(AndroidScheduleMode.inexactAllowWhileIdle);
+        return;
+      }
+      rethrow;
+    }
   }
 
   /// 新通知提醒：同类消息聚合成一条，避免一次装十条通知刷屏。

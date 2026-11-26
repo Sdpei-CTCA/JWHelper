@@ -20,6 +20,8 @@ import 'package:JWHelper/features/attendance/presentation/attendance_screen.dart
 import 'package:JWHelper/features/attendance/presentation/attendance_account_form.dart';
 import 'package:JWHelper/features/attendance/presentation/attendance_provider.dart';
 import 'package:JWHelper/features/attendance/presentation/attendance_web_actions.dart';
+import 'package:JWHelper/features/notice/presentation/notice_entry_button.dart';
+import 'package:JWHelper/features/notice/presentation/notice_entry_style.dart';
 import 'package:JWHelper/features/notice/presentation/notice_list_screen.dart';
 import 'package:JWHelper/features/notice/presentation/notice_provider.dart';
 import 'package:JWHelper/features/auth/presentation/login_screen.dart';
@@ -30,6 +32,7 @@ import 'package:JWHelper/infrastructure/notifications/notification_service.dart'
 import 'package:JWHelper/infrastructure/platform/widget_permission_service.dart';
 import 'package:JWHelper/app/presentation/widget_settings_sheet.dart';
 import 'package:JWHelper/app/presentation/background_sync_tiles.dart';
+import 'package:JWHelper/app/presentation/reminder_diagnostics_tile.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -285,17 +288,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     });
   }
 
-  /// 标题栏的通知入口：铃铛 + 未读数角标。
+  /// 标题栏的通知入口：铃铛 / 「铃铛 + 公告」胶囊，两种形态在外观设置里切换。
   Widget _buildNoticeAction(BuildContext context) {
     final unread = context.select<NoticeProvider, int>((p) => p.unreadCount);
-    return IconButton(
-      tooltip: unread > 0 ? '通知公告（$unread 条未读）' : '通知公告',
-      onPressed: _openNoticeCenter,
-      icon: Badge(
-        isLabelVisible: unread > 0,
-        label: Text(unread > 99 ? '99+' : '$unread'),
-        child: const Icon(Icons.notifications_none),
-      ),
+    final style = context.watch<NoticeEntryStyleProvider>();
+    return NoticeEntryButton(
+      unread: unread,
+      mode: style.mode,
+      fill: style.fill,
+      onTap: _openNoticeCenter,
+      // 标题栏空间紧张（网格模式还有周选择器），用紧凑尺寸。
+      compact: true,
     );
   }
 
@@ -820,6 +823,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         ),
                         const Divider(height: 1, indent: 16, endIndent: 16),
                         BackgroundSyncTiles(accentColor: primaryColor),
+                        ReminderDiagnosticsTile(accentColor: primaryColor),
                         const Divider(height: 1, indent: 16, endIndent: 16),
                         Consumer<AttendanceProvider>(
                           builder: (context, attendanceProvider, child) {
@@ -970,6 +974,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           children: [
             const Text(
               "教务小助手",
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: TextStyle(fontWeight: FontWeight.bold),
             ),
             if (dataProvider.isScheduleTermUnavailable)

@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
+import 'package:open_filex/open_filex.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:JWHelper/features/notice/data/notice_source.dart';
 import 'package:JWHelper/features/notice/domain/notice_detail.dart';
@@ -35,6 +36,9 @@ class _NoticeDetailScreenState extends State<NoticeDetailScreen> {
   NoticeDetail? _detail;
   String? _error;
   bool _isLoading = true;
+
+  /// 正在下载的附件地址；不为空时列表上显示进度。
+  String? _downloadingUrl;
 
   @override
   void initState() {
@@ -75,16 +79,44 @@ class _NoticeDetailScreenState extends State<NoticeDetailScreen> {
     NoticeWebScreen.open(context, url: Uri.parse(widget.item.url));
   }
 
-  /// 附件下载地址需要登录态，系统浏览器会跳到统一认证。
-  /// 所以先打开应用内网页版，让用户在原页面里下载。
-  void _openAttachment(NoticeAttachment attachment) {
+  /// 附件用登录态直接下载到本地，再交给系统查看器打开。
+  ///
+  /// 之前是「打开网页版让用户自己下」，但既然 App 已经持有统一认证登录态，
+  /// 直接下载体验更好；下载失败才退回网页版。
+  Future<void> _openAttachment(NoticeAttachment attachment) async {
+    if (_downloadingUrl != null) return;
+
+    setState(() => _downloadingUrl = attachment.url);
+    final path =
+        await context.read<NoticeProvider>().downloadAttachment(attachment);
+    if (!mounted) return;
+    setState(() => _downloadingUrl = null);
+
+    if (path == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('附件下载失败，已打开网页版')),
+      );
+      _openWeb();
+      return;
+    }
+
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('「${attachment.name}」需登录态下载，已打开网页版'),
-        duration: const Duration(seconds: 3),
+      const SnackBar(
+        content: Text('附件已下载，正在打开…'),
+        duration: Duration(milliseconds: 1500),
       ),
     );
-    _openWeb();
+
+    final result = await OpenFilex.open(path);
+    if (!mounted) return;
+    if (result.type != ResultType.done) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('附件已保存到 $path，但没有可打开它的应用'),
+          duration: const Duration(seconds: 5),
+        ),
+      );
+    }
   }
 
   Future<void> _openExternal(String link) async {
@@ -237,7 +269,17 @@ class _NoticeDetailScreenState extends State<NoticeDetailScreen> {
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
-              trailing: const Icon(Icons.open_in_new, size: 18),
+              subtitle: const Text(
+                '点击下载并打开',
+                style: TextStyle(fontSize: 11),
+              ),
+              trailing: _downloadingUrl == attachment.url
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.download, size: 18),
               onTap: () => _openAttachment(attachment),
             ),
         ],

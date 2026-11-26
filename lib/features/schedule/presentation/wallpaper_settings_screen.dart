@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:JWHelper/shared/theme/wallpaper_provider.dart';
+import 'package:JWHelper/features/notice/presentation/notice_entry_button.dart';
+import 'package:JWHelper/features/notice/presentation/notice_entry_style.dart';
 
 class WallpaperSettingsScreen extends StatefulWidget {
   const WallpaperSettingsScreen({super.key});
@@ -119,6 +121,10 @@ class _WallpaperSettingsScreenState extends State<WallpaperSettingsScreen> {
 
                   // Card Transparency
                   _buildCardOpacitySection(context, wallpaperProvider),
+                  const SizedBox(height: 24),
+
+                  // Notice entry style
+                  _buildNoticeEntrySection(context),
                   const SizedBox(height: 24),
 
                   // Wallpaper Opacity Slider
@@ -642,6 +648,101 @@ class _WallpaperSettingsScreenState extends State<WallpaperSettingsScreen> {
             },
           ),
         ),
+      ],
+    );
+  }
+
+  /// 通知入口的形态与配色。预览直接复用首页那个控件，避免两处样式不一致。
+  Widget _buildNoticeEntrySection(BuildContext context) {
+    final theme = Theme.of(context);
+    final style = context.watch<NoticeEntryStyleProvider>();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '通知入口样式',
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          '首页标题栏的「通知公告」入口长什么样',
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+          ),
+        ),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surfaceContainerHighest
+                .withValues(alpha: 0.35),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: theme.dividerColor),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                Icons.arrow_back,
+                size: 16,
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.3),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                '教务小助手',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  color: theme.colorScheme.onSurface,
+                ),
+              ),
+              const Spacer(),
+              NoticeEntryButton(
+                unread: 3,
+                mode: style.mode,
+                fill: style.fill,
+                onTap: () {},
+                compact: true,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 14),
+        SegmentedButton<NoticeEntryMode>(
+          segments: const [
+            ButtonSegment(
+              value: NoticeEntryMode.capsule,
+              label: Text('铃铛 + 公告'),
+            ),
+            ButtonSegment(
+              value: NoticeEntryMode.icon,
+              label: Text('仅铃铛'),
+            ),
+          ],
+          selected: {style.mode},
+          showSelectedIcon: false,
+          onSelectionChanged: (values) => style.setMode(values.first),
+        ),
+        if (style.mode == NoticeEntryMode.capsule) ...[
+          const SizedBox(height: 12),
+          SegmentedButton<NoticeEntryFill>(
+            segments: const [
+              ButtonSegment(
+                value: NoticeEntryFill.tint,
+                label: Text('浅色底'),
+              ),
+              ButtonSegment(
+                value: NoticeEntryFill.solid,
+                label: Text('主题色'),
+              ),
+            ],
+            selected: {style.fill},
+            showSelectedIcon: false,
+            onSelectionChanged: (values) => style.setFill(values.first),
+          ),
+        ],
       ],
     );
   }

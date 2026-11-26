@@ -969,6 +969,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     return Scaffold(
       appBar: AppBar(
         centerTitle: false,
+        // 收紧标题左边距，把宽度让给「教务小助手」与周次。
+        titleSpacing: 8,
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -976,7 +978,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               "教务小助手",
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontWeight: FontWeight.bold),
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17),
             ),
             if (dataProvider.isScheduleTermUnavailable)
               Text(
@@ -1040,9 +1042,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           IconButton(
-                            icon: const Icon(Icons.chevron_left, size: 20),
+                            icon: const Icon(Icons.chevron_left, size: 18),
                             padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                            visualDensity: VisualDensity.compact,
+                            constraints: const BoxConstraints(minWidth: 26, minHeight: 32),
                             onPressed: week > 1
                                 ? () => _selectedWeek.value = week - 1
                                 : null,
@@ -1050,24 +1053,26 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           Text(
                             '第$week周',
                             style: TextStyle(
-                              fontSize: 13,
+                              fontSize: 12,
                               fontWeight: FontWeight.bold,
                               color: primary,
                             ),
                           ),
                           IconButton(
-                            icon: const Icon(Icons.chevron_right, size: 20),
+                            icon: const Icon(Icons.chevron_right, size: 18),
                             padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                            visualDensity: VisualDensity.compact,
+                            constraints: const BoxConstraints(minWidth: 26, minHeight: 32),
                             onPressed: week < 25
                                 ? () => _selectedWeek.value = week + 1
                                 : null,
                           ),
                           IconButton(
-                            icon: Icon(isGrid ? Icons.view_agenda : Icons.view_headline, size: 20),
+                            icon: Icon(isGrid ? Icons.view_agenda : Icons.view_headline, size: 18),
                             tooltip: "切换视图",
                             padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                            visualDensity: VisualDensity.compact,
+                            constraints: const BoxConstraints(minWidth: 26, minHeight: 32),
                             onPressed: () {
                               _isGridSchedule.value = !isGrid;
                             },
@@ -1093,6 +1098,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           IconButton(
             icon: _buildAboutIcon(),
             tooltip: "设置",
+            padding: EdgeInsets.zero,
+            visualDensity: VisualDensity.compact,
+            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
             onPressed: _showSettingsDialog,
           ),
         ],

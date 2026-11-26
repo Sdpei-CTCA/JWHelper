@@ -59,7 +59,7 @@ class NoticeEntryButton extends StatelessWidget {
           onTap: onTap,
           child: Container(
             padding: compact
-                ? const EdgeInsets.fromLTRB(8, 3, 9, 3)
+                ? const EdgeInsets.fromLTRB(7, 3, 8, 3)
                 : const EdgeInsets.fromLTRB(9, 5, 11, 5),
             decoration: BoxDecoration(
               color: solid

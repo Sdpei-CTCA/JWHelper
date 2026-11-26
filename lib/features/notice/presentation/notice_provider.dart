@@ -37,6 +37,7 @@ class NoticeProvider with ChangeNotifier {
   Set<String> _readIds = <String>{};
   Set<String> _knownIds = <String>{};
   final Map<String, NoticeDetail> _detailCache = {};
+  final Map<String, Uint8List?> _imageCache = {};
 
   bool _isLoading = false;
   bool _isRefreshing = false;
@@ -269,6 +270,36 @@ class NoticeProvider with ChangeNotifier {
     final detail = await _withAuthRetry(() => _source.fetchDetail(item));
     _detailCache[item.id] = detail;
     return detail;
+  }
+
+  /// 下载正文图片（带登录态），内存里缓存一份。
+  ///
+  /// 返回 null 表示取不到（权限、断网或图片已失效），界面据此显示占位。
+  Future<Uint8List?> loadImage(String url) async {
+    if (_imageCache.containsKey(url)) {
+      return _imageCache[url];
+    }
+
+    try {
+      _applyCredentials();
+      var bytes = await _source.fetchBytes(url);
+
+      // 首次失败多半是会话没建好：用保存的凭据重登一次再试。
+      if (bytes == null && (_auth?.hasSavedCredentials ?? false)) {
+        final error = await _auth?.ensureAuthorized(force: true);
+        if (error == null) {
+          _applyCredentials();
+          bytes = await _source.fetchBytes(url);
+        }
+      }
+
+      _imageCache[url] = bytes;
+      return bytes;
+    } catch (e) {
+      debugPrint('Notice image load failed: $e');
+      _imageCache[url] = null;
+      return null;
+    }
   }
 
   Future<void> setReminderEnabled(bool value) async {

@@ -18,34 +18,60 @@ class NoticeAttachment {
   final String suffix;
 }
 
-/// 通知详情的正文结构。
+/// 正文里的一个内容块。
 ///
-/// 接口里的 `content` 是富文本片段，这里只抽「能安全渲染成纯文本」的部分：
-/// 段落文字 + 附件。图片与复杂排版交给网页版兜底。
+/// 学校正文是「文字 + 图片」混排的 HTML，按 DOM 顺序切成块才能在原生页面里
+/// 还原大致版式；只抽段落会把图片全丢到最后。
+sealed class NoticeBlock {
+  const NoticeBlock();
+}
+
+class NoticeTextBlock extends NoticeBlock {
+  const NoticeTextBlock(this.text);
+
+  final String text;
+}
+
+class NoticeImageBlock extends NoticeBlock {
+  const NoticeImageBlock(this.url);
+
+  /// 图片绝对地址。加载需要登录态，由 [NoticeProvider] 统一带 Cookie 下载。
+  final String url;
+}
+
+/// 通知详情的正文结构。
 @immutable
 class NoticeDetail {
   const NoticeDetail({
     required this.url,
     required this.title,
-    required this.paragraphs,
+    required this.blocks,
     this.attachments = const [],
-    this.hasImages = false,
     this.publishedAt,
     this.externalLink = '',
   });
 
   final String url;
   final String title;
-  final List<String> paragraphs;
+
+  /// 按出现顺序排列的段落与图片。
+  final List<NoticeBlock> blocks;
+
   final List<NoticeAttachment> attachments;
-
-  /// 正文里含图片。纯文本渲染会丢图，界面据此把「看原文」的入口前置。
-  final bool hasImages;
-
   final DateTime? publishedAt;
 
   /// 通知本身指向的外部链接（接口字段 `ms_link`）。
   final String externalLink;
 
-  bool get isEmpty => paragraphs.isEmpty && attachments.isEmpty;
+  bool get isEmpty => blocks.isEmpty && attachments.isEmpty;
+
+  List<String> get paragraphs => blocks
+      .whereType<NoticeTextBlock>()
+      .map((e) => e.text)
+      .toList(growable: false);
+
+  List<String> get images => blocks
+      .whereType<NoticeImageBlock>()
+      .map((e) => e.url)
+      .toList(growable: false);
 }

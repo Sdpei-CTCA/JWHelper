@@ -13,6 +13,7 @@ class NoticeItem {
     this.publishedAt,
     this.department = '',
     this.hasAttachment = false,
+    this.isPinned = false,
     this.isRead = false,
   });
 
@@ -32,6 +33,9 @@ class NoticeItem {
   /// 是否带附件（接口字段 `sffj`），列表里给个小回形针提示。
   final bool hasAttachment;
 
+  /// 是否置顶（接口字段 `tjlevel` 大于 0 即视为推荐/置顶）。
+  final bool isPinned;
+
   final bool isRead;
 
   NoticeItem copyWith({bool? isRead}) {
@@ -42,6 +46,7 @@ class NoticeItem {
       publishedAt: publishedAt,
       department: department,
       hasAttachment: hasAttachment,
+      isPinned: isPinned,
       isRead: isRead ?? this.isRead,
     );
   }
@@ -54,6 +59,7 @@ class NoticeItem {
       'publishedAt': publishedAt?.millisecondsSinceEpoch,
       'department': department,
       'hasAttachment': hasAttachment,
+      'isPinned': isPinned,
     };
   }
 
@@ -74,6 +80,7 @@ class NoticeItem {
           millis is int ? DateTime.fromMillisecondsSinceEpoch(millis) : null,
       department: json['department']?.toString() ?? '',
       hasAttachment: json['hasAttachment'] == true,
+      isPinned: json['isPinned'] == true,
     );
   }
 

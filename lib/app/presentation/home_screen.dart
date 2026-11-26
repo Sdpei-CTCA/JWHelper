@@ -29,6 +29,7 @@ import 'package:JWHelper/app/coordinators/evaluation_flow_coordinator.dart';
 import 'package:JWHelper/infrastructure/notifications/notification_service.dart';
 import 'package:JWHelper/infrastructure/platform/widget_permission_service.dart';
 import 'package:JWHelper/app/presentation/widget_settings_sheet.dart';
+import 'package:JWHelper/app/presentation/background_sync_tiles.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -809,7 +810,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                       final dataProvider = Provider.of<DataProvider>(context, listen: false);
                                       dataProvider.loadSchedule(forceRefresh: true);
                                     } else {
-                                      NotificationService().flutterLocalNotificationsPlugin.cancelAll();
+                                      NotificationService().cancelClassReminders();
                                     }
                                   },
                                 );
@@ -817,6 +818,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                             );
                           },
                         ),
+                        const Divider(height: 1, indent: 16, endIndent: 16),
+                        BackgroundSyncTiles(accentColor: primaryColor),
                         const Divider(height: 1, indent: 16, endIndent: 16),
                         Consumer<AttendanceProvider>(
                           builder: (context, attendanceProvider, child) {

@@ -1,4 +1,7 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:JWHelper/features/notice/data/notice_source.dart';
@@ -10,8 +13,9 @@ import 'package:JWHelper/features/notice/presentation/notice_web_screen.dart';
 
 /// 通知详情。
 ///
-/// 正文优先用原生排版渲染；遇到图片、表格或解析失败，就引导到内嵌网页原文——
-/// 宁可多一步点击，也不要把排版错乱的正文硬塞给用户。
+/// 正文按「文字 / 图片」块顺序渲染；图片需要登录态，统一走
+/// [NoticeProvider.loadImage] 带 Cookie 下载，不能交给 `Image.network`。
+/// 排版特别复杂或需要下载附件时，右上角可切到网页版原文。
 class NoticeDetailScreen extends StatefulWidget {
   const NoticeDetailScreen({super.key, required this.item});
 
@@ -124,6 +128,13 @@ class _NoticeDetailScreenState extends State<NoticeDetailScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        leading: BackButton(
+          onPressed: () {
+            if (Navigator.of(context).canPop()) {
+              Navigator.of(context).pop();
+            }
+          },
+        ),
         title: const Text('通知详情'),
         actions: [
           IconButton(
@@ -145,7 +156,7 @@ class _NoticeDetailScreenState extends State<NoticeDetailScreen> {
       return _buildError(_error!);
     }
     final detail = _detail;
-    if (detail == null || detail.paragraphs.isEmpty) {
+    if (detail == null || detail.isEmpty) {
       return _buildError('这条通知的正文没能解析出来');
     }
     return _buildContent(detail);
@@ -171,35 +182,32 @@ class _NoticeDetailScreenState extends State<NoticeDetailScreen> {
         ),
         if (meta.isNotEmpty) ...[
           const SizedBox(height: 10),
-          Text(
-            meta,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-            ),
+          Row(
+            children: [
+              if (widget.item.isPinned)
+                Padding(
+                  padding: const EdgeInsets.only(right: 6),
+                  child: Icon(
+                    Icons.push_pin,
+                    size: 13,
+                    color: theme.colorScheme.primary,
+                  ),
+                ),
+              Expanded(
+                child: Text(
+                  meta,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
         const SizedBox(height: 16),
         Divider(color: theme.dividerColor, height: 1),
         const SizedBox(height: 16),
-        if (detail.hasImages)
-          const Padding(
-            padding: EdgeInsets.only(bottom: 12),
-            child: _NoticeHint(
-              icon: Icons.image_outlined,
-              text: '正文含图片，这里只显示文字；完整排版请点右上角查看原文。',
-            ),
-          ),
-        for (final paragraph in detail.paragraphs)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 14),
-            child: SelectableText(
-              paragraph,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                fontSize: 15,
-                height: 1.75,
-              ),
-            ),
-          ),
+        for (var i = 0; i < detail.blocks.length; i++) _buildBlock(detail.blocks[i], i),
         if (detail.externalLink.isNotEmpty)
           ListTile(
             contentPadding: EdgeInsets.zero,
@@ -241,6 +249,31 @@ class _NoticeDetailScreenState extends State<NoticeDetailScreen> {
         ),
       ],
     );
+  }
+
+  Widget _buildBlock(NoticeBlock block, int index) {
+    final theme = Theme.of(context);
+
+    if (block is NoticeImageBlock) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 14),
+        child: NoticeImage(url: block.url),
+      );
+    }
+
+    final text = (block as NoticeTextBlock).text;
+    return Padding(
+          padding: const EdgeInsets.only(bottom: 14),
+          child: SelectableText(
+            text,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              fontSize: 15,
+              height: 1.75,
+            ),
+          ),
+        )
+        .animate()
+        .fadeIn(duration: 220.ms, delay: (index.clamp(0, 6) * 30).ms);
   }
 
   Widget _buildError(String message) {
@@ -285,37 +318,115 @@ class _NoticeDetailScreenState extends State<NoticeDetailScreen> {
   }
 }
 
-class _NoticeHint extends StatelessWidget {
-  const _NoticeHint({required this.icon, required this.text});
+/// 正文图片：带 Cookie 下载后内存渲染，点击可全屏查看。
+class NoticeImage extends StatefulWidget {
+  const NoticeImage({super.key, required this.url});
 
-  final IconData icon;
-  final String text;
+  final String url;
+
+  @override
+  State<NoticeImage> createState() => _NoticeImageState();
+}
+
+class _NoticeImageState extends State<NoticeImage> {
+  Future<Uint8List?>? _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = context.read<NoticeProvider>().loadImage(widget.url);
+  }
+
+  @override
+  void didUpdateWidget(covariant NoticeImage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.url != widget.url) {
+      _future = context.read<NoticeProvider>().loadImage(widget.url);
+    }
+  }
+
+  void _openFullscreen(Uint8List bytes) {
+    showDialog<void>(
+      context: context,
+      barrierColor: Colors.black,
+      builder: (context) => GestureDetector(
+        onTap: () => Navigator.of(context).pop(),
+        child: InteractiveViewer(
+          maxScale: 5,
+          child: Center(child: Image.memory(bytes, fit: BoxFit.contain)),
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.secondaryContainer.withValues(alpha: 0.4),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, size: 16, color: theme.colorScheme.onSecondaryContainer),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              text,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSecondaryContainer,
-                height: 1.5,
+
+    return FutureBuilder<Uint8List?>(
+      future: _future,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return Container(
+            height: 160,
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainerHighest
+                  .withValues(alpha: 0.4),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Center(
+              child: SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
               ),
             ),
+          );
+        }
+
+        final bytes = snapshot.data;
+        if (bytes == null || bytes.isEmpty) {
+          return Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainerHighest
+                  .withValues(alpha: 0.3),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.broken_image_outlined,
+                  size: 18,
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '图片加载失败，可在网页版中查看',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
+        return GestureDetector(
+          onTap: () => _openFullscreen(bytes),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Image.memory(
+              bytes,
+              fit: BoxFit.fitWidth,
+              width: double.infinity,
+              errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+            ),
           ),
-        ],
-      ),
+        ).animate().fadeIn(duration: 260.ms, curve: Curves.easeOut);
+      },
     );
   }
 }

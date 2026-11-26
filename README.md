@@ -11,7 +11,7 @@
 
 - 项目名称：JWHelper
 - 当前版本：1.4.5
-- 技术栈：Flutter + Provider + Dio + SharedPreferences
+- 技术栈：Flutter + Provider + Dio + SharedPreferences + WorkManager（后台轮询）
 - 支持平台：Android、iOS、Windows、macOS、Linux
 - 主要定位：个人教务信息查询与轻量辅助操作
 
@@ -26,7 +26,8 @@
 - 学业进度：展示培养方案完成度、学分信息和课程明细。
 - 智慧考勤签到：底部「考勤」标签页内直接是智慧考勤页面（应用内网页版），可完成上课签到、下课签退、到场签到（含人脸活体）与考勤统计查询。使用「智慧山体」统一认证账号，与教务账号相互独立；首次使用需填写学号与密码，之后可在「设置与关于 → 智慧考勤账号」中修改或清除。
 - 教学评价辅助：检测未完成评价并提供手动评教入口；文字题至少输入 10 个字符方可提交。
-- 通知公告：标题栏铃铛入口 + 未读角标，聚合同一登录态下的学校信息发布平台通知，支持未读标记、下拉刷新、离线缓存与「打开 App 时」的新通知提醒。数据直接取平台 JSON 接口，正文原生排版，含图片或需要下载附件时可一键切到内嵌网页原文。
+- 通知公告：标题栏铃铛入口 + 未读角标，聚合同一登录态下的学校信息发布平台通知。支持未读标记、置顶标识、正文图片内嵌渲染、下拉刷新与离线缓存；新通知提醒支持「打开 App 时检查」与「后台轮询」两种方式。数据直接取平台 JSON 接口，正文按「文字 / 图片」顺序原生排版，复杂排版或附件可一键切到内嵌网页原文。
+- 后台轮询：基于 WorkManager 的周期任务，可分别开关「通知后台轮询」与「课程提醒后台轮询」，在「设置与关于」里配置；后者会定期续排未来两周的课前提醒。
 - 离线模式：网络异常时优先读取本地缓存数据。
 - 小组件支持：Android / iOS 桌面小组件同步「今日课表」与「学业进度」；设置页可检查闹钟、通知（提醒）及 HyperOS 自启动权限，iOS 学业进度小组件支持点击跳转 App。
 - 动态导航 URL：登录后拉取教务 `BuildMenu` 解析成绩/进度/考试/评教等业务地址，失败时回退 `Config` 常量。
@@ -53,7 +54,7 @@
 - 课前提醒通知点击跳转（点通知直接进入考勤页，冷启动同样生效）
 - 新通知提醒点击跳转（点通知直接打开通知中心，冷启动同样生效）
 - 版本更新浮动提示
-- 设置与关于页面（含课表外观自定义、主题切换、校区选择、课前提醒开关、**智慧考勤账号**、桌面小组件权限、更新检查、退出登录等）
+- 设置与关于页面（含课表外观自定义、主题切换、校区选择、课前提醒开关、**后台轮询开关**、**智慧考勤账号**、桌面小组件权限、更新检查、退出登录等）
 
 ## 技术实现
 
@@ -292,11 +293,11 @@ flutter clean
 
 - **登录态**：复用「智慧山体」统一认证，与智慧考勤同一套票据。**没有绑定智慧考勤账号时，通知页会引导去绑定**——通知平台整站被统一认证网关保护，没有账号读不到任何内容。
 - **数据来源**：直接调用平台内部接口 `GET /info/getInfoAllIndex`（列表）与 `GET /info/getInfoById?id=<ms_id>`（详情），不解析页面 HTML。首次请求前会先访问一次 `index.jsp` 换取 `JSESSIONID`，否则接口会 302 回首页。
-- **列表**：保持平台原顺序（置顶在前），显示标题、发布部门与日期，带附件的显示回形针；未读项带圆点并加粗。支持下拉刷新；断网时展示上次缓存并在顶部提示。
-- **详情**：把接口返回的正文 HTML 片段抽成段落原生渲染；正文含图片、或需要下载附件时，用内嵌网页打开原文（同样会注入统一认证票据）。
+- **列表**：保持平台原顺序（置顶在前，接口 `tjlevel > 0` 的显示置顶标识），显示标题、发布部门与日期，带附件的显示回形针；未读项带圆点并加粗。支持下拉刷新；断网时展示上次缓存并在顶部提示。
+- **详情**：把接口返回的正文 HTML 片段按「文字 / 图片」顺序切成块渲染，图片带登录态下载后内嵌显示，点击可全屏放大；需要下载附件时，用内嵌网页打开原文（同样会注入统一认证票据）。
 - **附件**：下载地址需要登录态，系统浏览器会跳到统一认证，所以点附件会打开应用内网页版，在原文页面里下载。
-- **提醒**：打开 App 与从后台回到前台时各检查一次（20 分钟内不重复）。发现新通知时弹一条聚合提醒，**一天最多一次**；首次安装只记录不提醒。可在通知页「更多 → 通知设置」里关闭。
-- **不是推送**：没有后台任务也没有服务端，App 没打开时收不到提醒。这是当前纯客户端架构的边界。
+- **提醒**：两条路可同时开——打开 App / 回前台时各检查一次（20 分钟内不重复）；或在设置里打开「通知后台轮询」，由系统约每小时检查一次。发现新通知时弹一条聚合提醒，**一天最多一次**；首次安装只记录不提醒。可在通知页「更多 → 通知设置」里关闭提醒本身。
+- **不是推送**：后台轮询只是「定时去问一次」，由系统调度，实际间隔可能被拉长（国产 ROM 的省电策略尤其明显），iOS 的 `BGAppRefreshTask` 也不保证按时执行。App 被系统彻底杀掉或用户手动强停后不会运行。真正的实时推送需要服务端 + 厂商通道，本项目不含服务端，故未实现。
 
 ### 桌面小组件
 
@@ -313,12 +314,13 @@ flutter clean
 - 本项目依赖教务系统当前页面结构和接口行为。如果上游 HTML 或接口字段变更，相关解析逻辑需要同步更新。
 - 智慧考勤页面来自独立服务 `qdxt.sdpei.edu.cn`，其地址与统一认证客户端信息（`clientId`、`appname` 等）都固定在 `lib/features/attendance/` 下，学校侧变更时需要同步修改。
 - 通知公告来自 `pubinfo.sdpei.edu.cn`（信息发布平台）。该站点整站由统一认证网关保护（实测连 `/css/`、`/favicon.ico` 都会 302 到 `sso.sdpei.edu.cn`），App 复用智慧考勤换来的 `CTTICKET` / `APPCTTICKET` 访问；票据不被接受时需要在通知页重新绑定或登录。数据走平台内部 JSON 接口（`/info/getInfoAllIndex`、`/info/getInfoById`、`/info/downfile`），相关地址与参数集中在 `lib/features/notice/data/notice_parser.dart` 与 `pubinfo_notice_source.dart`，平台改版时通常只需调整这两个文件。
-- 「新通知」是本地提醒而不是推送：App 未运行时收不到。真推送需要自建服务端并接入厂商通道 / APNs，本项目不含服务端，故未实现。
+- 「新通知」是本地提醒而不是推送：后台轮询由 WorkManager（Android）/ BGTaskScheduler（iOS）调度，频率与时机由系统决定，可能被显著延后；App 被强停后不运行。真推送需要自建服务端并接入厂商通道 / APNs，本项目不含服务端，故未实现。
+- 后台轮询相关配置：Android 由 WorkManager 自动合并清单，无需额外权限；iOS 需要在 `Info.plist` 的 `BGTaskSchedulerPermittedIdentifiers` 中登记 `edu.sdpei.JWSystem.backgroundSync`（已加），并把 `UIBackgroundModes` 设为 `fetch` / `processing`。周期任务标识集中在 `lib/app/background/background_sync.dart`，改名时两处要同步改。
 - 应用内网页版需要放行网页的定位与摄像头请求，这两项都依赖平台实现：
   - **定位**：签到/签退要上报位置，网页里的 `navigator.geolocation` 只有在宿主 App 获得定位授权后才会返回坐标。Android 的 WebView 默认拒绝该请求，应用会在网页发起定位时申请系统权限再放行（`ACCESS_FINE_LOCATION` / `ACCESS_COARSE_LOCATION` 已声明）；iOS 交给系统弹窗（已声明 `NSLocationWhenInUseUsageDescription`）。若被永久拒绝，页面会提示并在提示条上提供「去设置」。
   - **相机**：到场签到的人脸活体需要相机。Android 同样由应用申请系统权限后放行（`CAMERA` 已声明）；iOS 交给系统弹窗（已声明 `NSCameraUsageDescription`）。若个别机型仍无法调起相机，请用网页版顶部的「用浏览器打开」。
 - Web 端可能受浏览器跨域限制影响，部分登录或数据请求能力不如原生端稳定。
-- Android 构建链已升级到 **Gradle 9.3.1 / AGP 9.1.0 / Kotlin 2.4.0**（JDK 17）。`android/gradle.properties` 中保留了两条 Flutter 迁移器写入的兼容开关（`android.newDsl=false`、`android.builtInKotlin=false`），即 AGP 9 的「内置 Kotlin」尚未启用；`device_info_plus`、`flutter_timezone`、`home_widget`、`package_info_plus`、`shared_preferences_android`、`webview_flutter_android` 目前仍自行应用 Kotlin Gradle Plugin，**未来版本的 Flutter 会拒绝构建这类插件**，需等它们升级后再切到内置 Kotlin。
+- Android 构建链已升级到 **Gradle 9.3.1 / AGP 9.1.0 / Kotlin 2.4.0**（JDK 17）。`android/gradle.properties` 中保留了两条 Flutter 迁移器写入的兼容开关（`android.newDsl=false`、`android.builtInKotlin=false`），即 AGP 9 的「内置 Kotlin」尚未启用；`device_info_plus`、`flutter_timezone`、`home_widget`、`package_info_plus`、`shared_preferences_android`、`webview_flutter_android`、`workmanager_android` 目前仍自行应用 Kotlin Gradle Plugin，**未来版本的 Flutter 会拒绝构建这类插件**，需等它们升级后再切到内置 Kotlin。
 - `gradle.properties` 里的 `kotlin.incremental=false` 是刻意保留：依赖插件的 Kotlin 源码在 pub 缓存（与应用不在同一磁盘/根目录），而构建目录被 Flutter 重定位，Kotlin 增量编译缓存无法计算相对路径，Kotlin 2.4 起会直接导致编译失败。
 - 小组件能力依赖平台插件实现，优先在 Android/iOS 真机验证；Android 12+ 需单独授予「闹钟和提醒」权限。
 - MaterialIcons tree-shaken 构建提示通常属于正常优化，不是错误。

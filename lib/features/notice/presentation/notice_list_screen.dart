@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:JWHelper/features/attendance/presentation/attendance_account_form.dart';
@@ -68,7 +69,7 @@ class _NoticeListScreenState extends State<NoticeListScreen> {
   }
 
   /// 复制诊断信息。Release 包拿不到私有目录里的原始页面，这个按钮是唯一
-  /// 能把「页面到底长什么样」反馈出来的通道。
+  /// 能把「接口到底返回了什么」反馈出来的通道。
   Future<void> _copyDiagnostics(NoticeProvider notice) async {
     final text = [
       notice.errorMessage ?? '',
@@ -90,6 +91,13 @@ class _NoticeListScreenState extends State<NoticeListScreen> {
 
     return Scaffold(
       appBar: AppBar(
+        leading: BackButton(
+          onPressed: () {
+            if (Navigator.of(context).canPop()) {
+              Navigator.of(context).pop();
+            }
+          },
+        ),
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -102,7 +110,9 @@ class _NoticeListScreenState extends State<NoticeListScreen> {
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.normal,
-                  color: theme.colorScheme.onSurface.withValues(alpha: 0.55),
+                  color: notice.unreadCount > 0
+                      ? theme.colorScheme.primary
+                      : theme.colorScheme.onSurface.withValues(alpha: 0.55),
                 ),
               ),
           ],
@@ -146,7 +156,7 @@ class _NoticeListScreenState extends State<NoticeListScreen> {
   Widget _buildBody(NoticeProvider notice) {
     if (notice.items.isEmpty) {
       if (notice.isLoading || notice.isRefreshing) {
-        return const Center(child: CircularProgressIndicator());
+        return const _NoticeSkeleton();
       }
       if (notice.errorMessage != null) {
         return _buildError(notice);
@@ -167,13 +177,21 @@ class _NoticeListScreenState extends State<NoticeListScreen> {
         }
         final item = notice.items[index];
         final isLast = index == notice.items.length - 1;
-        return Column(
+
+        final tile = Column(
           children: [
             _NoticeTile(item: item, onTap: () => _openItem(item)),
             if (!isLast)
               const Divider(height: 1, indent: 16, endIndent: 16),
           ],
         );
+
+        // 只给前几条做入场动画：长列表滚动时反复播放会很吵。
+        if (index >= 8) return tile;
+        return tile
+            .animate()
+            .fadeIn(duration: 220.ms, delay: (index * 26).ms)
+            .slideY(begin: 0.06, end: 0, curve: Curves.easeOutCubic);
       },
     );
   }
@@ -208,7 +226,7 @@ class _NoticeListScreenState extends State<NoticeListScreen> {
           ),
         ),
       ],
-    );
+    ).animate().fadeIn(duration: 260.ms);
   }
 
   Widget _buildError(NoticeProvider notice) {
@@ -276,7 +294,7 @@ class _NoticeListScreenState extends State<NoticeListScreen> {
           ),
         ],
       ],
-    );
+    ).animate().fadeIn(duration: 240.ms);
   }
 }
 
@@ -298,10 +316,33 @@ class _NoticeTile extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+        padding: const EdgeInsets.fromLTRB(16, 13, 16, 13),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            if (item.isPinned)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.push_pin,
+                      size: 12,
+                      color: theme.colorScheme.primary,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      '置顶',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: theme.colorScheme.primary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -357,6 +398,54 @@ class _NoticeTile extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// 首次加载时的骨架屏，比转圈更不像「卡住」。
+class _NoticeSkeleton extends StatelessWidget {
+  const _NoticeSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final base = theme.colorScheme.onSurface.withValues(alpha: 0.06);
+
+    Widget bar(double widthFactor, double height) {
+      return FractionallySizedBox(
+        alignment: Alignment.centerLeft,
+        widthFactor: widthFactor,
+        child: Container(
+          height: height,
+          decoration: BoxDecoration(
+            color: base,
+            borderRadius: BorderRadius.circular(6),
+          ),
+        ),
+      );
+    }
+
+    return ListView.builder(
+      physics: const NeverScrollableScrollPhysics(),
+      padding: const EdgeInsets.only(top: 8),
+      itemCount: 6,
+      itemBuilder: (context, index) {
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              bar(index.isEven ? 0.82 : 0.66, 15),
+              const SizedBox(height: 8),
+              bar(0.34, 11),
+            ],
+          ),
+        )
+            .animate(onPlay: (controller) => controller.repeat())
+            .fadeIn(duration: 600.ms)
+            .then()
+            .fadeOut(duration: 600.ms);
+      },
     );
   }
 }

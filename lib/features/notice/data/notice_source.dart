@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:JWHelper/features/notice/domain/notice_detail.dart';
 import 'package:JWHelper/features/notice/domain/notice_item.dart';
 
@@ -46,4 +48,10 @@ abstract class NoticeSource {
 
   /// 拉取单条通知的正文。
   Future<NoticeDetail> fetchDetail(NoticeItem item);
+
+  /// 下载正文里的图片。
+  ///
+  /// 图片地址同样需要登录态（部分挂在 `/files/` 下），所以必须走带 Cookie 的
+  /// 请求，不能直接把 URL 交给 `Image.network`。
+  Future<Uint8List?> fetchBytes(String url);
 }

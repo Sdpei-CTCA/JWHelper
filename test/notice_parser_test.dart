@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:JWHelper/features/notice/data/notice_parser.dart';
+import 'package:JWHelper/features/notice/domain/notice_detail.dart';
 
 void main() {
   final origin = Uri.parse('https://pubinfo.sdpei.edu.cn');
@@ -17,6 +18,7 @@ void main() {
       "ms_title": "关于智慧考勤系统升级的通知",
       "ms_link": "",
       "sffj": 1,
+      "tjlevel": 5,
       "releasetime": 1792891499086,
       "create_time": 1792891499086,
       "dwbzmc": "网络信息中心"
@@ -47,6 +49,8 @@ void main() {
       expect(items.first.title, '关于智慧考勤系统升级的通知');
       expect(items.first.department, '网络信息中心');
       expect(items.first.hasAttachment, isTrue);
+      expect(items.first.isPinned, isTrue, reason: 'tjlevel > 0 视为置顶');
+      expect(items.last.isPinned, isFalse);
       expect(items.first.publishedAt,
           DateTime.fromMillisecondsSinceEpoch(1792891499086));
       expect(items.first.url,
@@ -97,7 +101,8 @@ void main() {
       expect(detail.paragraphs.last.contains('系统计划于本周日升级'), isTrue);
       // &nbsp; 与缩进不应留在正文里
       expect(detail.paragraphs.last.startsWith('结合'), isTrue);
-      expect(detail.hasImages, isTrue);
+      expect(detail.images.length, 1);
+      expect(detail.images.single, 'http://x/a.jpg');
       expect(detail.attachments.length, 1);
       expect(detail.attachments.single.name, '操作说明-学生分册.pdf');
       expect(detail.attachments.single.suffix, 'pdf');
@@ -146,6 +151,31 @@ void main() {
     test('空内容返回空列表', () {
       expect(NoticeParser.contentToParagraphs('   '), isEmpty);
       expect(NoticeParser.contentToParagraphs('<p></p>'), isEmpty);
+    });
+
+    test('图片按原位置穿插，相对地址补成绝对地址', () {
+      final blocks = NoticeParser.contentToBlocks(
+        '<p>第一段</p><p><img src="/files/a.png"/></p><p>第二段</p>',
+        origin: Uri.parse('https://pubinfo.sdpei.edu.cn'),
+      );
+
+      expect(blocks.length, 3);
+      expect(blocks[0], isA<NoticeTextBlock>());
+      expect(blocks[1], isA<NoticeImageBlock>());
+      expect((blocks[1] as NoticeImageBlock).url,
+          'https://pubinfo.sdpei.edu.cn/files/a.png');
+      expect((blocks[2] as NoticeTextBlock).text, '第二段');
+    });
+
+    test('协议相对地址补成 https，data URI 丢弃', () {
+      final blocks = NoticeParser.contentToBlocks(
+        '<img src="//static.sdpei.edu.cn/x.jpg"/><img src="data:image/png;base64,AAA"/>',
+        origin: Uri.parse('https://pubinfo.sdpei.edu.cn'),
+      );
+
+      expect(blocks.length, 1);
+      expect((blocks.single as NoticeImageBlock).url,
+          'https://static.sdpei.edu.cn/x.jpg');
     });
   });
 

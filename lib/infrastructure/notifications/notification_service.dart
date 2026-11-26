@@ -103,10 +103,11 @@ class NotificationService {
   }) async {
     if (!_initialized) await init();
 
-    // Clear previous scheduled notifications
-    await flutterLocalNotificationsPlugin.cancelAll();
+    // 只撤销上一批「课前提醒」，不要 cancelAll —— 否则会把通知公告的提醒一起清掉。
+    await _cancelScheduledClassReminders();
 
     if (!(await isEnabled)) {
+      await _saveScheduledClassReminderIds(const []);
       return;
     }
     
@@ -118,6 +119,7 @@ class NotificationService {
 
     final now = DateTime.now();
     int scheduledCount = 0;
+    final scheduledIds = <int>[];
 
     for (var item in schedule) {
       if (scheduledCount >= 60) break; // iOS limit is 64, leave some buffer
@@ -151,8 +153,9 @@ class NotificationService {
         if (reminderTime.isAfter(now) &&
             reminderTime.isBefore(now.add(const Duration(days: 14)))) {
           
+          final id = (reminderTime.millisecondsSinceEpoch ~/ 1000).remainder(100000);
           await _scheduleNotification(
-            id: (reminderTime.millisecondsSinceEpoch ~/ 1000).remainder(100000), // Randomish ID that is max 32bit int
+            id: id,
             title: '上课提醒',
             body: buildClassReminderBody(
               courseName: item.name,
@@ -161,12 +164,44 @@ class NotificationService {
             payload: attendancePayload,
             scheduledDate: reminderTime,
           );
+          scheduledIds.add(id);
           scheduledCount++;
           if (scheduledCount >= 60) break;
         }
       }
     }
+
+    await _saveScheduledClassReminderIds(scheduledIds);
     debugPrint('Scheduled $scheduledCount class reminders.');
+  }
+
+  static const String _scheduledIdsKey = 'class_reminder_notification_ids';
+
+  /// 撤销「课前提醒」，不影响通知公告的提醒。
+  ///
+  /// 关闭课前提醒开关时用这个，别用 `cancelAll()`——那会把新通知提醒一起清掉。
+  Future<void> cancelClassReminders() async {
+    if (!_initialized) await init();
+    await _cancelScheduledClassReminders();
+  }
+
+  /// 撤销上一批课前提醒（按记录下来的 id 逐个撤销）。
+  Future<void> _cancelScheduledClassReminders() async {    final prefs = await SharedPreferences.getInstance();
+    final ids = prefs.getStringList(_scheduledIdsKey) ?? const [];
+    for (final raw in ids) {
+      final id = int.tryParse(raw);
+      if (id == null) continue;
+      await flutterLocalNotificationsPlugin.cancel(id: id);
+    }
+    await prefs.remove(_scheduledIdsKey);
+  }
+
+  Future<void> _saveScheduledClassReminderIds(List<int> ids) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(
+      _scheduledIdsKey,
+      ids.map((e) => '$e').toList(growable: false),
+    );
   }
 
   Future<void> _scheduleNotification({

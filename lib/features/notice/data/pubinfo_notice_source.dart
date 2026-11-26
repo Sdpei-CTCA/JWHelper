@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:JWHelper/core/constants/config.dart';
 import 'package:JWHelper/features/notice/data/notice_parser.dart';
 import 'package:JWHelper/features/notice/data/notice_source.dart';
@@ -128,6 +129,41 @@ class PubinfoNoticeSource implements NoticeSource {
       );
     }
     return detail;
+  }
+
+  @override
+  Future<Uint8List?> fetchBytes(String url) async {
+    final uri = Uri.tryParse(url);
+    if (uri == null || uri.host.isEmpty) return null;
+
+    // 只有平台自己域名下的资源才需要先引导会话；static 静态资源直接取。
+    if (uri.host == Uri.parse(origin).host) {
+      await _ensureSession();
+    }
+
+    try {
+      final response = await _dio.getUri<List<int>>(
+        uri,
+        options: Options(
+          responseType: ResponseType.bytes,
+          validateStatus: (status) => status != null && status < 400,
+          headers: {
+            if (_cookies.isNotEmpty) 'Cookie': _cookieHeader,
+            'Referer': '$origin/',
+            'Accept': 'image/avif,image/webp,image/*,*/*;q=0.8',
+          },
+        ),
+      );
+      final data = response.data;
+      if (data == null || data.isEmpty) return null;
+      return Uint8List.fromList(data);
+    } on DioException catch (e) {
+      debugPrint('Notice image fetch failed (${e.type.name}): ${e.message}');
+      return null;
+    } catch (e) {
+      debugPrint('Notice image fetch failed: $e');
+      return null;
+    }
   }
 
   Map<String, dynamic> _decode(String body) {

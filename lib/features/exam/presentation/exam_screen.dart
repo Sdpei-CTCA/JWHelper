@@ -40,10 +40,21 @@ class _ExamScreenState extends State<ExamScreen> {
 
   void _onProviderUpdate() {
     if (!mounted || _dataProvider == null) return;
-    final campus = _dataProvider!.campus;
-    if (campus == _trackedCampus) return;
-    _trackedCampus = campus;
-    _applyCampusSelection();
+    final provider = _dataProvider!;
+    final campus = provider.campus;
+    if (campus != _trackedCampus) {
+      _trackedCampus = campus;
+      _applyCampusSelection();
+      return;
+    }
+    // Tab 保活状态下，若自动登录稍晚返回了学期列表，自动补齐初始选择。
+    if (_selectedSemester == null &&
+        !_initLoading &&
+        !_refreshingFilters &&
+        provider.examSemesters.isNotEmpty) {
+      setState(() => _selectedSemester = provider.examSemesters.first);
+      _loadRounds();
+    }
   }
 
   Future<void> _applyCampusSelection() async {
@@ -95,16 +106,17 @@ class _ExamScreenState extends State<ExamScreen> {
     await provider.loadExamRounds(_selectedSemester!.id);
 
     if (mounted) {
-      setState(() => _roundsLoading = false);
-      if (provider.examRounds.isNotEmpty) {
-        setState(() {
+      final hasRounds = provider.examRounds.isNotEmpty;
+      setState(() {
+        _roundsLoading = false;
+        if (hasRounds) {
           _autoSelectRound(provider.examRounds, provider.campus);
-        });
-        _loadExams();
-      } else {
-        setState(() {
+        } else {
           _selectedRound = null;
-        });
+        }
+      });
+      if (hasRounds) {
+        await _loadExams();
       }
     }
   }
@@ -167,6 +179,34 @@ class _ExamScreenState extends State<ExamScreen> {
     }
   }
 
+  InputDecoration _buildDropdownDecoration(
+    ThemeData theme, {
+    required String label,
+    required IconData icon,
+  }) {
+    final border = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: BorderSide(color: Colors.grey.withValues(alpha: 0.3)),
+    );
+    return InputDecoration(
+      labelText: label,
+      labelStyle: TextStyle(
+        color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+      ),
+      prefixIcon: Icon(icon, size: 20, color: theme.colorScheme.primary),
+      border: border,
+      enabledBorder: border,
+      focusedBorder: OutlineInputBorder(
+        borderRadius: const BorderRadius.all(Radius.circular(12)),
+        borderSide: BorderSide(color: theme.colorScheme.primary, width: 2),
+      ),
+      filled: true,
+      fillColor:
+          theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -179,179 +219,149 @@ class _ExamScreenState extends State<ExamScreen> {
           color: theme.cardTheme.color,
           child: Column(
             children: [
-                // Semester Dropdown
-                Selector<DataProvider, List<Semester>>(
-                    selector: (_, p) => p.examSemesters,
-                    builder: (context, semesters, _) {
-                      final effectiveSelectedSemester =
-                          semesters.contains(_selectedSemester)
-                              ? _selectedSemester
-                              : null;
-                      return DropdownButtonFormField<Semester>(
-                        initialValue: effectiveSelectedSemester,
-                        menuMaxHeight: 300,
-                        hint: Text("请选择学期",
-                            style: TextStyle(color: theme.hintColor)),
-                        decoration: InputDecoration(
-                          labelText: "学期",
-                          labelStyle: TextStyle(
-                              color: theme.colorScheme.onSurface
-                                  .withValues(alpha: 0.7)),
-                          prefixIcon: Icon(Icons.calendar_today_outlined,
-                              size: 20, color: theme.colorScheme.primary),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(
-                                color: Colors.grey.withValues(alpha: 0.3)),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(
-                                color: Colors.grey.withValues(alpha: 0.3)),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: const BorderRadius.all(Radius.circular(12)),
-                            borderSide:
-                                BorderSide(color: theme.colorScheme.primary, width: 2),
-                          ),
-                          filled: true,
-                          fillColor: theme.colorScheme.surfaceContainerHighest
-                              .withValues(alpha: 0.3),
-                          contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 12),
-                        ),
-                        icon: Icon(Icons.arrow_drop_down_circle_outlined,
-                            color: theme.colorScheme.primary),
-                        dropdownColor: theme.cardTheme.color,
-                        borderRadius: BorderRadius.circular(12),
-                        style: TextStyle(
-                            color: theme.colorScheme.onSurface, fontSize: 15),
-                        items: (semesters.isEmpty ||
-                                _initLoading ||
-                                _refreshingFilters)
-                            ? null
-                            : semesters.map((s) {
-                                return DropdownMenuItem(
-                                  value: s,
-                                  child: Text(s.name,
-                                      overflow: TextOverflow.ellipsis),
-                                );
-                              }).toList(),
-                        onChanged: (semesters.isEmpty ||
-                                _initLoading ||
-                                _refreshingFilters)
-                            ? null
-                            : (value) {
-                                if (value != null &&
-                                    value != _selectedSemester) {
-                                  setState(() => _selectedSemester = value);
-                                  _loadRounds();
-                                }
-                              },
-                        disabledHint: (_initLoading || _refreshingFilters)
-                            ? const Text("正在加载学期...")
-                            : const Text("暂无学期数据"),
-                      );
-                    }),
+              // Semester Dropdown
+              Selector<DataProvider, List<Semester>>(
+                selector: (_, p) => p.examSemesters,
+                builder: (context, semesters, _) {
+                  final effectiveSelectedSemester =
+                      semesters.contains(_selectedSemester)
+                          ? _selectedSemester
+                          : null;
+                  return DropdownButtonFormField<Semester>(
+                    initialValue: effectiveSelectedSemester,
+                    menuMaxHeight: 300,
+                    hint: Text('请选择学期',
+                        style: TextStyle(color: theme.hintColor)),
+                    decoration: _buildDropdownDecoration(
+                      theme,
+                      label: '学期',
+                      icon: Icons.calendar_today_outlined,
+                    ),
+                    icon: Icon(Icons.arrow_drop_down_circle_outlined,
+                        color: theme.colorScheme.primary),
+                    dropdownColor: theme.cardTheme.color,
+                    borderRadius: BorderRadius.circular(12),
+                    style: TextStyle(
+                        color: theme.colorScheme.onSurface, fontSize: 15),
+                    items: (semesters.isEmpty ||
+                            _initLoading ||
+                            _refreshingFilters)
+                        ? null
+                        : semesters.map((s) {
+                            return DropdownMenuItem(
+                              value: s,
+                              child: Text(s.name,
+                                  overflow: TextOverflow.ellipsis),
+                            );
+                          }).toList(),
+                    onChanged: (semesters.isEmpty ||
+                            _initLoading ||
+                            _refreshingFilters)
+                        ? null
+                        : (value) {
+                            if (value != null && value != _selectedSemester) {
+                              setState(() => _selectedSemester = value);
+                              _loadRounds();
+                            }
+                          },
+                    disabledHint: (_initLoading || _refreshingFilters)
+                        ? const Text('正在加载学期...')
+                        : const Text('暂无学期数据'),
+                  );
+                },
+              ),
 
-                const SizedBox(height: 12),
+              const SizedBox(height: 12),
 
-                // Round Dropdown
-                Selector<DataProvider, (List<ExamRound>, String)>(
-                    selector: (_, p) => (p.examRounds, p.campus),
-                    builder: (context, data, _) {
-                      final roundsRaw = data.$1;
-                      final campus = data.$2;
-                      final rounds = _getSortedRounds(roundsRaw, campus);
-                      final effectiveSelectedRound =
-                          rounds.contains(_selectedRound)
-                              ? _selectedRound
-                              : null;
+              // Round Dropdown
+              Selector<DataProvider, (List<ExamRound>, String)>(
+                selector: (_, p) => (p.examRounds, p.campus),
+                builder: (context, data, _) {
+                  final rounds = _getSortedRounds(data.$1, data.$2);
+                  final effectiveSelectedRound =
+                      rounds.contains(_selectedRound) ? _selectedRound : null;
 
-                      return DropdownButtonFormField<ExamRound>(
-                        key: ValueKey('rounds_$campus'),
-                        initialValue: effectiveSelectedRound,
-                        menuMaxHeight: 300,
-                        hint: Text("请选择考试批次",
-                            style: TextStyle(color: theme.hintColor)),
-                        decoration: InputDecoration(
-                          labelText: "考试批次",
-                          labelStyle: TextStyle(
-                              color: theme.colorScheme.onSurface
-                                  .withValues(alpha: 0.7)),
-                          prefixIcon: Icon(Icons.layers_outlined,
-                              size: 20, color: theme.colorScheme.primary),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(
-                                color: Colors.grey.withValues(alpha: 0.3)),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(
-                                color: Colors.grey.withValues(alpha: 0.3)),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: const BorderRadius.all(Radius.circular(12)),
-                            borderSide:
-                                BorderSide(color: theme.colorScheme.primary, width: 2),
-                          ),
-                          filled: true,
-                          fillColor: theme.colorScheme.surfaceContainerHighest
-                              .withValues(alpha: 0.3),
-                          contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 12),
-                        ),
-                        icon: Icon(Icons.arrow_drop_down_circle_outlined,
-                            color: theme.colorScheme.primary),
-                        dropdownColor: theme.cardTheme.color,
-                        borderRadius: BorderRadius.circular(12),
-                        style: TextStyle(
-                            color: theme.colorScheme.onSurface, fontSize: 15),
-                        items: (rounds.isEmpty ||
-                                _roundsLoading ||
-                                _refreshingFilters)
-                            ? null
-                            : rounds.map((r) {
-                                return DropdownMenuItem(
-                                  value: r,
-                                  child: Text(r.name),
-                                );
-                              }).toList(),
-                        onChanged: (rounds.isEmpty ||
-                                _roundsLoading ||
-                                _refreshingFilters)
-                            ? null
-                            : (value) {
-                                if (value != null && value != _selectedRound) {
-                                  setState(() => _selectedRound = value);
-                                  _loadExams();
-                                }
-                              },
-                        disabledHint: _selectedSemester == null
-                            ? const Text("请先选择学期")
-                            : ((_roundsLoading || _refreshingFilters)
-                                ? const Text("正在加载批次...")
-                                : const Text("暂无考试批次")),
-                      );
-                    }),
-              ],
-            ),
+                  return DropdownButtonFormField<ExamRound>(
+                    key: ValueKey('rounds_${data.$2}'),
+                    initialValue: effectiveSelectedRound,
+                    menuMaxHeight: 300,
+                    hint: Text('请选择考试批次',
+                        style: TextStyle(color: theme.hintColor)),
+                    decoration: _buildDropdownDecoration(
+                      theme,
+                      label: '考试批次',
+                      icon: Icons.layers_outlined,
+                    ),
+                    icon: Icon(Icons.arrow_drop_down_circle_outlined,
+                        color: theme.colorScheme.primary),
+                    dropdownColor: theme.cardTheme.color,
+                    borderRadius: BorderRadius.circular(12),
+                    style: TextStyle(
+                        color: theme.colorScheme.onSurface, fontSize: 15),
+                    items: (rounds.isEmpty ||
+                            _roundsLoading ||
+                            _refreshingFilters)
+                        ? null
+                        : rounds.map((r) {
+                            return DropdownMenuItem(
+                              value: r,
+                              child: Text(r.name),
+                            );
+                          }).toList(),
+                    onChanged: (rounds.isEmpty ||
+                            _roundsLoading ||
+                            _refreshingFilters)
+                        ? null
+                        : (value) {
+                            if (value != null && value != _selectedRound) {
+                              setState(() => _selectedRound = value);
+                              _loadExams();
+                            }
+                          },
+                    disabledHint: _selectedSemester == null
+                        ? const Text('请先选择学期')
+                        : ((_roundsLoading || _refreshingFilters)
+                            ? const Text('正在加载批次...')
+                            : const Text('暂无考试批次')),
+                  );
+                },
+              ),
+            ],
           ),
+        ),
 
-          // Content
-          Expanded(
-            child: RefreshIndicator(
-              onRefresh: _handleRefresh,
-              child: Consumer<DataProvider>(builder: (context, provider, _) {
+        // Content
+        Expanded(
+          child: RefreshIndicator(
+            onRefresh: _handleRefresh,
+            child: Selector<
+                DataProvider,
+                ({
+                  bool loading,
+                  List<Semester> semesters,
+                  List<ExamRound> rounds,
+                  List<Exam> exams,
+                })>(
+              selector: (_, p) => (
+                loading: p.examsLoading,
+                semesters: p.examSemesters,
+                rounds: p.examRounds,
+                exams: p.exams,
+              ),
+              builder: (context, state, _) {
                 final isLoading =
-                    (provider.examsLoading && !_refreshingFilters) ||
-                        _initLoading;
-                return _buildContent(provider, isLoading);
-              }),
+                    (state.loading && !_refreshingFilters) || _initLoading;
+                return _buildContent(
+                  semesters: state.semesters,
+                  rounds: state.rounds,
+                  exams: state.exams,
+                  isLoading: isLoading,
+                );
+              },
             ),
           ),
-        ],
+        ),
+      ],
     );
   }
 
@@ -395,7 +405,12 @@ class _ExamScreenState extends State<ExamScreen> {
     }
   }
 
-  Widget _buildContent(DataProvider provider, bool isLoading) {
+  Widget _buildContent({
+    required List<Semester> semesters,
+    required List<ExamRound> rounds,
+    required List<Exam> exams,
+    required bool isLoading,
+  }) {
     if (isLoading) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -415,7 +430,7 @@ class _ExamScreenState extends State<ExamScreen> {
       );
     }
 
-    if (provider.examSemesters.isEmpty) {
+    if (semesters.isEmpty) {
       return buildScrollableState(
         Center(
           child: Column(
@@ -435,7 +450,7 @@ class _ExamScreenState extends State<ExamScreen> {
       );
     }
 
-    if (provider.examRounds.isEmpty && _selectedSemester != null) {
+    if (rounds.isEmpty && _selectedSemester != null) {
       return buildScrollableState(
         Center(
           child: Column(
@@ -451,7 +466,7 @@ class _ExamScreenState extends State<ExamScreen> {
       );
     }
 
-    if (provider.exams.isEmpty) {
+    if (exams.isEmpty) {
       return buildScrollableState(
         Center(
           child: Column(
@@ -476,10 +491,10 @@ class _ExamScreenState extends State<ExamScreen> {
     return ListView.builder(
       physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.all(16),
-      itemCount: provider.exams.length,
+      itemCount: exams.length,
       itemBuilder: (context, index) {
-        final exam = provider.exams[index];
-        return Card(
+        final exam = exams[index];
+        final card = Card(
           margin: const EdgeInsets.only(bottom: 12),
           elevation: 2,
           shape:
@@ -506,17 +521,26 @@ class _ExamScreenState extends State<ExamScreen> {
                           horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
                         color: Theme.of(context).brightness == Brightness.dark
-                            ? Theme.of(context).colorScheme.secondary.withValues(alpha: 0.2)
-                            : Theme.of(context).colorScheme.secondary.withValues(alpha: 0.1),
+                            ? Theme.of(context)
+                                .colorScheme
+                                .secondary
+                                .withValues(alpha: 0.2)
+                            : Theme.of(context)
+                                .colorScheme
+                                .secondary
+                                .withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(4),
                         border: Border.all(
-                            color:
-                                Theme.of(context).colorScheme.secondary.withValues(alpha: 0.3)),
+                            color: Theme.of(context)
+                                .colorScheme
+                                .secondary
+                                .withValues(alpha: 0.3)),
                       ),
                       child: Text(
                         exam.type,
                         style: TextStyle(
-                            fontSize: 12, color: Theme.of(context).colorScheme.secondary),
+                            fontSize: 12,
+                            color: Theme.of(context).colorScheme.secondary),
                       ),
                     ),
                   ],
@@ -542,7 +566,12 @@ class _ExamScreenState extends State<ExamScreen> {
               ],
             ),
           ),
-        ).animate().fadeIn(delay: (50 * index).ms).slideY(begin: 0.1, end: 0);
+        );
+        if (index >= 6) return card;
+        return card
+            .animate()
+            .fadeIn(delay: (45 * index).ms)
+            .slideY(begin: 0.08, end: 0, curve: Curves.easeOutCubic);
       },
     );
   }

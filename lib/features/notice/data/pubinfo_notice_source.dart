@@ -26,6 +26,7 @@ class PubinfoNoticeSource implements NoticeSource {
   PubinfoNoticeSource({Dio? dio}) : _dio = dio ?? _buildDio();
 
   static const String origin = 'https://pubinfo.sdpei.edu.cn';
+  static final Uri _originUri = Uri.parse(origin);
 
   /// 一次取多少条。站点总数约百条量级，50 条足够覆盖最近几个月。
   static const int pageSize = 50;
@@ -35,6 +36,7 @@ class PubinfoNoticeSource implements NoticeSource {
 
   /// 是否已经完成会话引导（先访问 index.jsp 换到 JSESSIONID）。
   bool _sessionReady = false;
+  Future<void>? _sessionFuture;
 
   /// 最近一次请求的诊断信息，解析失败时展示给用户。
   String lastDiagnostics = '';
@@ -71,6 +73,7 @@ class PubinfoNoticeSource implements NoticeSource {
     if (ctTicket.isNotEmpty && previous.isNotEmpty && ctTicket != previous) {
       _cookies.clear();
       _sessionReady = false;
+      _sessionFuture = null;
     }
 
     if (userToken.isNotEmpty) _cookies['userToken'] = userToken;
@@ -97,7 +100,7 @@ class PubinfoNoticeSource implements NoticeSource {
 
     final body = await _get(uri, referer: '$origin/index.jsp');
     final json = _decode(body);
-    final items = NoticeParser.parseListJson(json, Uri.parse(origin));
+    final items = NoticeParser.parseListJson(json, _originUri);
 
     final total = json['iTotalRecords']?.toString() ?? '?';
     lastDiagnostics =
@@ -118,7 +121,7 @@ class PubinfoNoticeSource implements NoticeSource {
     final json = _decode(body);
     final detail = NoticeParser.parseDetailJson(
       json,
-      Uri.parse(origin),
+      _originUri,
       fallbackTitle: item.title,
     );
 
@@ -137,7 +140,7 @@ class PubinfoNoticeSource implements NoticeSource {
     if (uri == null || uri.host.isEmpty) return null;
 
     // 只有平台自己域名下的资源才需要先引导会话；static 静态资源直接取。
-    if (uri.host == Uri.parse(origin).host) {
+    if (uri.host == _originUri.host) {
       await _ensureSession();
     }
 
@@ -197,9 +200,16 @@ class PubinfoNoticeSource implements NoticeSource {
   /// 抓包确认：只带 `CTTICKET` 直接请求 JSON 接口会被网关 302 回 `index.jsp`；
   /// 而先访问 `index.jsp`（它会 302 到自己一次并下发 `JSESSIONID`）之后，
   /// 同样的票据就能正常取数。这一步就是浏览器的「打开首页」动作。
-  Future<void> _ensureSession() async {
-    if (_sessionReady) return;
+  Future<void> _ensureSession() {
+    if (_sessionReady) return Future<void>.value();
+    return _sessionFuture ??=
+        _ensureSessionInternal().catchError((Object e, StackTrace s) {
+      _sessionFuture = null;
+      Error.throwWithStackTrace(e, s);
+    });
+  }
 
+  Future<void> _ensureSessionInternal() async {
     var url = Uri.parse('$origin/index.jsp');
     for (var hop = 0; hop < 3; hop++) {
       final Response<String> response;

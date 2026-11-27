@@ -36,7 +36,7 @@ extension ScheduleDataMixin on DataProvider {
     required bool loaded,
   }) {
     _clearKeptStaleCacheFlag();
-    _schedule = schedule;
+    _setSchedule(schedule);
     if (ScheduleTermState.isTermUnavailable(
       schedule: schedule,
       startDay: startDay,
@@ -53,7 +53,7 @@ extension ScheduleDataMixin on DataProvider {
 
   void _applyKeptStaleCacheResult(ScheduleLoadResult result) {
     _scheduleKeptStaleCache = true;
-    _schedule = result.schedule;
+    _setSchedule(result.schedule);
     _scheduleLoaded = result.loaded;
     if (result.startDay != null && result.startDay!.trim().isNotEmpty) {
       _scheduleStartDay = result.startDay;
@@ -70,52 +70,51 @@ extension ScheduleDataMixin on DataProvider {
   }
 
   Map<int, List<ScheduleItem>> get scheduleGroupedByDay {
+    final cached = _cachedScheduleGroupedByDay;
+    if (cached != null) return cached;
+
     final Map<int, List<ScheduleItem>> grouped = {};
-    for (var item in _schedule) {
-      if (!grouped.containsKey(item.dayIndex)) {
-        grouped[item.dayIndex] = [];
-      }
-      grouped[item.dayIndex]!.add(item);
+    for (final item in _schedule) {
+      (grouped[item.dayIndex] ??= []).add(item);
     }
-    for (var key in grouped.keys) {
-      grouped[key]!.sort((a, b) => a.startUnit.compareTo(b.startUnit));
+    for (final list in grouped.values) {
+      list.sort((a, b) => a.startUnit.compareTo(b.startUnit));
     }
+    _cachedScheduleGroupedByDay = grouped;
     return grouped;
   }
 
-  String get _scheduleCacheKey => 'schedule_cache_$_username';
-  String get _scheduleCacheTimeKey => 'schedule_cache_time_$_username';
+  String get _scheduleCacheKey => OfflineCacheKeys.schedule(_username);
+  String get _scheduleCacheTimeKey => OfflineCacheKeys.scheduleTime(_username);
 
-  /// Load schedule from cache synchronously (no loading spinner).
+  /// 仅用内存已有课表重排本地课前提醒与桌面小组件，不触发网络刷新。
+  Future<void> rescheduleScheduleOutputs() => _afterScheduleChanged();
+
+  /// Load schedule from cache only (no network, no loading spinner).
   /// Call this in initState before the first frame.
   Future<void> loadScheduleFromCache() async {
     if (_scheduleLoaded || _username.isEmpty) return;
     try {
-      final result = await ScheduleLoaderUsecase.execute(
-        service: _scheduleService,
-        username: _username,
-        forceRefresh: false,
-      );
-      if (!result.loaded) return;
+      final result = await ScheduleLoaderUsecase.readCacheOnly(_username);
+      if (result == null || !result.loaded || _scheduleLoaded) return;
 
-      final shouldApply = result.schedule.isNotEmpty ||
+      final shouldApply = result.localMode ||
+          result.schedule.isNotEmpty ||
           ScheduleTermState.isTermUnavailable(
             schedule: result.schedule,
             startDay: result.startDay,
           );
       if (!shouldApply) return;
 
+      _scheduleLocalMode = result.localMode;
       _applyScheduleResult(
         schedule: result.schedule,
         startDay: result.startDay,
         loaded: result.loaded,
       );
       notifyStateChanged();
-      if (ScheduleWeekContext.isExamPeriod(_schedule, _currentWeek)) {
-        loadDefaultExamsForWidget();
-      } else {
-        _updateScheduleWidget();
-      }
+      // 仅更新本地桌面小组件，避免在登录态建立前于考试周触发网络拉取考试列表。
+      _updateScheduleWidget();
     } catch (_) {}
   }
 
@@ -138,11 +137,11 @@ extension ScheduleDataMixin on DataProvider {
         username: _username,
         forceRefresh: forceRefresh,
       );
+      _scheduleLocalMode = result.localMode;
 
       if (result.keptLocalCacheOnEmpty) {
         refreshMessage = '教务未返回数据，已保留本地课表';
         _applyKeptStaleCacheResult(result);
-        notifyStateChanged();
         return refreshMessage;
       }
 
@@ -159,7 +158,6 @@ extension ScheduleDataMixin on DataProvider {
             loaded: result.loaded,
           );
         }
-        notifyStateChanged();
         return refreshMessage;
       }
 
@@ -169,25 +167,7 @@ extension ScheduleDataMixin on DataProvider {
         loaded: result.loaded,
       );
 
-      if (!isScheduleTermUnavailable &&
-          result.startDay != null &&
-          result.schedule.isNotEmpty) {
-        try {
-          NotificationService().scheduleClassReminders(
-            schedule: _schedule,
-            startDay: DateTime.parse(result.startDay!),
-            campus: _campus,
-          );
-        } catch (e) {
-          debugPrint("Error scheduling notifications: $e");
-        }
-      }
-
-      if (ScheduleWeekContext.isExamPeriod(_schedule, _currentWeek)) {
-        await loadDefaultExamsForWidget();
-      } else {
-        await _updateScheduleWidget();
-      }
+      await _afterScheduleChanged();
     } catch (e) {
       debugPrint("Error loading schedule: $e");
     } finally {

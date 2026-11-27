@@ -176,6 +176,42 @@ class ExamService {
     }
   }
 
+  Future<String> _requestExportFilePath({
+    required String semId,
+    required String etId,
+    required String semName,
+    required String etName,
+  }) async {
+    final response = await _client.dio.post(
+      _examHandlerUrl,
+      queryParameters: {
+        "ron": Random().nextDouble(),
+      },
+      data: {
+        "action": "doexport",
+        "semId": semId,
+        "etID": etId,
+        "semName": semName,
+        "etName": etName,
+      },
+      options: Options(
+        contentType: Headers.formUrlEncodedContentType,
+        responseType: ResponseType.plain,
+        receiveTimeout: const Duration(minutes: 3),
+        headers: {
+          "X-Requested-With": "XMLHttpRequest",
+          "Referer": _examPageUrl,
+        },
+      ),
+    );
+
+    final String filePath = response.data.toString();
+    if (filePath.isEmpty || !filePath.startsWith("/")) {
+      throw Exception("Invalid file path received: $filePath");
+    }
+    return filePath;
+  }
+
   Future<List<Exam>> getExamsFromExport({
     required String semId,
     required String etId,
@@ -183,33 +219,12 @@ class ExamService {
     required String etName,
   }) async {
     try {
-      final response = await _client.dio.post(
-        _examHandlerUrl,
-        queryParameters: {
-          "ron": Random().nextDouble(),
-        },
-        data: {
-          "action": "doexport",
-          "semId": semId,
-          "etID": etId,
-          "semName": semName,
-          "etName": etName,
-        },
-        options: Options(
-          contentType: Headers.formUrlEncodedContentType,
-          responseType: ResponseType.plain,
-          receiveTimeout: const Duration(minutes: 3),
-          headers: {
-            "X-Requested-With": "XMLHttpRequest",
-            "Referer": _examPageUrl,
-          },
-        ),
+      final filePath = await _requestExportFilePath(
+        semId: semId,
+        etId: etId,
+        semName: semName,
+        etName: etName,
       );
-
-      final String filePath = response.data.toString();
-      if (filePath.isEmpty || !filePath.startsWith("/")) {
-        throw Exception("Invalid file path received: $filePath");
-      }
 
       final fileResponse = await _client.dio.get(
         "${Config.baseUrl}$filePath",
@@ -233,33 +248,12 @@ class ExamService {
     required String etName,
   }) async {
     try {
-      final response = await _client.dio.post(
-        _examHandlerUrl,
-        queryParameters: {
-          "ron": Random().nextDouble(),
-        },
-        data: {
-          "action": "doexport",
-          "semId": semId,
-          "etID": etId,
-          "semName": semName,
-          "etName": etName,
-        },
-        options: Options(
-          contentType: Headers.formUrlEncodedContentType,
-          responseType: ResponseType.plain,
-          receiveTimeout: const Duration(minutes: 3),
-          headers: {
-            "X-Requested-With": "XMLHttpRequest",
-            "Referer": _examPageUrl,
-          },
-        ),
+      final filePath = await _requestExportFilePath(
+        semId: semId,
+        etId: etId,
+        semName: semName,
+        etName: etName,
       );
-
-      final String filePath = response.data.toString();
-      if (filePath.isEmpty || !filePath.startsWith("/")) {
-        throw Exception("Invalid file path received: $filePath");
-      }
 
       final fileResponse = await _client.dio.get(
         "${Config.baseUrl}$filePath",

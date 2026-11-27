@@ -49,16 +49,17 @@ class WidgetService {
     required String requiredCredits,
   }) async {
     if (!_isHomeWidgetSupported) return;
-    await HomeWidget.saveWidgetData<String>('gpa', gpa);
-    await HomeWidget.saveWidgetData<String>(
-        'major_extra_credits', majorExtraCredits);
-    await HomeWidget.saveWidgetData<String>('earned_credits', earnedCredits);
-    await HomeWidget.saveWidgetData<String>(
-        'required_credits', requiredCredits);
-    await HomeWidget.saveWidgetData<String>(
-      'widget_last_updated',
-      DateTime.now().toIso8601String(),
-    );
+    await Future.wait([
+      HomeWidget.saveWidgetData<String>('gpa', gpa),
+      HomeWidget.saveWidgetData<String>(
+          'major_extra_credits', majorExtraCredits),
+      HomeWidget.saveWidgetData<String>('earned_credits', earnedCredits),
+      HomeWidget.saveWidgetData<String>('required_credits', requiredCredits),
+      HomeWidget.saveWidgetData<String>(
+        'widget_last_updated',
+        DateTime.now().toIso8601String(),
+      ),
+    ]);
 
     await HomeWidget.updateWidget(
       name: 'ProgressWidgetProvider',
@@ -68,19 +69,23 @@ class WidgetService {
 
   static Future<void> setWidgetDebugEnabled(bool enabled) async {
     if (!_isHomeWidgetSupported) return;
-    await HomeWidget.saveWidgetData<bool>('widget_debug_enabled', enabled);
-    await HomeWidget.saveWidgetData<String>(
-      'widget_last_updated',
-      DateTime.now().toIso8601String(),
-    );
-    await HomeWidget.updateWidget(
-      name: 'ProgressWidgetProvider',
-      iOSName: 'ProgressWidget',
-    );
-    await HomeWidget.updateWidget(
-      name: 'ScheduleWidgetProvider',
-      iOSName: 'ScheduleWidget',
-    );
+    await Future.wait([
+      HomeWidget.saveWidgetData<bool>('widget_debug_enabled', enabled),
+      HomeWidget.saveWidgetData<String>(
+        'widget_last_updated',
+        DateTime.now().toIso8601String(),
+      ),
+    ]);
+    await Future.wait([
+      HomeWidget.updateWidget(
+        name: 'ProgressWidgetProvider',
+        iOSName: 'ProgressWidget',
+      ),
+      HomeWidget.updateWidget(
+        name: 'ScheduleWidgetProvider',
+        iOSName: 'ScheduleWidget',
+      ),
+    ]);
   }
 
   static Future<void> updateScheduleWidget(
@@ -88,6 +93,7 @@ class WidgetService {
     int currentWeek = 0,
     String? startDay,
     List<Exam> upcomingExams = const [],
+    String? campus,
   }) async {
     if (!_isHomeWidgetSupported) return;
 
@@ -102,12 +108,13 @@ class WidgetService {
       return;
     }
 
-    final prefs = await SharedPreferences.getInstance();
-    final campus = prefs.getString('campus') ?? '济南';
+    final resolvedCampus = campus ??
+        (await SharedPreferences.getInstance()).getString('campus') ??
+        '济南';
     await _saveScheduleWidgetData(
       allItems: allItems,
       currentWeek: currentWeek,
-      campus: campus,
+      campus: resolvedCampus,
       startDay: startDay,
     );
     await HomeWidget.updateWidget(
@@ -118,27 +125,29 @@ class WidgetService {
 
   static Future<void> _saveExamWidgetData(List<Exam> upcomingExams) async {
     final payload = examsToWidgetPayload(upcomingExams);
-    await HomeWidget.saveWidgetData<String>(
-      'widget_display_mode',
-      displayModeExam,
-    );
-    await HomeWidget.saveWidgetData<String>(
-      'upcoming_exams',
-      jsonEncode(payload),
-    );
     final now = DateTime.now();
-    await HomeWidget.saveWidgetData<String>(
-      'today_date',
-      '考试周',
-    );
-    await HomeWidget.saveWidgetData<String>(
-      'schedule_date_iso',
-      _toIsoDate(DateTime(now.year, now.month, now.day)),
-    );
-    await HomeWidget.saveWidgetData<String>(
-      'widget_last_updated',
-      now.toIso8601String(),
-    );
+    await Future.wait([
+      HomeWidget.saveWidgetData<String>(
+        'widget_display_mode',
+        displayModeExam,
+      ),
+      HomeWidget.saveWidgetData<String>(
+        'upcoming_exams',
+        jsonEncode(payload),
+      ),
+      HomeWidget.saveWidgetData<String>(
+        'today_date',
+        '考试周',
+      ),
+      HomeWidget.saveWidgetData<String>(
+        'schedule_date_iso',
+        _toIsoDate(DateTime(now.year, now.month, now.day)),
+      ),
+      HomeWidget.saveWidgetData<String>(
+        'widget_last_updated',
+        now.toIso8601String(),
+      ),
+    ]);
   }
 
   static Future<void> _saveScheduleWidgetData({
@@ -161,45 +170,47 @@ class WidgetService {
 
     final jsonString = jsonEncode(displayItems.map((e) => e.toJson()).toList());
     final weekJson = jsonEncode(allItems.map((e) => e.toJson()).toList());
-    await HomeWidget.saveWidgetData<String>(
-      'widget_display_mode',
-      displayModeSchedule,
-    );
-    await HomeWidget.saveWidgetData<String>('today_schedule', jsonString);
-    await HomeWidget.saveWidgetData<String>('week_schedule', weekJson);
-    await HomeWidget.saveWidgetData<String>(
-      'widget_current_week',
-      displayWeek.toString(),
-    );
-    await HomeWidget.saveWidgetData<String>('widget_campus', campus);
-    await HomeWidget.saveWidgetData<String>(
-      'schedule_start_day',
-      startDay ?? '',
-    );
-    await HomeWidget.saveWidgetData<String>(
-      'widget_week_anchor_date',
-      _toIsoDate(now),
-    );
-    await HomeWidget.saveWidgetData<String>(
-      'upcoming_exams',
-      '[]',
-    );
-    await HomeWidget.saveWidgetData<String>(
-      'today_date',
-      '${displayDate.month}月${displayDate.day}日',
-    );
-    await HomeWidget.saveWidgetData<String>(
-      'schedule_date_iso',
-      _toIsoDate(displayDate),
-    );
-    await HomeWidget.saveWidgetData<String>(
-      'current_week',
-      '第$displayWeek周',
-    );
-    await HomeWidget.saveWidgetData<String>(
-      'widget_last_updated',
-      DateTime.now().toIso8601String(),
-    );
+    await Future.wait([
+      HomeWidget.saveWidgetData<String>(
+        'widget_display_mode',
+        displayModeSchedule,
+      ),
+      HomeWidget.saveWidgetData<String>('today_schedule', jsonString),
+      HomeWidget.saveWidgetData<String>('week_schedule', weekJson),
+      HomeWidget.saveWidgetData<String>(
+        'widget_current_week',
+        displayWeek.toString(),
+      ),
+      HomeWidget.saveWidgetData<String>('widget_campus', campus),
+      HomeWidget.saveWidgetData<String>(
+        'schedule_start_day',
+        startDay ?? '',
+      ),
+      HomeWidget.saveWidgetData<String>(
+        'widget_week_anchor_date',
+        _toIsoDate(now),
+      ),
+      HomeWidget.saveWidgetData<String>(
+        'upcoming_exams',
+        '[]',
+      ),
+      HomeWidget.saveWidgetData<String>(
+        'today_date',
+        '${displayDate.month}月${displayDate.day}日',
+      ),
+      HomeWidget.saveWidgetData<String>(
+        'schedule_date_iso',
+        _toIsoDate(displayDate),
+      ),
+      HomeWidget.saveWidgetData<String>(
+        'current_week',
+        '第$displayWeek周',
+      ),
+      HomeWidget.saveWidgetData<String>(
+        'widget_last_updated',
+        DateTime.now().toIso8601String(),
+      ),
+    ]);
   }
 
   static String _toIsoDate(DateTime date) {

@@ -8,25 +8,68 @@ import 'package:JWHelper/features/progress/domain/progress_item.dart';
 import 'package:JWHelper/features/navigation/data/jw_endpoint_resolver.dart';
 import 'package:JWHelper/features/navigation/domain/app_feature.dart';
 
+final RegExp _fallbackMinCreditsRegExp = RegExp(
+  r'(?:课程|方案|毕业|主修)?要求最低学分\s*[：:]\s*(\d+(?:\.\d+)?)',
+);
+final RegExp _postbackIdRegExp = RegExp(r"tvProgramProgress','([^']+)'");
+final RegExp _nonDigitsRegExp = RegExp(r'[^0-9]');
+final RegExp _digitsRegExp = RegExp(r'(\d+)');
+final RegExp _whitespaceRegExp = RegExp(r'\s+');
+final RegExp _creditPairRegExp =
+    RegExp(r'(\d+(\.\d+)?)[（\(](\d+(\.\d+)?)[）\)]');
+final RegExp _numberRegExp = RegExp(r'(\d+(\.\d+)?)');
+final RegExp _groupHeaderRegExp =
+    RegExp(r'(.+)\((\d+(?:\.\d+)?)/((?:\d+(?:\.\d+)?)|未设置)\)');
+
+String _formatCreditNumber(double value) {
+  return value % 1 == 0 ? value.toInt().toString() : value.toString();
+}
+
+bool _isUnsetCreditText(String value) {
+  final trimmed = value.trim();
+  return trimmed.isEmpty ||
+      trimmed == '-' ||
+      trimmed.contains('未设置');
+}
+
+/// 从文本中提取「（课程）要求最低学分：X」对应的数值。
+double? _extractFallbackMinCreditsFromText(String text) {
+  final match = _fallbackMinCreditsRegExp.firstMatch(text);
+  if (match == null) return null;
+  final value = double.tryParse(match.group(1)!);
+  if (value == null || value <= 0) return null;
+  return value;
+}
+
+/// 分组详情：课程列表 + 可选的后备最低学分要求。
+class ProgressGroupDetail {
+  final List<ProgressCourse> courses;
+  final double? requiredCredits;
+
+  const ProgressGroupDetail({
+    required this.courses,
+    this.requiredCredits,
+  });
+}
+
 // Top-level helper
 String? _extractId(Element a) {
   // 1. Try href postback: javascript:__doPostBack('...','s100')
   var href = a.attributes['href'] ?? "";
-  var match = RegExp(r"tvProgramProgress','([^']+)'").firstMatch(href);
+  var match = _postbackIdRegExp.firstMatch(href);
   if (match != null) return match.group(1);
 
   // 2. Try id attribute: childA123
   var idAttr = a.attributes['id'] ?? "";
   if (idAttr.isNotEmpty) {
-    // Remove non-digits
-    var digits = idAttr.replaceAll(RegExp(r'[^0-9]'), '');
+    var digits = idAttr.replaceAll(_nonDigitsRegExp, '');
     if (digits.isNotEmpty) return digits;
   }
 
   // 3. Try onclick: changeGroup(123) or clickNode('123')
   var onclick = a.attributes['onclick'] ?? "";
   if (onclick.isNotEmpty) {
-    var clickMatch = RegExp(r'(\d+)').firstMatch(onclick);
+    var clickMatch = _digitsRegExp.firstMatch(onclick);
     if (clickMatch != null) return clickMatch.group(1);
   }
 
@@ -81,9 +124,8 @@ Map<String, dynamic> _parseProgressHtml(String html) {
           if (text.contains("已获得学分") && text.contains("要求最低学分")) {
             if (i + 1 < cols.length) {
               var valueText =
-                  cols[i + 1].text.trim().replaceAll(RegExp(r'\s+'), '');
-              var match = RegExp(r'(\d+(\.\d+)?)[（\(](\d+(\.\d+)?)[）\)]')
-                  .firstMatch(valueText);
+                  cols[i + 1].text.trim().replaceAll(_whitespaceRegExp, '');
+              var match = _creditPairRegExp.firstMatch(valueText);
 
               if (match != null) {
                 if (!foundLabels.contains("已获得学分")) {
@@ -108,9 +150,9 @@ Map<String, dynamic> _parseProgressHtml(String html) {
             String label = isMajorCredit ? "主修与方案外获得学分" : "学位课程绩点";
             if (i + 1 < cols.length) {
               var value =
-                  cols[i + 1].text.trim().replaceAll(RegExp(r'\s+'), ' ');
+                  cols[i + 1].text.trim().replaceAll(_whitespaceRegExp, ' ');
               if (isGPA) {
-                var match = RegExp(r'(\d+(\.\d+)?)').firstMatch(value);
+                var match = _numberRegExp.firstMatch(value);
                 if (match != null) value = match.group(1)!;
               }
               if (!foundLabels.contains(label)) {
@@ -136,9 +178,7 @@ Map<String, dynamic> _parseProgressHtml(String html) {
       if (text.contains("展开") || text.contains("折叠") || text.isEmpty) continue;
 
       // Modified regex to handle "未设置" (Not Set) in required credits
-      RegExp regExp =
-          RegExp(r'(.+)\((\d+(?:\.\d+)?)/((?:\d+(?:\.\d+)?)|未设置)\)');
-      var match = regExp.firstMatch(text);
+      var match = _groupHeaderRegExp.firstMatch(text);
 
       if (match != null) {
         String name = match.group(1)!.trim();
@@ -148,6 +188,15 @@ Map<String, dynamic> _parseProgressHtml(String html) {
         String requiredStr = match.group(3)!;
         if (requiredStr != "未设置") {
           required = double.parse(requiredStr);
+        } else {
+          // 后备查询：尝试从节点属性或所在行中提取「课程要求最低学分：X」
+          final titleHint = a.attributes['title'] ?? '';
+          final rowText = a.parent?.text ?? '';
+          final fallback = _extractFallbackMinCreditsFromText(titleHint) ??
+              _extractFallbackMinCreditsFromText(rowText);
+          if (fallback != null) {
+            required = fallback;
+          }
         }
 
         String? id = _extractId(a);
@@ -256,6 +305,26 @@ Map<String, dynamic> _parseProgressHtml(String html) {
     }
   }
 
+  // 后备查询：若顶部「要求最低学分」缺失或显示「未设置」，
+  // 在页面中寻找「课程要求最低学分：X」等相关字样。
+  final minCreditIndex = basicInfo.indexWhere((i) => i.label == '要求最低学分');
+  final minCreditUnset = minCreditIndex < 0 ||
+      _isUnsetCreditText(basicInfo[minCreditIndex].value);
+  if (minCreditUnset) {
+    final fallbackCredits =
+        _extractFallbackMinCreditsFromText(doc.body?.text ?? html) ??
+            _extractFallbackMinCreditsFromText(html);
+    if (fallbackCredits != null) {
+      final formatted = _formatCreditNumber(fallbackCredits);
+      if (minCreditIndex >= 0) {
+        basicInfo[minCreditIndex] =
+            ProgressInfo(label: '要求最低学分', value: formatted);
+      } else {
+        basicInfo.add(ProgressInfo(label: '要求最低学分', value: formatted));
+      }
+    }
+  }
+
   return {
     "groups": groups,
     "info": basicInfo,
@@ -298,7 +367,61 @@ class ProgressService {
     }
   }
 
-  Future<List<ProgressCourse>> getGroupCourses(String groupId) async {
+  @visibleForTesting
+  static Map<String, dynamic> parseProgressHtmlForTest(String html) =>
+      _parseProgressHtml(html);
+
+  /// 从 `MyProgramProgressHandler.ashx?action=GetData` 响应中提取后备最低学分。
+  static double? parseRequiredCreditsFromGroupResponse(
+    dynamic data, {
+    String? rawText,
+  }) {
+    const creditKeys = {
+      'leastcredit',
+      'leastcredits',
+      'mincredit',
+      'mincredits',
+      'requiredcredit',
+      'requiredcredits',
+      'needcredit',
+      'needcredits',
+      'courseleastcredit',
+      'courseleastcredits',
+    };
+
+    double? searchMap(Map map) {
+      for (final entry in map.entries) {
+        final key = entry.key.toString().toLowerCase();
+        final value = entry.value;
+        if (value is String) {
+          final fromText = _extractFallbackMinCreditsFromText(value);
+          if (fromText != null) return fromText;
+        }
+        if (creditKeys.contains(key)) {
+          final parsed = value is num
+              ? value.toDouble()
+              : double.tryParse(value?.toString().trim() ?? '');
+          if (parsed != null && parsed > 0) return parsed;
+        }
+        if (value is Map) {
+          final nested = searchMap(value);
+          if (nested != null) return nested;
+        }
+      }
+      return null;
+    }
+
+    if (data is Map) {
+      final fromMap = searchMap(data);
+      if (fromMap != null) return fromMap;
+    }
+    if (rawText != null && rawText.isNotEmpty) {
+      return _extractFallbackMinCreditsFromText(rawText);
+    }
+    return null;
+  }
+
+  Future<ProgressGroupDetail> getGroupDetails(String groupId) async {
     // systemNumber can be empty, so we don't check for isEmpty
 
     try {
@@ -322,10 +445,9 @@ class ProgressService {
         ),
       );
 
-      debugPrint("Group Courses Response [$groupId]: ${response.data}");
-
       if (response.statusCode == 200) {
         var data = response.data;
+        final rawText = data?.toString() ?? '';
         if (data is String) {
           try {
             data = jsonDecode(data);
@@ -334,9 +456,15 @@ class ProgressService {
           }
         }
 
+        final requiredCredits = parseRequiredCreditsFromGroupResponse(
+          data,
+          rawText: rawText,
+        );
+
         if (data is Map && data.containsKey('Datas')) {
           List<dynamic> datas = data['Datas'];
-          return datas.map((json) {
+          debugPrint("Group [$groupId] courses loaded: ${datas.length}");
+          final courses = datas.map((json) {
             return ProgressCourse(
               name: json['CourseName'] ?? '未知',
               credit: json['GetCredit']?.toString() ?? '0',
@@ -346,12 +474,26 @@ class ProgressService {
               isPassed: json['IsPass'] == true,
             );
           }).toList();
+          return ProgressGroupDetail(
+            courses: courses,
+            requiredCredits: requiredCredits,
+          );
         }
+
+        return ProgressGroupDetail(
+          courses: const [],
+          requiredCredits: requiredCredits,
+        );
       }
     } catch (e) {
       debugPrint("Get group courses failed: $e");
       rethrow;
     }
-    return [];
+    return const ProgressGroupDetail(courses: []);
+  }
+
+  Future<List<ProgressCourse>> getGroupCourses(String groupId) async {
+    final detail = await getGroupDetails(groupId);
+    return detail.courses;
   }
 }

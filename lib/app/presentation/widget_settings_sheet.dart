@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:JWHelper/infrastructure/platform/widget_permission_service.dart';
 
@@ -21,13 +22,13 @@ class WidgetSettingsSheet extends StatefulWidget {
 
 class _WidgetSettingsSheetState extends State<WidgetSettingsSheet>
     with WidgetsBindingObserver {
-  late Future<_WidgetPermissionSnapshot> _snapshotFuture;
+  late Future<WidgetPermissionStatus> _statusFuture;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _refresh();
+    _statusFuture = WidgetPermissionService.getStatus();
   }
 
   @override
@@ -45,17 +46,8 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet>
 
   void _refresh() {
     setState(() {
-      _snapshotFuture = _loadSnapshot();
+      _statusFuture = WidgetPermissionService.getStatus();
     });
-  }
-
-  Future<_WidgetPermissionSnapshot> _loadSnapshot() async {
-    final status = await WidgetPermissionService.getStatus();
-    final requirements = await WidgetPermissionService.getUnmetRequirements();
-    return _WidgetPermissionSnapshot(
-      status: status,
-      requirements: requirements,
-    );
   }
 
   Future<void> _request(WidgetPermissionType type) async {
@@ -117,23 +109,23 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet>
             const SizedBox(height: 8),
             _WidgetInfoTile(
               icon: Icons.school_outlined,
-              title: Platform.isIOS ? '绩点与学分' : '学业进度',
+              title: !kIsWeb && Platform.isIOS ? '绩点与学分' : '学业进度',
               subtitle: '展示绩点与学分完成情况',
             ),
             const SizedBox(height: 16),
-            FutureBuilder<_WidgetPermissionSnapshot>(
-              future: _snapshotFuture,
+            FutureBuilder<WidgetPermissionStatus>(
+              future: _statusFuture,
               builder: (context, snapshot) {
                 if (snapshot.connectionState != ConnectionState.done) {
                   return const Center(child: CircularProgressIndicator());
                 }
 
-                final data = snapshot.data;
-                if (data == null) {
+                final status = snapshot.data;
+                if (status == null) {
                   return const SizedBox.shrink();
                 }
 
-                if (!Platform.isAndroid) {
+                if (kIsWeb || !Platform.isAndroid) {
                   return const Card(
                     elevation: 0,
                     child: ListTile(
@@ -148,32 +140,32 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet>
                   children: [
                     _PermissionStatusTile(
                       title: '闹钟',
-                      subtitle: data.status.exactAlarmRequired
-                          ? (data.status.canScheduleExactAlarms
+                      subtitle: status.exactAlarmRequired
+                          ? (status.canScheduleExactAlarms
                               ? '已允许，课表可定时刷新'
                               : '未允许，课表可能无法按时刷新')
                           : '当前系统版本无需单独授权',
-                      granted: data.status.exactAlarmReady,
-                      actionLabel: data.status.exactAlarmReady ? null : '去开启',
-                      onAction: data.status.exactAlarmReady
+                      granted: status.exactAlarmReady,
+                      actionLabel: status.exactAlarmReady ? null : '去开启',
+                      onAction: status.exactAlarmReady
                           ? null
                           : () => _request(WidgetPermissionType.exactAlarm),
                     ),
                     const SizedBox(height: 8),
                     _PermissionStatusTile(
                       title: '通知（提醒）',
-                      subtitle: data.status.notificationRequired
-                          ? (data.status.notificationGranted
+                      subtitle: status.notificationRequired
+                          ? (status.notificationGranted
                               ? '已允许'
                               : '未允许，HyperOS 上常显示为「提醒」')
                           : '当前系统版本无需单独授权',
-                      granted: data.status.notificationReady,
-                      actionLabel: data.status.notificationReady ? null : '去开启',
-                      onAction: data.status.notificationReady
+                      granted: status.notificationReady,
+                      actionLabel: status.notificationReady ? null : '去开启',
+                      onAction: status.notificationReady
                           ? null
                           : () => _request(WidgetPermissionType.notification),
                     ),
-                    if (data.status.isXiaomiFamily) ...[
+                    if (status.isXiaomiFamily) ...[
                       const SizedBox(height: 8),
                       _PermissionStatusTile(
                         title: '自启动',
@@ -200,16 +192,6 @@ class _WidgetSettingsSheetState extends State<WidgetSettingsSheet>
       ),
     );
   }
-}
-
-class _WidgetPermissionSnapshot {
-  const _WidgetPermissionSnapshot({
-    required this.status,
-    required this.requirements,
-  });
-
-  final WidgetPermissionStatus status;
-  final List<WidgetPermissionRequirement> requirements;
 }
 
 class _PermissionStatusTile extends StatelessWidget {

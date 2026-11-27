@@ -456,6 +456,9 @@ class _NoticeImageState extends State<NoticeImage> {
           );
         }
 
+        final cacheWidth = (MediaQuery.sizeOf(context).width *
+                MediaQuery.devicePixelRatioOf(context))
+            .round();
         return GestureDetector(
           onTap: () => _openFullscreen(bytes),
           child: ClipRRect(
@@ -464,6 +467,8 @@ class _NoticeImageState extends State<NoticeImage> {
               bytes,
               fit: BoxFit.fitWidth,
               width: double.infinity,
+              cacheWidth: cacheWidth,
+              gaplessPlayback: true,
               errorBuilder: (_, __, ___) => const SizedBox.shrink(),
             ),
           ),

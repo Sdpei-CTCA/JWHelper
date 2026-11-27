@@ -54,13 +54,13 @@ class WidgetPermissionService {
   static const String exactAlarmDeniedKey = 'widget_exact_alarm_denied';
   static bool _promptedThisSession = false;
 
-  static bool get isHomeWidgetSupported {
-    if (kIsWeb) return false;
-    return Platform.isAndroid || Platform.isIOS;
-  }
+  static bool get _isAndroid => !kIsWeb && Platform.isAndroid;
+  static bool get _isIOS => !kIsWeb && Platform.isIOS;
+
+  static bool get isHomeWidgetSupported => _isAndroid || _isIOS;
 
   static Future<WidgetPermissionStatus> getStatus() async {
-    if (!Platform.isAndroid) {
+    if (!_isAndroid) {
       return const WidgetPermissionStatus(
         canScheduleExactAlarms: true,
         exactAlarmRequired: false,
@@ -95,8 +95,12 @@ class WidgetPermissionService {
     final sdkInt = info.version.sdkInt;
     final exactAlarmRequired = sdkInt >= 31;
     final notificationRequired = sdkInt >= 33;
-    final exactAlarmStatus = await Permission.scheduleExactAlarm.status;
-    final notificationStatus = await Permission.notification.status;
+    final statuses = await Future.wait([
+      Permission.scheduleExactAlarm.status,
+      Permission.notification.status,
+    ]);
+    final exactAlarmStatus = statuses[0];
+    final notificationStatus = statuses[1];
     final brand = info.brand.toLowerCase();
     final manufacturer = info.manufacturer.toLowerCase();
 
@@ -113,10 +117,9 @@ class WidgetPermissionService {
     );
   }
 
-  static Future<List<WidgetPermissionRequirement>> getUnmetRequirements() async {
-    if (!isHomeWidgetSupported || !Platform.isAndroid) return [];
-
-    final status = await getStatus();
+  static List<WidgetPermissionRequirement> unmetRequirementsFromStatus(
+    WidgetPermissionStatus status,
+  ) {
     final missing = <WidgetPermissionRequirement>[];
 
     if (status.exactAlarmRequired && !status.canScheduleExactAlarms) {
@@ -155,6 +158,13 @@ class WidgetPermissionService {
     return missing;
   }
 
+  static Future<List<WidgetPermissionRequirement>> getUnmetRequirements() async {
+    if (!_isAndroid) return [];
+
+    final status = await getStatus();
+    return unmetRequirementsFromStatus(status);
+  }
+
   static String _exactAlarmSettingsHint(WidgetPermissionStatus status) {
     if (status.isXiaomiFamily) {
       return '系统设置 → 应用 → 教务小助手 → 权限管理 → 闹钟和提醒 → 允许';
@@ -181,7 +191,7 @@ class WidgetPermissionService {
   }
 
   static Future<bool> consumeNativeExactAlarmDeniedFlag() async {
-    if (!Platform.isAndroid) return false;
+    if (!_isAndroid) return false;
     try {
       final denied = await HomeWidget.getWidgetData<bool>(
         exactAlarmDeniedKey,
@@ -201,8 +211,10 @@ class WidgetPermissionService {
     if (!context.mounted || !isHomeWidgetSupported) return;
 
     final nativeDenied = await consumeNativeExactAlarmDeniedFlag();
-    final missing = await getUnmetRequirements()
-        .then((items) => items.where((item) => item.detectable).toList());
+    final status = await getStatus();
+    final missing = unmetRequirementsFromStatus(status)
+        .where((item) => item.detectable)
+        .toList();
     if (!nativeDenied && missing.isEmpty) return;
     if (_promptedThisSession && missing.isEmpty) return;
 
@@ -215,8 +227,6 @@ class WidgetPermissionService {
     }
 
     if (nativeDenied && context.mounted) {
-      final status = await getStatus();
-      if (!context.mounted) return;
       await showRequirementsDialog(
         context,
         [
@@ -302,10 +312,10 @@ class WidgetPermissionService {
   }
 
   static String platformGuideText() {
-    if (Platform.isIOS) {
+    if (_isIOS) {
       return '长按主屏幕 → 点左上角「+」→ 搜索「教务小助手」→ 添加「今日课表」或「绩点与学分」小组件。';
     }
-    if (Platform.isAndroid) {
+    if (_isAndroid) {
       return '长按主屏幕 → 小组件 → 找到「教务小助手」→ 添加「今日课表」或「学业进度」。';
     }
     return '当前平台不支持桌面小组件。';

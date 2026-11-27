@@ -17,6 +17,13 @@ class WallpaperProvider with ChangeNotifier {
   Color _accentColor = const Color(0xFFE6A23C);
   bool _isLoaded = false;
 
+  late Color _lightPrimary;
+  late Color _lightSurface;
+  late Color _darkPrimary;
+  late Color _darkSurface;
+  late Color _darkCard;
+  late Color _darkAppBar;
+
   String? get wallpaperPath => _wallpaperPath;
   double get opacity => _opacity;
   double get listCardOpacity => _listCardOpacity;
@@ -29,7 +36,24 @@ class WallpaperProvider with ChangeNotifier {
   bool get isLoaded => _isLoaded;
 
   WallpaperProvider() {
+    _rebuildDerivedPalette();
     _loadSettings();
+  }
+
+  void _rebuildDerivedPalette() {
+    final hsl = HSLColor.fromColor(_primaryColor);
+    _lightPrimary = hsl
+        .withLightness(0.45)
+        .withSaturation((hsl.saturation * 1.1).clamp(0.0, 1.0))
+        .toColor();
+    _lightSurface = hsl.withLightness(0.97).withSaturation(0.15).toColor();
+    _darkPrimary = hsl
+        .withLightness(0.55)
+        .withSaturation((hsl.saturation * 0.8).clamp(0.0, 1.0))
+        .toColor();
+    _darkSurface = hsl.withLightness(0.10).withSaturation(0.15).toColor();
+    _darkCard = hsl.withLightness(0.14).withSaturation(0.12).toColor();
+    _darkAppBar = hsl.withLightness(0.12).withSaturation(0.12).toColor();
   }
 
   // Saved extracted colors from wallpaper (preserved across theme changes)
@@ -84,6 +108,7 @@ class WallpaperProvider with ChangeNotifier {
       if (accentValue != null) _accentColor = Color(accentValue);
     }
     
+    _rebuildDerivedPalette();
     _isLoaded = true;
     notifyListeners();
   }
@@ -101,44 +126,71 @@ class WallpaperProvider with ChangeNotifier {
     }
   }
 
-  Future<void> setOpacity(double value) async {
-    _opacity = value.clamp(0.0, 1.0);
-    notifyListeners();
-    
+  Future<void> setOpacity(double value, {bool persist = true}) async {
+    final next = value.clamp(0.0, 1.0);
+    if (next != _opacity) {
+      _opacity = next;
+      notifyListeners();
+    }
+    if (!persist) return;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setDouble('wallpaperOpacity', _opacity);
   }
 
-  Future<void> setListCardOpacity(double value) async {
-    _listCardOpacity = value.clamp(0.0, 1.0);
-    notifyListeners();
-    
+  Future<void> setListCardOpacity(double value, {bool persist = true}) async {
+    final next = value.clamp(0.0, 1.0);
+    if (next != _listCardOpacity) {
+      _listCardOpacity = next;
+      notifyListeners();
+    }
+    if (!persist) return;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setDouble('listCardOpacity', _listCardOpacity);
   }
 
-  Future<void> setGridCardOpacity(double value) async {
-    _gridCardOpacity = value.clamp(0.0, 1.0);
-    notifyListeners();
-    
+  Future<void> setGridCardOpacity(double value, {bool persist = true}) async {
+    final next = value.clamp(0.0, 1.0);
+    if (next != _gridCardOpacity) {
+      _gridCardOpacity = next;
+      notifyListeners();
+    }
+    if (!persist) return;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setDouble('gridCardOpacity', _gridCardOpacity);
   }
 
-  Future<void> setPanX(double value) async {
-    _panX = value.clamp(-1.0, 1.0);
-    notifyListeners();
-    
+  Future<void> setPanX(double value, {bool persist = true}) async {
+    final next = value.clamp(-1.0, 1.0);
+    if (next != _panX) {
+      _panX = next;
+      notifyListeners();
+    }
+    if (!persist) return;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setDouble('wallpaperPanX', _panX);
   }
 
-  Future<void> setPanY(double value) async {
-    _panY = value.clamp(-1.0, 1.0);
-    notifyListeners();
-    
+  Future<void> setPanY(double value, {bool persist = true}) async {
+    final next = value.clamp(-1.0, 1.0);
+    if (next != _panY) {
+      _panY = next;
+      notifyListeners();
+    }
+    if (!persist) return;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setDouble('wallpaperPanY', _panY);
+  }
+
+  Future<void> resetPan() async {
+    if (_panX == 0.0 && _panY == 0.0) return;
+    _panX = 0.0;
+    _panY = 0.0;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await Future.wait([
+      prefs.setDouble('wallpaperPanX', 0.0),
+      prefs.setDouble('wallpaperPanY', 0.0),
+    ]);
   }
 
   Alignment get wallpaperAlignment => Alignment(
@@ -214,14 +266,17 @@ class WallpaperProvider with ChangeNotifier {
     _primaryColor = theme['primary'] as Color;
     _secondaryColor = theme['secondary'] as Color;
     _accentColor = theme['accent'] as Color;
+    _rebuildDerivedPalette();
   }
 
   Future<void> _persistThemeColors(String themeKey) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt('wallpaperPrimaryColor', _primaryColor.toARGB32());
-    await prefs.setInt('wallpaperSecondaryColor', _secondaryColor.toARGB32());
-    await prefs.setInt('wallpaperAccentColor', _accentColor.toARGB32());
-    await prefs.setString('defaultThemeKey', themeKey);
+    await Future.wait([
+      prefs.setInt('wallpaperPrimaryColor', _primaryColor.toARGB32()),
+      prefs.setInt('wallpaperSecondaryColor', _secondaryColor.toARGB32()),
+      prefs.setInt('wallpaperAccentColor', _accentColor.toARGB32()),
+      prefs.setString('defaultThemeKey', themeKey),
+    ]);
   }
 
   bool get hasExtractedColors =>
@@ -234,28 +289,31 @@ class WallpaperProvider with ChangeNotifier {
 
   Future<void> restoreWallpaperColors() async {
     if (_extractedPrimary == null || _wallpaperPath == null) return;
-    
-    _primaryColor = _extractedPrimary!;
-    _secondaryColor = _extractedSecondary!;
-    _accentColor = _extractedAccent!;
 
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt('wallpaperPrimaryColor', _primaryColor.toARGB32());
-    await prefs.setInt('wallpaperSecondaryColor', _secondaryColor.toARGB32());
-    await prefs.setInt('wallpaperAccentColor', _accentColor.toARGB32());
-    await prefs.remove('defaultThemeKey');
+    _primaryColor = _extractedPrimary!;
+    _secondaryColor = _extractedSecondary ?? _secondaryColor;
+    _accentColor = _extractedAccent ?? _accentColor;
+    _rebuildDerivedPalette();
 
     notifyListeners();
+
+    final prefs = await SharedPreferences.getInstance();
+    await Future.wait([
+      prefs.setInt('wallpaperPrimaryColor', _primaryColor.toARGB32()),
+      prefs.setInt('wallpaperSecondaryColor', _secondaryColor.toARGB32()),
+      prefs.setInt('wallpaperAccentColor', _accentColor.toARGB32()),
+      prefs.remove('defaultThemeKey'),
+    ]);
   }
 
   Future<void> _extractColors(String imagePath) async {
     try {
-      final PaletteGenerator paletteGenerator = 
-        await PaletteGenerator.fromImageProvider(
-          FileImage(File(imagePath)),
-          size: const Size(200, 200),
-          maximumColorCount: 20,
-        );
+      final PaletteGenerator paletteGenerator =
+          await PaletteGenerator.fromImageProvider(
+        ResizeImage(FileImage(File(imagePath)), width: 200),
+        size: const Size(200, 200),
+        maximumColorCount: 20,
+      );
 
       // Extract dominant colors - swap primary/secondary for better UI fit
       if (paletteGenerator.vibrantColor != null) {
@@ -278,6 +336,7 @@ class WallpaperProvider with ChangeNotifier {
       _primaryColor = _adjustColorForContrast(_primaryColor);
       _secondaryColor = _adjustColorForContrast(_secondaryColor);
       _accentColor = _adjustColorForContrast(_accentColor);
+      _rebuildDerivedPalette();
 
       // Save extracted originals (for restore-from-theme later)
       _extractedPrimary = _primaryColor;
@@ -286,16 +345,16 @@ class WallpaperProvider with ChangeNotifier {
 
       // Save colors
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setInt('wallpaperPrimaryColor', _primaryColor.toARGB32());
-      await prefs.setInt('wallpaperSecondaryColor', _secondaryColor.toARGB32());
-      await prefs.setInt('wallpaperAccentColor', _accentColor.toARGB32());
-      // Persist extracted originals separately
-      await prefs.setInt('wallpaperExtractedPrimary', _primaryColor.toARGB32());
-      await prefs.setInt('wallpaperExtractedSecondary', _secondaryColor.toARGB32());
-      await prefs.setInt('wallpaperExtractedAccent', _accentColor.toARGB32());
-      // Clear default theme override when wallpaper is set
-      await prefs.remove('defaultThemeKey');
-      
+      await Future.wait([
+        prefs.setInt('wallpaperPrimaryColor', _primaryColor.toARGB32()),
+        prefs.setInt('wallpaperSecondaryColor', _secondaryColor.toARGB32()),
+        prefs.setInt('wallpaperAccentColor', _accentColor.toARGB32()),
+        prefs.setInt('wallpaperExtractedPrimary', _primaryColor.toARGB32()),
+        prefs.setInt('wallpaperExtractedSecondary', _secondaryColor.toARGB32()),
+        prefs.setInt('wallpaperExtractedAccent', _accentColor.toARGB32()),
+        prefs.remove('defaultThemeKey'),
+      ]);
+
       notifyListeners();
     } catch (e) {
       debugPrint('Error extracting colors: $e');
@@ -315,18 +374,10 @@ class WallpaperProvider with ChangeNotifier {
   // ── Light-mode palette ──────────────────────────────────────
 
   /// Bright, saturated primary for light mode (L ≈ 0.45)
-  Color get lightPrimary {
-    final hsl = HSLColor.fromColor(_primaryColor);
-    return hsl.withLightness(0.45.clamp(0.0, 1.0)).withSaturation(
-      (hsl.saturation * 1.1).clamp(0.0, 1.0),
-    ).toColor();
-  }
+  Color get lightPrimary => _lightPrimary;
 
   /// Slightly tinted white surface  (L ≈ 0.97)
-  Color get lightSurface {
-    final hsl = HSLColor.fromColor(_primaryColor);
-    return hsl.withLightness(0.97).withSaturation(0.15).toColor();
-  }
+  Color get lightSurface => _lightSurface;
 
   /// White card with very subtle tint
   Color get lightCard => Colors.white;
@@ -337,30 +388,16 @@ class WallpaperProvider with ChangeNotifier {
   // ── Dark-mode palette ───────────────────────────────────────
 
   /// Softer, desaturated primary for dark mode (L ≈ 0.55)
-  Color get darkPrimary {
-    final hsl = HSLColor.fromColor(_primaryColor);
-    return hsl.withLightness(0.55.clamp(0.0, 1.0)).withSaturation(
-      (hsl.saturation * 0.8).clamp(0.0, 1.0),
-    ).toColor();
-  }
+  Color get darkPrimary => _darkPrimary;
 
   /// Dark surface with subtle primary tint  (L ≈ 0.10)
-  Color get darkSurface {
-    final hsl = HSLColor.fromColor(_primaryColor);
-    return hsl.withLightness(0.10).withSaturation(0.15).toColor();
-  }
+  Color get darkSurface => _darkSurface;
 
   /// Slightly lighter card for dark mode (L ≈ 0.14)
-  Color get darkCard {
-    final hsl = HSLColor.fromColor(_primaryColor);
-    return hsl.withLightness(0.14).withSaturation(0.12).toColor();
-  }
+  Color get darkCard => _darkCard;
 
   /// AppBar for dark mode (L ≈ 0.12)
-  Color get darkAppBar {
-    final hsl = HSLColor.fromColor(_primaryColor);
-    return hsl.withLightness(0.12).withSaturation(0.12).toColor();
-  }
+  Color get darkAppBar => _darkAppBar;
 
   // ── Shared helpers ──────────────────────────────────────────
 
@@ -392,25 +429,24 @@ class WallpaperProvider with ChangeNotifier {
     _extractedPrimary = null;
     _extractedSecondary = null;
     _extractedAccent = null;
-    
+
     notifyListeners();
-    
+
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('wallpaperPath');
-    await prefs.remove('wallpaperOpacity');
-    await prefs.remove('listCardOpacity');
-    await prefs.remove('gridCardOpacity');
-    await prefs.remove('wallpaperPanX');
-    await prefs.remove('wallpaperPanY');
-    await prefs.remove('wallpaperPrimaryColor');
-    await prefs.remove('wallpaperSecondaryColor');
-    await prefs.remove('wallpaperAccentColor');
-    await prefs.remove('wallpaperExtractedPrimary');
-    await prefs.remove('wallpaperExtractedSecondary');
-    await prefs.remove('wallpaperExtractedAccent');
-    await prefs.setString('defaultThemeKey', defaultThemeKey);
-    await prefs.setInt('wallpaperPrimaryColor', _primaryColor.toARGB32());
-    await prefs.setInt('wallpaperSecondaryColor', _secondaryColor.toARGB32());
-    await prefs.setInt('wallpaperAccentColor', _accentColor.toARGB32());
+    await Future.wait([
+      prefs.remove('wallpaperPath'),
+      prefs.remove('wallpaperOpacity'),
+      prefs.remove('listCardOpacity'),
+      prefs.remove('gridCardOpacity'),
+      prefs.remove('wallpaperPanX'),
+      prefs.remove('wallpaperPanY'),
+      prefs.remove('wallpaperExtractedPrimary'),
+      prefs.remove('wallpaperExtractedSecondary'),
+      prefs.remove('wallpaperExtractedAccent'),
+      prefs.setString('defaultThemeKey', defaultThemeKey),
+      prefs.setInt('wallpaperPrimaryColor', _primaryColor.toARGB32()),
+      prefs.setInt('wallpaperSecondaryColor', _secondaryColor.toARGB32()),
+      prefs.setInt('wallpaperAccentColor', _accentColor.toARGB32()),
+    ]);
   }
 }

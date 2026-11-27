@@ -62,6 +62,14 @@ class _LoginScreenState extends State<LoginScreen> {
     });
   }
 
+  @override
+  void dispose() {
+    _usernameController.dispose();
+    _passwordController.dispose();
+    _captchaController.dispose();
+    super.dispose();
+  }
+
   Future<void> _showSessionExpiredLogin() async {
     final auth = Provider.of<AuthProvider>(context, listen: false);
     await auth.loadSavedPreferences();

@@ -13,9 +13,6 @@ class ScheduleWeekContext {
   }
 
   static bool _isInCurrentWeek(ScheduleItem item, int currentWeek) {
-    if (item.weekStart > 0 && item.weekEnd > 0) {
-      return currentWeek >= item.weekStart && currentWeek <= item.weekEnd;
-    }
-    return true;
+    return item.occursInWeek(currentWeek);
   }
 }

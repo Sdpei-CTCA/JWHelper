@@ -32,14 +32,20 @@ class _ReminderDiagnosticsTileState extends State<ReminderDiagnosticsTile> {
   }
 
   Future<void> _load() async {
-    final status = await WidgetPermissionService.getStatus();
     final notification = NotificationService();
-    final enabled = await notification.isEnabled;
-    final prefs = await SharedPreferences.getInstance();
+    final results = await Future.wait([
+      WidgetPermissionService.getStatus(),
+      notification.isEnabled,
+      SharedPreferences.getInstance(),
+      BackgroundSync.isNoticePollingEnabled(),
+    ]);
+    final status = results[0] as WidgetPermissionStatus;
+    final enabled = results[1] as bool;
+    final prefs = results[2] as SharedPreferences;
+    final noticePolling = results[3] as bool;
 
     final count = prefs.getInt('class_reminder_count') ?? 0;
     final nextMillis = prefs.getInt('class_reminder_next_at');
-    final noticePolling = await BackgroundSync.isNoticePollingEnabled();
 
     if (!mounted) return;
     setState(() {

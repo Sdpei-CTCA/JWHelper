@@ -54,6 +54,9 @@ class SsoTokenService {
   /// 验证码位数（网页端按 4 位自动校验）。
   static const int captchaLength = 4;
 
+  static const int _maxRedirects = 15;
+  static final RegExp _userTokenRe = RegExp(r'userToken=([^&]+)');
+
   /// 登录失败原因，供调用方提示用户（凭据错误 / 网络异常）。
   String _lastError = '';
 
@@ -94,11 +97,13 @@ class SsoTokenService {
       var token = await _extractTokenFromAuthorizeStep(authorizeResp);
 
       // 未登录时会一路跳到登录页，此时 Location 不再携带 token。
-      while (token == null || token.isEmpty) {
+      var hops = 0;
+      while ((token == null || token.isEmpty) && hops < _maxRedirects) {
         final location = authorizeResp.headers.value('location') ?? '';
         if (location.isEmpty) {
           break;
         }
+        hops++;
         currentUrl = _resolveUrl(currentUrl, location).toString();
         authorizeResp = await _dio.get<String>(currentUrl);
         token = await _extractTokenFromAuthorizeStep(authorizeResp);
@@ -123,11 +128,13 @@ class SsoTokenService {
         var secondAuthorize = await _dio.get<String>(_authorizeUrl);
         token = await _extractTokenFromAuthorizeStep(secondAuthorize);
 
-        while (token == null || token.isEmpty) {
+        var secondHops = 0;
+        while ((token == null || token.isEmpty) && secondHops < _maxRedirects) {
           final location = secondAuthorize.headers.value('location') ?? '';
           if (location.isEmpty) {
             break;
           }
+          secondHops++;
           final nextUrl = _resolveUrl(_authorizeUrl, location).toString();
           secondAuthorize = await _dio.get<String>(nextUrl);
           token = await _extractTokenFromAuthorizeStep(secondAuthorize);
@@ -391,7 +398,7 @@ class SsoTokenService {
   }
 
   String _extractUserToken(String location) {
-    final match = RegExp(r'userToken=([^&]+)').firstMatch(location);
+    final match = _userTokenRe.firstMatch(location);
     if (match != null) {
       return Uri.decodeComponent(match.group(1) ?? '');
     }
@@ -401,7 +408,7 @@ class SsoTokenService {
       return '';
     }
 
-    final fragmentMatch = RegExp(r'userToken=([^&]+)').firstMatch(uri.fragment);
+    final fragmentMatch = _userTokenRe.firstMatch(uri.fragment);
     if (fragmentMatch == null) {
       return '';
     }
@@ -414,11 +421,12 @@ class SsoTokenService {
       return false;
     }
     // 统一认证前端是 Vue SPA，页面本身没有表单，只能靠容器标识判断。
-    return html.contains('<div id="app"') ||
-        html.contains('ssoApi') ||
-        (html.contains('<form') &&
-            (html.toLowerCase().contains('password') ||
-                html.toLowerCase().contains('username')));
+    if (html.contains('<div id="app"') || html.contains('ssoApi')) {
+      return true;
+    }
+    if (!html.contains('<form')) return false;
+    final lower = html.toLowerCase();
+    return lower.contains('password') || lower.contains('username');
   }
 
   Uri _resolveUrl(String base, String maybeRelative) {

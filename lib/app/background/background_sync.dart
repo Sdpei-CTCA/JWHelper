@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:workmanager/workmanager.dart';
+import 'package:JWHelper/app/cache/offline_cache_keys.dart';
 import 'package:JWHelper/features/attendance/data/attendance_credential_store.dart';
 import 'package:JWHelper/features/attendance/data/sso_token_service.dart';
 import 'package:JWHelper/features/notice/data/notice_cache_store.dart';
@@ -193,8 +194,9 @@ class BackgroundSync {
     final username = prefs.getString('username') ?? '';
     if (username.isEmpty) return;
 
-    final raw = prefs.getString('schedule_cache_$username');
-    final startDayRaw = prefs.getString('schedule_start_day_$username');
+    final raw = prefs.getString(OfflineCacheKeys.schedule(username));
+    final startDayRaw =
+        prefs.getString(OfflineCacheKeys.scheduleStartDay(username));
     if (raw == null || raw.isEmpty || startDayRaw == null) return;
 
     final startDay = DateTime.tryParse(startDayRaw);
@@ -217,7 +219,9 @@ class BackgroundSync {
     await NotificationService().scheduleClassReminders(
       schedule: items,
       startDay: startDay,
-      campus: prefs.getString('campus') ?? '济南',
+      campus: prefs.getString('campus_$username') ??
+          prefs.getString('campus') ??
+          '济南',
     );
     debugPrint('Background class reminders refreshed');
   }

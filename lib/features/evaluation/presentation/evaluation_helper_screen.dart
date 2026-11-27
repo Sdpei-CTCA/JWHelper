@@ -35,10 +35,10 @@ class _EvaluationHelperScreenState extends State<EvaluationHelperScreen> {
         setState(() {
           _items = items;
           _loading = false;
+          if (items.isEmpty) {
+            _status = "没有待评价的课程或获取失败";
+          }
         });
-        if (items.isEmpty) {
-          _status = "没有待评价的课程或获取失败";
-        }
       }
     } catch (e) {
       if (mounted) {
@@ -123,7 +123,7 @@ class _EvaluationHelperScreenState extends State<EvaluationHelperScreen> {
                     final status = _logs[item.evaluationId] ?? "未评价";
                     final isSuccess = status.contains("成功");
 
-                    return Card(
+                    final card = Card(
                       elevation: 0,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),
@@ -219,10 +219,12 @@ class _EvaluationHelperScreenState extends State<EvaluationHelperScreen> {
                           ],
                         ),
                       ),
-                    )
+                    );
+                    if (index >= 6) return card;
+                    return card
                         .animate()
                         .fadeIn(duration: 300.ms)
-                        .slideY(begin: 0.1, end: 0, curve: Curves.easeOutQuad);
+                        .slideY(begin: 0.08, end: 0, curve: Curves.easeOutQuad);
                   },
                 ),
     );

@@ -1,7 +1,7 @@
 class ProgressGroup {
   final String id;
   final String name;
-  final double required;
+  double required;
   final double earned;
   List<ProgressCourse>? courses;
 
@@ -39,10 +39,30 @@ class ProgressGroup {
 }
 
 class ProgressInfo {
+  static final RegExp _gpaNumberRe = RegExp(r'\d+(\.\d+)?');
+
   final String label;
   final String value;
 
   ProgressInfo({required this.label, required this.value});
+
+  static String valueContaining(
+    List<ProgressInfo> items,
+    String keyword, {
+    String fallback = '-',
+  }) {
+    for (final item in items) {
+      if (item.label.contains(keyword)) return item.value;
+    }
+    return fallback;
+  }
+
+  static String extractGpaValue(List<ProgressInfo> items) {
+    final raw = valueContaining(items, '学位课程绩点');
+    final match = _gpaNumberRe.firstMatch(raw);
+    if (match != null) return match.group(0)!;
+    return raw.length > 4 ? raw.substring(0, 4) : raw;
+  }
 
   factory ProgressInfo.fromJson(Map<String, dynamic> json) {
     return ProgressInfo(

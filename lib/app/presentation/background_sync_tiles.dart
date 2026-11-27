@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:JWHelper/app/background/background_sync.dart';
+import 'package:JWHelper/app/presentation/home_settings_sheet.dart';
 
 /// 设置里的「后台轮询」两个开关。
 ///
@@ -26,46 +26,23 @@ class _BackgroundSyncTilesState extends State<BackgroundSyncTiles> {
   }
 
   Future<void> _load() async {
-    final notice = await BackgroundSync.isNoticePollingEnabled();
-    final klass = await BackgroundSync.isClassPollingEnabled();
+    final results = await Future.wait([
+      BackgroundSync.isNoticePollingEnabled(),
+      BackgroundSync.isClassPollingEnabled(),
+    ]);
     if (!mounted) return;
     setState(() {
-      _noticeEnabled = notice;
-      _classEnabled = klass;
+      _noticeEnabled = results[0];
+      _classEnabled = results[1];
     });
   }
 
-  Future<bool> _ensureNotificationPermission() async {
-    var status = await Permission.notification.status;
-    if (!status.isGranted) {
-      status = await Permission.notification.request();
-    }
-    if (status.isGranted) return true;
-
-    if (!mounted) return false;
-    await showDialog<void>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('需要通知权限'),
-        content: const Text(
+  Future<bool> _ensureNotificationPermission() {
+    return ensureNotificationPermission(
+      context,
+      rationale:
           '后台轮询发现新通知或需要提醒上课时，要发本地通知。请允许「教务小助手」发送通知。',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('取消'),
-          ),
-          TextButton(
-            onPressed: () {
-              openAppSettings();
-              Navigator.pop(context);
-            },
-            child: const Text('去设置'),
-          ),
-        ],
-      ),
     );
-    return false;
   }
 
   Future<void> _toggleNotice(bool value) async {

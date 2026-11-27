@@ -79,6 +79,9 @@ class UpdateService {
 
   static Dio _createDefaultDio() => Dio(
     BaseOptions(
+      connectTimeout: const Duration(seconds: 8),
+      receiveTimeout: const Duration(seconds: 10),
+      sendTimeout: const Duration(seconds: 8),
       headers: const {
         'User-Agent': 'JWHelper-App',
         'Accept': 'application/vnd.github+json',
@@ -92,45 +95,56 @@ class UpdateService {
       'https://gitee.com/api/v5/repos/SpongeFun/JWHelper/releases/latest';
   static const String _giteeReleasesPage =
       'https://gitee.com/SpongeFun/JWHelper/releases';
+  static final RegExp _versionRe = RegExp(r'(\d+)\.(\d+)\.(\d+)');
 
   final ValueNotifier<UpdateUiState> updateState =
       ValueNotifier(const UpdateUiState());
   String currentVersion = '';
+  bool _disposed = false;
+  List<String>? _cachedSupportedAbis;
 
   Future<void> init() async {
     currentVersion = await getCurrentVersion();
+    if (_disposed) return;
     checkForUpdates(silent: true);
   }
 
   void dispose() {
+    _disposed = true;
     updateState.dispose();
   }
 
-  Future<void> checkForUpdates({bool silent = false}) async {
-    if (updateState.value.checking) return;
+  void _setState(UpdateUiState next) {
+    if (_disposed) return;
+    updateState.value = next;
+  }
 
-    updateState.value = updateState.value.copyWith(
+  Future<void> checkForUpdates({bool silent = false}) async {
+    if (_disposed || updateState.value.checking) return;
+
+    _setState(updateState.value.copyWith(
       checking: true,
       clearError: !silent,
       clearMessage: !silent,
-    );
+    ));
 
     try {
       final result = await checkUpdate();
+      if (_disposed) return;
 
       if (!result.hasUpdate) {
-        updateState.value = updateState.value.copyWith(
+        _setState(updateState.value.copyWith(
           checking: false,
           hasUpdate: false,
           latestVersion: result.latestVersion,
           releaseNotes: result.releaseNotes,
           downloadUrl: null,
           message: (!silent) ? '当前已是最新版本' : null,
-        );
+        ));
         return;
       }
 
-      updateState.value = updateState.value.copyWith(
+      _setState(updateState.value.copyWith(
         checking: false,
         hasUpdate: true,
         latestVersion: result.latestVersion,
@@ -138,26 +152,28 @@ class UpdateService {
         downloadUrl: result.downloadUrl,
         clearMessage: true,
         clearError: true,
-      );
+      ));
     } catch (e) {
-      updateState.value = updateState.value.copyWith(
+      _setState(updateState.value.copyWith(
         checking: false,
         error: e.toString(),
-      );
+      ));
     }
   }
 
   Future<String> getCurrentVersion() async {
+    if (currentVersion.isNotEmpty) return currentVersion;
     try {
       final info = await PackageInfo.fromPlatform();
-      return info.version;
+      currentVersion = info.version;
+      return currentVersion;
     } catch (_) {
       return '';
     }
   }
 
   Future<UpdateCheckResult> checkUpdate() async {
-    final currentVersion = await getCurrentVersion();
+    final version = await getCurrentVersion();
 
     final results = await Future.wait([
       _fetchGithubRelease(),
@@ -167,12 +183,12 @@ class UpdateService {
     final github = results[0];
     final gitee = results[1];
     final merged = mergeReleases(github: github, gitee: gitee);
-    final hasNew = isNewerVersion(merged.latestVersion, currentVersion);
+    final hasNew = isNewerVersion(merged.latestVersion, version);
 
     return UpdateCheckResult(
       hasUpdate: hasNew,
       latestVersion: merged.latestVersion,
-      currentVersion: currentVersion,
+      currentVersion: version,
       releaseNotes: merged.releaseNotes,
       downloadUrl: merged.downloadUrl ?? _fallbackReleasePage(merged.downloadPlatform),
     );
@@ -270,12 +286,25 @@ class UpdateService {
   // Helper methods
   String? _extractVersionFromText(String? text) {
     if (text == null) return null;
-    final match = RegExp(r'(\d+)\.(\d+)\.(\d+)').firstMatch(text);
+    final match = _versionRe.firstMatch(text);
     if (match == null) return null;
     return '${match.group(1)}.${match.group(2)}.${match.group(3)}';
   }
 
   bool _isApkAsset(String name) => name.toLowerCase().endsWith('.apk');
+
+  Future<List<String>> _getSupportedAbis() async {
+    if (_cachedSupportedAbis != null) return _cachedSupportedAbis!;
+    List<String> abis = const [];
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+      try {
+        final androidInfo = await DeviceInfoPlugin().androidInfo;
+        abis = androidInfo.supportedAbis;
+      } catch (_) {}
+    }
+    _cachedSupportedAbis = abis;
+    return abis;
+  }
 
   Future<String?> _pickAssetUrl(List<dynamic> assets) async {
     if (assets.isEmpty) return null;
@@ -293,13 +322,7 @@ class UpdateService {
       return null;
     }
 
-    List<String> supportedAbis = [];
-    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
-      try {
-        final androidInfo = await DeviceInfoPlugin().androidInfo;
-        supportedAbis = androidInfo.supportedAbis;
-      } catch (_) {}
-    }
+    final supportedAbis = await _getSupportedAbis();
 
     for (final abi in supportedAbis) {
       final url = findForPattern(abi);

@@ -7,6 +7,7 @@ import 'package:JWHelper/features/schedule/domain/schedule_item.dart';
 import 'package:JWHelper/app/domain/schedule_term_state.dart';
 
 class ScheduleService {
+  static final RegExp _trailingDigitsRe = RegExp(r'(\d+)$');
   final ApiClient _client = ApiClient();
 
   Future<String> _fetchSemesterId() async {
@@ -238,8 +239,7 @@ class ScheduleService {
           }
 
           // Simplify classroom name (last 4 digits)
-          RegExp regExp = RegExp(r'(\d+)$');
-          var match = regExp.firstMatch(classroom);
+          var match = _trailingDigitsRe.firstMatch(classroom);
           if (match != null) {
             var digits = match.group(1)!;
             if (digits.length > 4) digits = digits.substring(digits.length - 4);

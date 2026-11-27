@@ -84,33 +84,44 @@ class AttendanceCredentialStore {
 
   static Future<void> clearCredentials() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(usernameKey);
-    await prefs.remove(_verifiedKey);
-    await _secureStorage.delete(key: _securePasswordKey);
-    await clearTokens();
+    await Future.wait([
+      prefs.remove(usernameKey),
+      prefs.remove(_verifiedKey),
+      _secureStorage.delete(key: _securePasswordKey),
+      clearTokens(),
+    ]);
   }
 
   static Future<AttendanceSsoTokens> readTokens() async {
     // 早期版本把令牌明文存在 SharedPreferences 里，这里顺带迁移到加密存储。
     await _migrateLegacyTokens();
 
+    final values = await Future.wait([
+      _readSecure(_userTokenKey),
+      _readSecure(_ctTicketKey),
+      _readSecure(_appCtTicketKey),
+    ]);
     return AttendanceSsoTokens(
-      userToken: await _readSecure(_userTokenKey),
-      ctTicket: await _readSecure(_ctTicketKey),
-      appCtTicket: await _readSecure(_appCtTicketKey),
+      userToken: values[0],
+      ctTicket: values[1],
+      appCtTicket: values[2],
     );
   }
 
   static Future<void> saveTokens(AttendanceSsoTokens tokens) async {
-    await _secureStorage.write(key: _userTokenKey, value: tokens.userToken);
-    await _secureStorage.write(key: _ctTicketKey, value: tokens.ctTicket);
-    await _secureStorage.write(key: _appCtTicketKey, value: tokens.appCtTicket);
+    await Future.wait([
+      _secureStorage.write(key: _userTokenKey, value: tokens.userToken),
+      _secureStorage.write(key: _ctTicketKey, value: tokens.ctTicket),
+      _secureStorage.write(key: _appCtTicketKey, value: tokens.appCtTicket),
+    ]);
   }
 
   static Future<void> clearTokens() async {
-    await _secureStorage.delete(key: _userTokenKey);
-    await _secureStorage.delete(key: _ctTicketKey);
-    await _secureStorage.delete(key: _appCtTicketKey);
+    await Future.wait([
+      _secureStorage.delete(key: _userTokenKey),
+      _secureStorage.delete(key: _ctTicketKey),
+      _secureStorage.delete(key: _appCtTicketKey),
+    ]);
   }
 
   static Future<String> _readSecure(String key) async {

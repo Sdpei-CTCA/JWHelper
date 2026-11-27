@@ -84,5 +84,27 @@ void main() {
 
       expect(resolved.displayDate, DateTime(2026, 7, 7));
     });
+
+    test('itemsForDay respects explicit weeks set', () {
+      final items = [
+        ScheduleItem.withWeeks(
+          name: '单周课',
+          teacher: '李老师',
+          classroom: 'A201',
+          dayIndex: 0,
+          startUnit: 1,
+          endUnit: 2,
+          weeks: [1, 3, 5],
+        ),
+      ];
+      expect(
+        WidgetScheduleResolver.itemsForDay(items, dayIndex: 0, currentWeek: 3),
+        hasLength(1),
+      );
+      expect(
+        WidgetScheduleResolver.itemsForDay(items, dayIndex: 0, currentWeek: 2),
+        isEmpty,
+      );
+    });
   });
 }

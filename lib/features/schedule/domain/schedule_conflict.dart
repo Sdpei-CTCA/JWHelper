@@ -2,9 +2,13 @@ import 'package:JWHelper/features/schedule/domain/schedule_item.dart';
 
 class ScheduleConflict {
   static String itemKey(ScheduleItem item) {
-    return '${item.dayIndex}_${item.startUnit}_${item.endUnit}_'
+    final base = '${item.dayIndex}_${item.startUnit}_${item.endUnit}_'
         '${item.name}_${item.teacher}_${item.classroom}_'
         '${item.weekStart}_${item.weekEnd}';
+    // 只有带明确周次集合的课程才追加签名，保证旧数据的 key 不变
+    // （已保存的冲突主显示选择仍然有效）。
+    if (item.weeks == null) return base;
+    return '${base}_w${item.weeks!.join('.')}';
   }
 
   static String groupKey(List<ScheduleItem> group) {
@@ -18,22 +22,24 @@ class ScheduleConflict {
   }
 
   static List<List<ScheduleItem>> groupOverlapping(List<ScheduleItem> items) {
+    if (items.isEmpty) return [];
+    final keys = [for (final item in items) itemKey(item)];
     final groups = <List<ScheduleItem>>[];
     final assigned = <String>{};
 
-    for (final item in items) {
-      final key = itemKey(item);
-      if (assigned.contains(key)) continue;
+    for (var i = 0; i < items.length; i++) {
+      final key = keys[i];
+      if (!assigned.add(key)) continue;
 
-      final group = <ScheduleItem>[item];
-      assigned.add(key);
+      final group = <ScheduleItem>[items[i]];
 
       var foundMore = true;
       while (foundMore) {
         foundMore = false;
-        for (final other in items) {
-          final otherKey = itemKey(other);
+        for (var j = 0; j < items.length; j++) {
+          final otherKey = keys[j];
           if (assigned.contains(otherKey)) continue;
+          final other = items[j];
           if (group.any((existing) => overlaps(existing, other))) {
             group.add(other);
             assigned.add(otherKey);
@@ -66,7 +72,7 @@ class ScheduleConflict {
     final sorted = List<ScheduleItem>.from(group);
     sorted.sort((a, b) {
       int score(ScheduleItem item) {
-        if (weekNumber >= item.weekStart && weekNumber <= item.weekEnd) {
+        if (item.occursInWeek(weekNumber)) {
           return 0;
         }
         if (weekNumber < item.weekStart) return 1;

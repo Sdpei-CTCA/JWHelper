@@ -203,6 +203,8 @@ class NoticeParser {
     return '响应长度 ${trimmed.length}\n$preview';
   }
 
+  static final RegExp _whitespaceRe = RegExp(r'[ \t]+');
+
   static String? _resolveImage(String? rawSrc, Uri? origin) {
     var src = (rawSrc ?? '').trim();
     if (src.isEmpty) return null;
@@ -220,7 +222,6 @@ class NoticeParser {
 
     final uri = Uri.tryParse(src);
     if (uri == null || uri.host.isEmpty) return null;
-    if (uri.path.toLowerCase().endsWith('.gif')) return src;
     return src;
   }
 
@@ -246,7 +247,7 @@ class NoticeParser {
   static String _cleanLine(String input) {
     return input
         .replaceAll('\u00a0', ' ')
-        .replaceAll(RegExp(r'[ \t]+'), ' ')
+        .replaceAll(_whitespaceRe, ' ')
         .trim();
   }
 }

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'package:provider/provider.dart';
 import 'package:JWHelper/app/state/data_provider.dart';
+import 'package:JWHelper/features/grades/domain/grade.dart';
 
 class GradesScreen extends StatefulWidget {
   const GradesScreen({super.key});
@@ -29,11 +30,9 @@ class _GradesScreenState extends State<GradesScreen> {
 
   Widget _buildEmptyBody({
     required String message,
+    required bool gradesLoading,
     bool showRefreshButton = false,
   }) {
-    final gradesLoading =
-        context.select<DataProvider, bool>((d) => d.gradesLoading);
-
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
       children: [
@@ -79,7 +78,7 @@ class _GradesScreenState extends State<GradesScreen> {
   @override
   Widget build(BuildContext context) {
     final gradesLoading = context.select<DataProvider, bool>((d) => d.gradesLoading);
-    final grades = context.select<DataProvider, List<dynamic>>((d) => d.grades);
+    final grades = context.select<DataProvider, List<Grade>>((d) => d.grades);
     final rawSemesters = context.select<DataProvider, List<String>>((d) => d.semesterList);
 
     if (gradesLoading && grades.isEmpty) {
@@ -91,6 +90,7 @@ class _GradesScreenState extends State<GradesScreen> {
         onRefresh: _refreshGrades,
         child: _buildEmptyBody(
           message: '暂无成绩数据',
+          gradesLoading: gradesLoading,
           showRefreshButton: true,
         ),
       );
@@ -179,13 +179,22 @@ class _GradesScreenState extends State<GradesScreen> {
           child: RefreshIndicator(
             onRefresh: _refreshGrades,
             child: filteredGrades.isEmpty
-                ? _buildEmptyBody(message: '该学期暂无成绩')
+                ? _buildEmptyBody(
+                    message: '该学期暂无成绩',
+                    gradesLoading: gradesLoading,
+                  )
                 : ListView.builder(
+                    physics: const AlwaysScrollableScrollPhysics(),
                     padding: const EdgeInsets.all(16),
                     itemCount: filteredGrades.length,
                     scrollCacheExtent: const ScrollCacheExtent.pixels(2000),
                     itemBuilder: (context, index) {
                       final grade = filteredGrades[index];
+                      final scoreVal = double.tryParse(grade.score);
+                      final isFailed = scoreVal != null && scoreVal < 60;
+                      final badgeColor = isFailed
+                          ? Colors.red
+                          : Theme.of(context).colorScheme.primary;
                       return Card(
                         elevation: 0,
                         color: Theme.of(context).cardTheme.color,
@@ -220,26 +229,13 @@ class _GradesScreenState extends State<GradesScreen> {
                                       vertical: 4,
                                     ),
                                     decoration: BoxDecoration(
-                                      color: double.tryParse(grade.score) !=
-                                                  null &&
-                                              double.parse(grade.score) < 60
-                                          ? Colors.red.withValues(alpha: 0.1)
-                                          : Theme.of(context)
-                                              .colorScheme
-                                              .primary
-                                              .withValues(alpha: 0.1),
+                                      color: badgeColor.withValues(alpha: 0.1),
                                       borderRadius: BorderRadius.circular(4),
                                     ),
                                     child: Text(
                                       grade.score,
                                       style: TextStyle(
-                                        color: double.tryParse(grade.score) !=
-                                                    null &&
-                                                double.parse(grade.score) < 60
-                                            ? Colors.red
-                                            : Theme.of(context)
-                                                .colorScheme
-                                                .primary,
+                                        color: badgeColor,
                                         fontWeight: FontWeight.bold,
                                       ),
                                     ),

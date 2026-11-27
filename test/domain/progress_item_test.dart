@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:JWHelper/features/progress/data/progress_service.dart';
 import 'package:JWHelper/features/progress/domain/progress_item.dart';
 
 void main() {
@@ -34,6 +35,55 @@ void main() {
 
       expect(restored.label, info.label);
       expect(restored.value, info.value);
+    });
+
+    test('parseProgressHtml falls back to 课程要求最低学分 when 未设置', () {
+      const html = '''
+        <html><body>
+          <span id="lblMainAvgCreditHour">3.5</span>
+          <span id="lblAcquiredCreditsInProg2">12</span>
+          <span id="lblLeastCreditsOfProg">未设置</span>
+          <div>（课程要求最低学分：6）</div>
+          <table id="tableTree">
+            <tr>
+              <td><a id="childA24233">通识选修(4/未设置)</a>（课程要求最低学分：6）</td>
+            </tr>
+          </table>
+        </body></html>
+      ''';
+
+      final parsed = ProgressService.parseProgressHtmlForTest(html);
+      final info = parsed['info'] as List<ProgressInfo>;
+      final groups = parsed['groups'] as List<ProgressGroup>;
+
+      final minInfo = info.firstWhere((i) => i.label == '要求最低学分');
+      expect(minInfo.value, '6');
+      expect(groups, hasLength(1));
+      expect(groups.first.required, 6.0);
+    });
+
+    test('parseRequiredCreditsFromGroupResponse extracts fallback credits', () {
+      expect(
+        ProgressService.parseRequiredCreditsFromGroupResponse({
+          'Datas': [],
+          'Title': '通识选修（课程要求最低学分：6）',
+        }),
+        6.0,
+      );
+      expect(
+        ProgressService.parseRequiredCreditsFromGroupResponse({
+          'Datas': [],
+          'LeastCredit': 8,
+        }),
+        8.0,
+      );
+      expect(
+        ProgressService.parseRequiredCreditsFromGroupResponse(
+          null,
+          rawText: '<div>课程要求最低学分: 12.5</div>',
+        ),
+        12.5,
+      );
     });
   });
 }

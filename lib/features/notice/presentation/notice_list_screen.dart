@@ -201,7 +201,7 @@ class _NoticeListScreenState extends State<NoticeListScreen> {
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
       children: [
-        SizedBox(height: MediaQuery.of(context).size.height * 0.22),
+        SizedBox(height: MediaQuery.sizeOf(context).height * 0.22),
         Icon(
           Icons.notifications_none,
           size: 44,
@@ -239,7 +239,7 @@ class _NoticeListScreenState extends State<NoticeListScreen> {
       physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.symmetric(horizontal: 28),
       children: [
-        SizedBox(height: MediaQuery.of(context).size.height * 0.18),
+        SizedBox(height: MediaQuery.sizeOf(context).height * 0.18),
         Icon(
           needsBinding || needsRelogin
               ? Icons.lock_outline
@@ -440,13 +440,11 @@ class _NoticeSkeleton extends StatelessWidget {
               bar(0.34, 11),
             ],
           ),
-        )
-            .animate(onPlay: (controller) => controller.repeat())
-            .fadeIn(duration: 600.ms)
-            .then()
-            .fadeOut(duration: 600.ms);
+        );
       },
-    );
+    )
+        .animate(onPlay: (controller) => controller.repeat(reverse: true))
+        .fade(begin: 0.35, end: 1.0, duration: 700.ms);
   }
 }
 

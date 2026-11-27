@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -27,6 +28,10 @@ class NoticeProvider with ChangeNotifier {
 
   /// 后台静默检查的最小间隔：太频繁会白白耗流量，也会让「新通知」提醒变噪音。
   static const Duration backgroundCheckInterval = Duration(minutes: 20);
+  static const int _maxDetailCacheEntries = 20;
+  static const int _maxImageCacheEntries = 24;
+  static const int _maxImageCacheBytes = 24 * 1024 * 1024;
+  static final RegExp _unsafeFileNameRe = RegExp(r'[\\/:*?"<>|]');
 
   final NoticeSource _source;
   final NoticeCacheStore _store;
@@ -38,8 +43,10 @@ class NoticeProvider with ChangeNotifier {
   List<NoticeItem> _items = const [];
   Set<String> _readIds = <String>{};
   Set<String> _knownIds = <String>{};
-  final Map<String, NoticeDetail> _detailCache = {};
-  final Map<String, Uint8List?> _imageCache = {};
+  final LinkedHashMap<String, NoticeDetail> _detailCache = LinkedHashMap();
+  final LinkedHashMap<String, Uint8List> _imageCache = LinkedHashMap();
+  int _imageCacheBytes = 0;
+  final Map<String, Future<Uint8List?>> _inFlightImages = {};
 
   bool _isLoading = false;
   bool _isRefreshing = false;
@@ -97,12 +104,15 @@ class NoticeProvider with ChangeNotifier {
         return;
       }
 
-      // 换绑了智慧山体账号：清空上一个人的列表与已读状态，避免串号。
+      // 换绑了智慧山体账号：清空上一个人的列表、缓存与已读状态，避免串号。
       if (_initialized) {
         _items = const [];
         _readIds = <String>{};
         _knownIds = <String>{};
         _detailCache.clear();
+        _imageCache.clear();
+        _imageCacheBytes = 0;
+        _inFlightImages.clear();
         _hasLoaded = false;
         _errorMessage = null;
         _errorKind = null;
@@ -112,11 +122,16 @@ class NoticeProvider with ChangeNotifier {
 
       _initialized = true;
       _username = username;
-      _readIds = await _store.readReadIds(username);
-      _knownIds = await _store.readKnownIds(username);
-      _reminderEnabled = await _store.readReminderEnabled();
-
-      final cached = await _store.readList(username);
+      final cachedResults = await Future.wait([
+        _store.readReadIds(username),
+        _store.readKnownIds(username),
+        _store.readReminderEnabled(),
+        _store.readList(username),
+      ]);
+      _readIds = cachedResults[0] as Set<String>;
+      _knownIds = cachedResults[1] as Set<String>;
+      _reminderEnabled = cachedResults[2] as bool;
+      final cached = cachedResults[3] as List<NoticeItem>;
       if (cached.isNotEmpty) {
         _items = _applyReadFlags(cached);
         _hasLoaded = true;
@@ -263,64 +278,97 @@ class NoticeProvider with ChangeNotifier {
   }
 
   Future<NoticeDetail> loadDetail(NoticeItem item) async {
-    final cached = _detailCache[item.id];
-    if (cached != null) return cached;
+    final cached = _detailCache.remove(item.id);
+    if (cached != null) {
+      _detailCache[item.id] = cached;
+      return cached;
+    }
 
     await _authorize();
     _applyCredentials();
 
     final detail = await _withAuthRetry(() => _source.fetchDetail(item));
-    _detailCache[item.id] = detail;
+    _putDetailCache(item.id, detail);
     return detail;
   }
 
-  /// 下载正文图片（带登录态），内存里缓存一份。
-  ///
-  /// 返回 null 表示取不到（权限、断网或图片已失效），界面据此显示占位。
-  Future<Uint8List?> loadImage(String url) async {
-    if (_imageCache.containsKey(url)) {
-      return _imageCache[url];
-    }
-
-    try {
-      _applyCredentials();
-      var bytes = await _source.fetchBytes(url);
-
-      // 首次失败多半是会话没建好：用保存的凭据重登一次再试。
-      if (bytes == null && (_auth?.hasSavedCredentials ?? false)) {
-        final error = await _auth?.ensureAuthorized(force: true);
-        if (error == null) {
-          _applyCredentials();
-          bytes = await _source.fetchBytes(url);
-        }
-      }
-
-      _imageCache[url] = bytes;
-      return bytes;
-    } catch (e) {
-      debugPrint('Notice image load failed: $e');
-      _imageCache[url] = null;
-      return null;
+  void _putDetailCache(String id, NoticeDetail detail) {
+    _detailCache.remove(id);
+    _detailCache[id] = detail;
+    while (_detailCache.length > _maxDetailCacheEntries) {
+      _detailCache.remove(_detailCache.keys.first);
     }
   }
 
+  void _putImageCache(String url, Uint8List bytes) {
+    final existing = _imageCache.remove(url);
+    if (existing != null) {
+      _imageCacheBytes -= existing.lengthInBytes;
+    }
+    if (bytes.lengthInBytes > _maxImageCacheBytes) {
+      return;
+    }
+    _imageCache[url] = bytes;
+    _imageCacheBytes += bytes.lengthInBytes;
+    while (_imageCache.length > _maxImageCacheEntries ||
+        _imageCacheBytes > _maxImageCacheBytes) {
+      final oldestKey = _imageCache.keys.first;
+      final removed = _imageCache.remove(oldestKey);
+      if (removed != null) {
+        _imageCacheBytes -= removed.lengthInBytes;
+      }
+    }
+  }
+
+  Future<Uint8List?> _fetchBytesWithAuthRetry(String url) async {
+    _applyCredentials();
+    var bytes = await _source.fetchBytes(url);
+
+    // 首次失败多半是会话没建好：用保存的凭据重登一次再试。
+    if (bytes == null && (_auth?.hasSavedCredentials ?? false)) {
+      final error = await _auth?.ensureAuthorized(force: true);
+      if (error == null) {
+        _applyCredentials();
+        bytes = await _source.fetchBytes(url);
+      }
+    }
+    return bytes;
+  }
+
+  /// 下载正文图片（带登录态），有界 LRU 内存缓存一份；失败不缓存以便重试。
+  Future<Uint8List?> loadImage(String url) {
+    final cached = _imageCache.remove(url);
+    if (cached != null) {
+      _imageCache[url] = cached;
+      return Future<Uint8List?>.value(cached);
+    }
+
+    final inFlight = _inFlightImages[url];
+    if (inFlight != null) return inFlight;
+
+    final future = () async {
+      try {
+        final bytes = await _fetchBytesWithAuthRetry(url);
+        if (bytes != null && bytes.isNotEmpty) {
+          _putImageCache(url, bytes);
+        }
+        return bytes;
+      } catch (e) {
+        debugPrint('Notice image load failed: $e');
+        return null;
+      } finally {
+        _inFlightImages.remove(url);
+      }
+    }();
+
+    _inFlightImages[url] = future;
+    return future;
+  }
+
   /// 下载附件到本地缓存目录，返回文件路径；失败返回 null。
-  ///
-  /// 附件地址需要登录态，所以必须用带 Cookie 的 [NoticeSource.fetchBytes]
-  /// 取字节，拿到本地文件后再交给系统查看器打开。
   Future<String?> downloadAttachment(NoticeAttachment attachment) async {
     try {
-      _applyCredentials();
-      var bytes = await _source.fetchBytes(attachment.url);
-
-      if (bytes == null && (_auth?.hasSavedCredentials ?? false)) {
-        final error = await _auth?.ensureAuthorized(force: true);
-        if (error == null) {
-          _applyCredentials();
-          bytes = await _source.fetchBytes(attachment.url);
-        }
-      }
-
+      final bytes = await _fetchBytesWithAuthRetry(attachment.url);
       if (bytes == null || bytes.isEmpty) return null;
 
       final dir = await getTemporaryDirectory();
@@ -339,7 +387,7 @@ class NoticeProvider with ChangeNotifier {
   /// 文件名里去掉系统不接受的字符，避免写入失败；保留中文。
   String _safeFileName(String name) {
     final trimmed = name.trim();
-    final cleaned = trimmed.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
+    final cleaned = trimmed.replaceAll(_unsafeFileNameRe, '_');
     if (cleaned.isEmpty) return 'attachment';
     if (cleaned.length <= 80) return cleaned;
     final dot = cleaned.lastIndexOf('.');

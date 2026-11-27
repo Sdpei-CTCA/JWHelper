@@ -1,5 +1,9 @@
 <div align="center">
   <img src="assets/images/logo.png" alt="Logo" width="120" height="120" style="border-radius: 25%;">
+  <h1>教务小助手</h1>
+</div>
+基于 Flutter 开发的山东体育学院教务系统数据查看APP，提供课表、考试、成绩、学业进度查询，以及智慧考勤签到、教学评价辅助、离线缓存和多端运行能力。
+
 
 ## 项目概览
 

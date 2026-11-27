@@ -87,6 +87,10 @@ app.*.map.json
 .mimosa/
 .claude/
 .cursor/
+.workbuddy/
+
+# Widget 预览的临时工程（.dart_tool / 生成代码，不进版本库）
+.widget_preview/
 
 # Local test credentials
 env

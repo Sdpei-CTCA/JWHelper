@@ -9,11 +9,17 @@ import 'package:JWHelper/features/schedule/data/schedule_service.dart';
 import 'package:JWHelper/features/schedule/domain/schedule_item.dart';
 
 class FakeScheduleService extends ScheduleService {
-  FakeScheduleService(this._items, {this.startDay, this.throwEvaluation = false});
+  FakeScheduleService(
+    this._items, {
+    this.startDay,
+    this.throwEvaluation = false,
+    this.throwError = false,
+  });
 
   final List<ScheduleItem> _items;
   final String? startDay;
   final bool throwEvaluation;
+  final bool throwError;
   int callCount = 0;
 
   @override
@@ -24,6 +30,9 @@ class FakeScheduleService extends ScheduleService {
         requestOptions: RequestOptions(path: '/schedule'),
         error: EvaluationRequiredException(),
       );
+    }
+    if (throwError) {
+      throw Exception('network down');
     }
     return {'items': _items, 'startDay': startDay};
   }
@@ -162,5 +171,78 @@ void main() {
     expect(result.evaluationRequired, isTrue);
     expect(result.schedule.first.name, 'Cached Course');
     expect(result.loaded, isTrue);
+  });
+
+  test('local mode never hits network even with forceRefresh and >30d cache',
+      () async {
+    await ScheduleLoaderUsecase.saveLocalSchedule(
+      username: username,
+      schedule: [cachedItem],
+      startDay: '2024-09-01',
+    );
+    // Simulate cache older than 30 days
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(
+      'schedule_cache_time_$username',
+      DateTime.now().subtract(const Duration(days: 60)).millisecondsSinceEpoch,
+    );
+
+    final service = FakeScheduleService([networkItem], startDay: '2025-02-01');
+    final result = await ScheduleLoaderUsecase.execute(
+      service: service,
+      username: username,
+      forceRefresh: true,
+    );
+
+    expect(service.callCount, 0);
+    expect(result.localMode, isTrue);
+    expect(result.schedule.first.name, 'Cached Course');
+    expect(result.startDay, '2024-09-01');
+  });
+
+  test('restoreFromServer overwrites local schedule and exits local mode',
+      () async {
+    await ScheduleLoaderUsecase.saveLocalSchedule(
+      username: username,
+      schedule: [cachedItem],
+      startDay: '2024-09-01',
+    );
+    final service = FakeScheduleService([networkItem], startDay: '2025-02-01');
+
+    final result = await ScheduleLoaderUsecase.restoreFromServer(
+      service: service,
+      username: username,
+    );
+
+    expect(service.callCount, 1);
+    expect(result.localMode, isFalse);
+    expect(result.schedule.first.name, 'Network Course');
+    expect(await ScheduleLoaderUsecase.isLocalMode(username), isFalse);
+  });
+
+  test('restoreFromServer keeps local schedule untouched on network error',
+      () async {
+    await ScheduleLoaderUsecase.saveLocalSchedule(
+      username: username,
+      schedule: [cachedItem],
+      startDay: '2024-09-01',
+    );
+    final service = FakeScheduleService([], throwError: true);
+
+    await expectLater(
+      ScheduleLoaderUsecase.restoreFromServer(
+        service: service,
+        username: username,
+      ),
+      throwsA(isA<ScheduleRestoreException>()),
+    );
+
+    expect(await ScheduleLoaderUsecase.isLocalMode(username), isTrue);
+    final stillLocal = await ScheduleLoaderUsecase.execute(
+      service: service,
+      username: username,
+      forceRefresh: true,
+    );
+    expect(stillLocal.schedule.first.name, 'Cached Course');
   });
 }

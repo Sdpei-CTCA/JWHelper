@@ -46,5 +46,21 @@ void main() {
       expect(ScheduleWeekContext.isExamPeriod([], 0), isTrue);
       expect(ScheduleWeekContext.hasClassesInWeek([], 0), isFalse);
     });
+
+    test('respects explicit weeks set on customized courses', () {
+      final items = [
+        ScheduleItem.withWeeks(
+          name: '实验课',
+          teacher: '王老师',
+          classroom: 'B202',
+          dayIndex: 1,
+          startUnit: 3,
+          endUnit: 4,
+          weeks: [1, 3, 5],
+        ),
+      ];
+      expect(ScheduleWeekContext.hasClassesInWeek(items, 3), isTrue);
+      expect(ScheduleWeekContext.hasClassesInWeek(items, 2), isFalse);
+    });
   });
 }

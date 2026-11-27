@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:JWHelper/app/cache/offline_cache_keys.dart';
 import 'package:JWHelper/features/exam/data/exam_service.dart';
 import 'package:JWHelper/features/exam/domain/exam.dart';
 
@@ -25,11 +26,32 @@ class ExamListResult {
 }
 
 class ExamLoaderUsecase {
-  static String semestersKey(String username) => 'exam_semesters_$username';
+  static String semestersKey(String username) =>
+      OfflineCacheKeys.examSemesters(username);
   static String roundsKey(String semId, String username) =>
       'exam_rounds_${semId}_$username';
   static String examsKey(String semId, String roundId, String username) =>
       'exams_${semId}_${roundId}_$username';
+
+  static List<T>? _readCachedList<T>(
+    SharedPreferences prefs,
+    String key,
+    T Function(Map<String, dynamic>) fromJson,
+  ) {
+    final cachedData = prefs.getString(key);
+    if (cachedData == null || cachedData.isEmpty) return null;
+    try {
+      final decoded = jsonDecode(cachedData);
+      if (decoded is! List) return null;
+      return decoded
+          .whereType<Map>()
+          .map((e) => fromJson(Map<String, dynamic>.from(e)))
+          .toList();
+    } catch (e) {
+      debugPrint('Error decoding exam cache [$key]: $e');
+      return null;
+    }
+  }
 
   static Future<ExamSemestersResult> loadSemesters({
     required ExamService service,
@@ -37,12 +59,11 @@ class ExamLoaderUsecase {
     required bool forceRefresh,
   }) async {
     final prefs = await SharedPreferences.getInstance();
+    final key = semestersKey(username);
     if (!forceRefresh) {
-      final String? cachedData = prefs.getString(semestersKey(username));
-      if (cachedData != null) {
-        final List<dynamic> decoded = jsonDecode(cachedData);
-        final semesters = decoded.map((e) => Semester.fromJson(e)).toList();
-        return ExamSemestersResult(semesters: semesters);
+      final cached = _readCachedList(prefs, key, Semester.fromJson);
+      if (cached != null) {
+        return ExamSemestersResult(semesters: cached);
       }
     }
 
@@ -50,15 +71,13 @@ class ExamLoaderUsecase {
       final semesters = await service.getSemesters();
       final String encoded =
           jsonEncode(semesters.map((e) => e.toJson()).toList());
-      await prefs.setString(semestersKey(username), encoded);
+      await prefs.setString(key, encoded);
       return ExamSemestersResult(semesters: semesters);
     } catch (e) {
       debugPrint('Error loading exam semesters: $e');
-      final String? cachedData = prefs.getString(semestersKey(username));
-      if (cachedData != null) {
-        final List<dynamic> decoded = jsonDecode(cachedData);
-        final semesters = decoded.map((e) => Semester.fromJson(e)).toList();
-        return ExamSemestersResult(semesters: semesters);
+      final cached = _readCachedList(prefs, key, Semester.fromJson);
+      if (cached != null) {
+        return ExamSemestersResult(semesters: cached);
       }
       rethrow;
     }
@@ -74,11 +93,9 @@ class ExamLoaderUsecase {
     final key = roundsKey(semId, username);
 
     if (!forceRefresh) {
-      final String? cachedData = prefs.getString(key);
-      if (cachedData != null) {
-        final List<dynamic> decoded = jsonDecode(cachedData);
-        final rounds = decoded.map((e) => ExamRound.fromJson(e)).toList();
-        return ExamRoundsResult(rounds: rounds);
+      final cached = _readCachedList(prefs, key, ExamRound.fromJson);
+      if (cached != null) {
+        return ExamRoundsResult(rounds: cached);
       }
     }
 
@@ -89,11 +106,9 @@ class ExamLoaderUsecase {
       return ExamRoundsResult(rounds: rounds);
     } catch (e) {
       debugPrint('Error loading exam rounds: $e');
-      final String? cachedData = prefs.getString(key);
-      if (cachedData != null) {
-        final List<dynamic> decoded = jsonDecode(cachedData);
-        final rounds = decoded.map((e) => ExamRound.fromJson(e)).toList();
-        return ExamRoundsResult(rounds: rounds);
+      final cached = _readCachedList(prefs, key, ExamRound.fromJson);
+      if (cached != null) {
+        return ExamRoundsResult(rounds: cached);
       }
       rethrow;
     }
@@ -110,11 +125,9 @@ class ExamLoaderUsecase {
     final key = examsKey(semId, roundId, username);
 
     if (!forceRefresh) {
-      final String? cachedData = prefs.getString(key);
-      if (cachedData != null) {
-        final List<dynamic> decoded = jsonDecode(cachedData);
-        final exams = decoded.map((e) => Exam.fromJson(e)).toList();
-        return ExamListResult(exams: exams, loaded: true);
+      final cached = _readCachedList(prefs, key, Exam.fromJson);
+      if (cached != null) {
+        return ExamListResult(exams: cached, loaded: true);
       }
     }
 
@@ -125,11 +138,9 @@ class ExamLoaderUsecase {
       return ExamListResult(exams: exams, loaded: true);
     } catch (e) {
       debugPrint('Error loading exams: $e');
-      final String? cachedData = prefs.getString(key);
-      if (cachedData != null) {
-        final List<dynamic> decoded = jsonDecode(cachedData);
-        final exams = decoded.map((e) => Exam.fromJson(e)).toList();
-        return ExamListResult(exams: exams, loaded: true);
+      final cached = _readCachedList(prefs, key, Exam.fromJson);
+      if (cached != null) {
+        return ExamListResult(exams: cached, loaded: true);
       }
       rethrow;
     }

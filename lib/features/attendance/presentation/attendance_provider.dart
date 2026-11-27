@@ -74,10 +74,16 @@ class AttendanceProvider with ChangeNotifier {
 
   Future<void> _loadPreferences() async {
     try {
-      _savedUsername = await AttendanceCredentialStore.readUsername();
-      _hasPassword = (await AttendanceCredentialStore.readPassword()).isNotEmpty;
-      _verified = await AttendanceCredentialStore.readVerified();
-      _tokens = await AttendanceCredentialStore.readTokens();
+      final results = await Future.wait([
+        AttendanceCredentialStore.readUsername(),
+        AttendanceCredentialStore.readPassword(),
+        AttendanceCredentialStore.readVerified(),
+        AttendanceCredentialStore.readTokens(),
+      ]);
+      _savedUsername = results[0] as String;
+      _hasPassword = (results[1] as String).isNotEmpty;
+      _verified = results[2] as bool;
+      _tokens = results[3] as AttendanceSsoTokens;
     } catch (e) {
       // 读失败时按「未配置」处理，用户可在设置里重新填写。
       debugPrint('Attendance credentials load failed: $e');

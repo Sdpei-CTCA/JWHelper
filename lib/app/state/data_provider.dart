@@ -8,6 +8,8 @@ import 'package:JWHelper/features/progress/data/progress_service.dart';
 import 'package:JWHelper/features/exam/data/exam_service.dart';
 import 'package:JWHelper/features/grades/domain/grade.dart';
 import 'package:JWHelper/features/schedule/domain/schedule_item.dart';
+import 'package:JWHelper/features/schedule/domain/schedule_editor.dart';
+import 'package:JWHelper/core/errors/exceptions.dart';
 import 'package:JWHelper/features/progress/domain/progress_item.dart';
 import 'package:JWHelper/features/exam/domain/exam.dart';
 import 'package:JWHelper/infrastructure/platform/widget_service.dart';
@@ -25,6 +27,7 @@ import 'package:JWHelper/infrastructure/notifications/notification_service.dart'
 
 part 'mixins/grades_data_mixin.dart';
 part 'mixins/schedule_data_mixin.dart';
+part 'mixins/schedule_edit_mixin.dart';
 part 'mixins/progress_data_mixin.dart';
 part 'mixins/exam_data_mixin.dart';
 part 'mixins/widget_sync_mixin.dart';
@@ -38,6 +41,7 @@ class DataProvider with ChangeNotifier {
   List<Grade> _grades = [];
   bool _gradesLoading = false;
   bool _gradesLoaded = false;
+  List<String>? _cachedSemesterList;
 
   List<ScheduleItem> _schedule = [];
   bool _scheduleLoading = false;
@@ -46,12 +50,26 @@ class DataProvider with ChangeNotifier {
   int _daysUntilStart = 0;
   String? _scheduleStartDay;
   bool _scheduleKeptStaleCache = false;
+  bool _scheduleLocalMode = false;
+  Map<int, List<ScheduleItem>>? _cachedScheduleGroupedByDay;
 
   List<ProgressGroup> _progressGroups = [];
   List<ProgressInfo> _progressInfo = [];
   bool _progressLoading = false;
   bool _progressLoaded = false;
   int _progressRevision = 0;
+  final Map<String, Future<bool>> _inFlightGroupLoads = {};
+  int _dataSessionToken = 0;
+
+  void _setSchedule(List<ScheduleItem> next) {
+    _schedule = next;
+    _cachedScheduleGroupedByDay = null;
+  }
+
+  void _setGrades(List<Grade> next) {
+    _grades = next;
+    _cachedSemesterList = null;
+  }
 
   List<Semester> _examSemesters = [];
   List<ExamRound> _examRounds = [];
@@ -91,15 +109,19 @@ class DataProvider with ChangeNotifier {
   }
 
   Future<void> setCampus(String campusName) async {
+    if (_campus == campusName) return;
     _campus = campusName;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('campus_$_username', campusName);
-    await prefs.setString('campus', campusName);
     notifyListeners();
-    
-    // Reschedule notifications based on the new campus times
+
+    final prefs = await SharedPreferences.getInstance();
+    await Future.wait([
+      prefs.setString('campus_$_username', campusName),
+      prefs.setString('campus', campusName),
+    ]);
+
+    // 课表本身与校区无关，仅按新校区作息重排本地通知与刷新桌面小组件，避免触发全量网络重拉。
     if (_scheduleLoaded) {
-      loadSchedule(forceRefresh: true);
+      await rescheduleScheduleOutputs();
     }
   }
 
@@ -134,29 +156,33 @@ class DataProvider with ChangeNotifier {
     if (_username.isEmpty) return;
 
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_gradesCacheKey);
-    await prefs.remove(_gradesCacheTimeKey);
-    await prefs.remove(_scheduleCacheKey);
-    await prefs.remove(_scheduleCacheTimeKey);
-    await prefs.remove(_progressCacheKey);
-    await prefs.remove(_progressCacheTimeKey);
-
-    final keys = prefs.getKeys().toList();
-    for (final key in keys) {
-      if (OfflineCacheKeys.isExamCacheKey(key) &&
-          OfflineCacheKeys.belongsToUser(key, _username)) {
-        await prefs.remove(key);
-      }
-    }
+    final removeKeys = <String>[
+      _gradesCacheKey,
+      _gradesCacheTimeKey,
+      _scheduleCacheKey,
+      _scheduleCacheTimeKey,
+      OfflineCacheKeys.scheduleStartDay(_username),
+      OfflineCacheKeys.scheduleLocalMode(_username),
+      _progressCacheKey,
+      _progressCacheTimeKey,
+      for (final key in prefs.getKeys())
+        if (OfflineCacheKeys.isExamCacheKey(key) &&
+            OfflineCacheKeys.belongsToUser(key, _username))
+          key,
+    ];
+    await Future.wait(removeKeys.map(prefs.remove));
   }
 
   void clearAll() {
-    _grades = [];
+    _dataSessionToken++;
+    _inFlightGroupLoads.clear();
+    _setGrades([]);
     _gradesLoaded = false;
-    _schedule = [];
+    _setSchedule([]);
     _scheduleLoaded = false;
     _scheduleStartDay = null;
     _scheduleKeptStaleCache = false;
+    _scheduleLocalMode = false;
     _currentWeek = 1;
     _daysUntilStart = 0;
     _progressGroups = [];

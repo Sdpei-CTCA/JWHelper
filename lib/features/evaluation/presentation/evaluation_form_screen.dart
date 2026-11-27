@@ -1,12 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import 'package:JWHelper/features/evaluation/domain/evaluation.dart';
 import 'package:JWHelper/features/evaluation/data/evaluation_service.dart';
+import 'package:JWHelper/features/evaluation/domain/evaluation.dart';
 
 class EvaluationFormScreen extends StatefulWidget {
   final EvaluationItem item;
+  final EvaluationService? evaluationService;
 
-  const EvaluationFormScreen({super.key, required this.item});
+  const EvaluationFormScreen({
+    super.key,
+    required this.item,
+    this.evaluationService,
+  });
 
   @override
   State<EvaluationFormScreen> createState() => _EvaluationFormScreenState();
@@ -14,35 +19,65 @@ class EvaluationFormScreen extends StatefulWidget {
 
 class _EvaluationFormScreenState extends State<EvaluationFormScreen> {
   static const int _minTextAnswerLength = 10;
+  static const Map<String, String> _optionLabels = {
+    'A': '好',
+    'B': '较好',
+    'C': '一般',
+    'D': '较差',
+    'E': '差',
+  };
 
-  final EvaluationService _evaluationService = EvaluationService();
+  late final EvaluationService _evaluationService;
   bool _loading = true;
   bool _submitting = false;
-  String _error = "";
+  String _error = '';
   List<EvaluationQuestion> _questions = [];
   final Map<String, String> _answers = {};
+  final Map<String, TextEditingController> _textControllers = {};
 
   @override
   void initState() {
     super.initState();
+    _evaluationService = widget.evaluationService ?? EvaluationService();
     _loadQuestions();
   }
 
+  @override
+  void dispose() {
+    for (final controller in _textControllers.values) {
+      controller.dispose();
+    }
+    super.dispose();
+  }
+
+  TextEditingController _controllerFor(String questionId) {
+    return _textControllers.putIfAbsent(
+      questionId,
+      () => TextEditingController(text: _answers[questionId] ?? ''),
+    );
+  }
+
   Future<void> _loadQuestions() async {
+    if (mounted) {
+      setState(() {
+        _loading = true;
+        _error = '';
+      });
+    }
     try {
       final questions =
           await _evaluationService.getQuestions(widget.item.evaluationId!);
+      if (!mounted) return;
       setState(() {
         _questions = questions;
         _loading = false;
       });
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _error = "加载问卷失败: $e";
-          _loading = false;
-        });
-      }
+      if (!mounted) return;
+      setState(() {
+        _error = '加载问卷失败: $e';
+        _loading = false;
+      });
     }
   }
 
@@ -79,11 +114,11 @@ class _EvaluationFormScreenState extends State<EvaluationFormScreen> {
     setState(() => _submitting = true);
 
     try {
-      StringBuffer answerBuffer = StringBuffer();
-      for (var q in _questions) {
-        String val = _answers[q.id] ?? "";
+      final answerBuffer = StringBuffer();
+      for (final q in _questions) {
+        final val = _answers[q.id] ?? '';
         // Format: ID + 11 commas + Val + 10 pipes
-        answerBuffer.write("${q.id},,,,,,,,,,,$val||||||||||");
+        answerBuffer.write('${q.id},,,,,,,,,,,$val||||||||||');
       }
 
       await _evaluationService.submitEvaluation(
@@ -91,36 +126,30 @@ class _EvaluationFormScreenState extends State<EvaluationFormScreen> {
 
       if (mounted) {
         ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text("评价提交成功")));
-        Navigator.of(context).pop(true); // Return true for success
+            .showSnackBar(const SnackBar(content: Text('评价提交成功')));
+        Navigator.of(context).pop(true);
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text("提交失败: $e")));
+            .showSnackBar(SnackBar(content: Text('提交失败: $e')));
         setState(() => _submitting = false);
       }
     }
   }
 
-  final Map<String, String> _optionLabels = {
-    "A": "好",
-    "B": "较好",
-    "C": "一般",
-    "D": "较差",
-    "E": "差",
-  };
-
   Widget _buildQuestion(EvaluationQuestion q, int index) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    return Card(
+    final card = Card(
       margin: const EdgeInsets.only(bottom: 12),
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.35)),
+        side: BorderSide(
+          color: colorScheme.outlineVariant.withValues(alpha: 0.35),
+        ),
       ),
       color: colorScheme.surfaceContainerLow,
       child: Padding(
@@ -139,7 +168,7 @@ class _EvaluationFormScreenState extends State<EvaluationFormScreen> {
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
-                    "${index + 1}",
+                    '${index + 1}',
                     style: TextStyle(
                       color: colorScheme.primary,
                       fontWeight: FontWeight.bold,
@@ -162,156 +191,208 @@ class _EvaluationFormScreenState extends State<EvaluationFormScreen> {
               ],
             ),
             const SizedBox(height: 12),
-            if (q.type == 0) ...[
-              LayoutBuilder(builder: (context, constraints) {
-                final options = q.options.isNotEmpty
-                    ? q.options.map((o) => o.code).toList()
-                    : ["A", "B", "C", "D", "E"];
-
-                return Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: options.map((opt) {
-                    final isSelected = _answers[q.id] == opt;
-                    String label = "";
-                    if (q.options.isNotEmpty) {
-                      label = q.options
-                          .firstWhere((o) => o.code == opt,
-                              orElse: () =>
-                                  EvaluationOption(code: "", content: ""))
-                          .content;
-                    } else {
-                      label = _optionLabels[opt] ?? "";
-                    }
-
-                    return Expanded(
-                      child: GestureDetector(
-                        onTap: () {
-                          setState(() {
-                            _answers[q.id] = opt;
-                          });
-                        },
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 200),
-                          margin: const EdgeInsets.symmetric(horizontal: 2),
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          decoration: BoxDecoration(
-                            color: isSelected
-                                ? colorScheme.primary
-                                : colorScheme.surface,
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(
-                              color: isSelected
-                                  ? colorScheme.primary
-                                  : colorScheme.outline,
-                              width: isSelected ? 2.5 : 1.5,
-                            ),
-                            boxShadow: isSelected
-                                ? [
-                                    BoxShadow(
-                                      color: colorScheme.primary
-                                          .withValues(alpha: 0.28),
-                                      blurRadius: 6,
-                                      offset: const Offset(0, 2),
-                                    ),
-                                  ]
-                                : null,
-                          ),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                opt,
-                                style: TextStyle(
-                                  color: isSelected
-                                      ? colorScheme.onPrimary
-                                      : colorScheme.onSurface,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 14,
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                label,
-                                style: TextStyle(
-                                  color: isSelected
-                                      ? colorScheme.onPrimary
-                                          .withValues(alpha: 0.9)
-                                      : colorScheme.onSurfaceVariant,
-                                  fontSize: 10,
-                                ),
-                                textAlign: TextAlign.center,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    );
-                  }).toList(),
-                );
-              }),
-            ] else ...[
-              Container(
-                decoration: BoxDecoration(
-                  color: colorScheme.surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: colorScheme.outlineVariant),
-                ),
-                child: Stack(
-                  children: [
-                    TextField(
-                      controller: TextEditingController(text: _answers[q.id])
-                        ..selection = TextSelection.fromPosition(
-                          TextPosition(offset: _answers[q.id]?.length ?? 0),
-                        ),
-                      maxLines: 3,
-                      onChanged: (val) {
-                        setState(() {
-                          _answers[q.id] = val;
-                        });
-                      },
-                      style: const TextStyle(fontSize: 14, height: 1.4),
-                      decoration: InputDecoration(
-                        border: InputBorder.none,
-                        focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(
-                                color: colorScheme.primary, width: 1.5)),
-                        enabledBorder: InputBorder.none,
-                        hintText: '请输入评价内容（至少$_minTextAnswerLength字）...',
-                        hintStyle: TextStyle(color: colorScheme.onSurfaceVariant),
-                        contentPadding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              if ((_answers[q.id] ?? '').trim().isNotEmpty &&
-                  (_answers[q.id] ?? '').trim().length < _minTextAnswerLength)
-                Padding(
-                  padding: const EdgeInsets.only(top: 6, left: 4),
-                  child: Text(
-                    '还需至少 ${_minTextAnswerLength - (_answers[q.id] ?? '').trim().length} 字',
-                    style: TextStyle(
-                      color: colorScheme.error,
-                      fontSize: 12,
-                    ),
-                  ),
-                ),
-            ]
+            if (q.type == 0)
+              _buildChoiceRow(q, colorScheme)
+            else
+              _buildTextQuestionInput(q, colorScheme),
           ],
         ),
       ),
-    )
+    );
+
+    if (index >= 6) return card;
+    return card
         .animate()
-        .fadeIn(duration: 400.ms, delay: (50 * index).ms)
-        .slideY(begin: 0.1, end: 0);
+        .fadeIn(duration: 300.ms, delay: (45 * index).ms)
+        .slideY(begin: 0.08, end: 0, curve: Curves.easeOutCubic);
+  }
+
+  Widget _buildChoiceRow(EvaluationQuestion q, ColorScheme colorScheme) {
+    final options = q.options.isNotEmpty
+        ? q.options
+        : _optionLabels.entries
+            .map((e) => EvaluationOption(code: e.key, content: e.value))
+            .toList(growable: false);
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: options.map((opt) {
+        final isSelected = _answers[q.id] == opt.code;
+        return Expanded(
+          child: GestureDetector(
+            onTap: () {
+              setState(() {
+                _answers[q.id] = opt.code;
+              });
+            },
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              margin: const EdgeInsets.symmetric(horizontal: 2),
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              decoration: BoxDecoration(
+                color: isSelected ? colorScheme.primary : colorScheme.surface,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: isSelected ? colorScheme.primary : colorScheme.outline,
+                  width: isSelected ? 2.5 : 1.5,
+                ),
+                boxShadow: isSelected
+                    ? [
+                        BoxShadow(
+                          color: colorScheme.primary.withValues(alpha: 0.28),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
+                        ),
+                      ]
+                    : null,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    opt.code,
+                    style: TextStyle(
+                      color: isSelected
+                          ? colorScheme.onPrimary
+                          : colorScheme.onSurface,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    opt.content,
+                    style: TextStyle(
+                      color: isSelected
+                          ? colorScheme.onPrimary.withValues(alpha: 0.9)
+                          : colorScheme.onSurfaceVariant,
+                      fontSize: 10,
+                    ),
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildTextQuestionInput(
+    EvaluationQuestion q,
+    ColorScheme colorScheme,
+  ) {
+    final controller = _controllerFor(q.id);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          decoration: BoxDecoration(
+            color: colorScheme.surfaceContainerHighest,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: colorScheme.outlineVariant),
+          ),
+          child: TextField(
+            controller: controller,
+            maxLines: 3,
+            onChanged: (val) => _answers[q.id] = val,
+            style: const TextStyle(fontSize: 14, height: 1.4),
+            decoration: InputDecoration(
+              border: InputBorder.none,
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: colorScheme.primary, width: 1.5),
+              ),
+              enabledBorder: InputBorder.none,
+              hintText: '请输入评价内容（至少$_minTextAnswerLength字）...',
+              hintStyle: TextStyle(color: colorScheme.onSurfaceVariant),
+              contentPadding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
+            ),
+          ),
+        ),
+        ValueListenableBuilder<TextEditingValue>(
+          valueListenable: controller,
+          builder: (context, value, _) {
+            final len = value.text.trim().length;
+            if (len == 0 || len >= _minTextAnswerLength) {
+              return const SizedBox.shrink();
+            }
+            return Padding(
+              padding: const EdgeInsets.only(top: 6, left: 4),
+              child: Text(
+                '还需至少 ${_minTextAnswerLength - len} 字',
+                style: TextStyle(
+                  color: colorScheme.error,
+                  fontSize: 12,
+                ),
+              ),
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBody(ColorScheme colorScheme) {
+    if (_loading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_error.isNotEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.error_outline, size: 48, color: colorScheme.error),
+              const SizedBox(height: 16),
+              Text(
+                _error,
+                textAlign: TextAlign.center,
+                style: TextStyle(color: colorScheme.error),
+              ),
+              const SizedBox(height: 16),
+              FilledButton.icon(
+                onPressed: _loadQuestions,
+                label: const Text('重试'),
+                icon: const Icon(Icons.refresh),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
+      itemCount: _questions.length + 1,
+      itemBuilder: (context, index) {
+        if (index == _questions.length) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 32),
+            child: Center(
+              child: Text(
+                '到底啦~ 记得提交哦',
+                style: TextStyle(
+                  color: colorScheme.onSurfaceVariant,
+                  fontSize: 12,
+                ),
+              ),
+            ),
+          );
+        }
+        return _buildQuestion(_questions[index], index);
+      },
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final showSubmitButton = !_loading && _error.isEmpty;
 
     return Scaffold(
       backgroundColor: colorScheme.surface,
@@ -320,7 +401,7 @@ class _EvaluationFormScreenState extends State<EvaluationFormScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              "课程评价",
+              '课程评价',
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
@@ -328,7 +409,7 @@ class _EvaluationFormScreenState extends State<EvaluationFormScreen> {
                   ),
             ),
             Text(
-              widget.item.courseName ?? "未知课程",
+              widget.item.courseName ?? '未知课程',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: colorScheme.onSurfaceVariant,
                   ),
@@ -340,49 +421,9 @@ class _EvaluationFormScreenState extends State<EvaluationFormScreen> {
         backgroundColor: colorScheme.surface,
         foregroundColor: colorScheme.onSurface,
       ),
-      body: _loading
-          ? Center(
-              child: _error.isNotEmpty
-                  ? Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.error_outline,
-                            size: 48,
-                            color: Theme.of(context).colorScheme.error),
-                        const SizedBox(height: 16),
-                        Text(_error,
-                            style: TextStyle(
-                                color: Theme.of(context).colorScheme.error)),
-                        const SizedBox(height: 16),
-                        FilledButton.icon(
-                          onPressed: _loadQuestions,
-                          label: const Text("重试"),
-                          icon: const Icon(Icons.refresh),
-                        )
-                      ],
-                    )
-                  : const CircularProgressIndicator())
-          : ListView.builder(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
-              itemCount: _questions.length + 1,
-              itemBuilder: (context, index) {
-                if (index == _questions.length) {
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 32),
-                    child: Center(
-                      child: Text(
-                        "到底啦~ 记得提交哦",
-                        style: TextStyle(
-                            color: colorScheme.onSurfaceVariant, fontSize: 12),
-                      ),
-                    ),
-                  );
-                }
-                return _buildQuestion(_questions[index], index);
-              },
-            ),
+      body: _buildBody(colorScheme),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
-      floatingActionButton: _loading
+      floatingActionButton: !showSubmitButton
           ? null
           : Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -404,15 +445,19 @@ class _EvaluationFormScreenState extends State<EvaluationFormScreen> {
                           width: 20,
                           height: 20,
                           child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Theme.of(context).colorScheme.onPrimary))
+                            strokeWidth: 2,
+                            color: colorScheme.onPrimary,
+                          ),
+                        )
                       : const Icon(Icons.check_circle_outline),
                   label: Text(
-                    _submitting ? "正在提交..." : "提交评价",
+                    _submitting ? '正在提交...' : '提交评价',
                     style: const TextStyle(
-                        fontSize: 16, fontWeight: FontWeight.bold),
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
-                ).animate().fadeIn(delay: 500.ms).slideY(begin: 1.0, end: 0),
+                ).animate().fadeIn(delay: 200.ms).slideY(begin: 0.4, end: 0),
               ),
             ),
     );

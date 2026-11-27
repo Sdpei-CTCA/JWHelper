@@ -112,10 +112,17 @@ class ApiClient {
   }
 
   bool _initialized = false;
+  Future<void>? _initFuture;
 
-  Future<void> init() async {
-    if (_initialized) return;
+  Future<void> init() {
+    if (_initialized) return Future<void>.value();
+    return _initFuture ??= _initInternal().catchError((Object e, StackTrace s) {
+      _initFuture = null;
+      Error.throwWithStackTrace(e, s);
+    });
+  }
 
+  Future<void> _initInternal() async {
     // Default to in-memory cookies
     cookieJar = CookieJar();
 
@@ -146,6 +153,9 @@ class ApiClient {
   }
 
   Future<void> clearCookies() async {
+    if (!_initialized) {
+      await init();
+    }
     await cookieJar.deleteAll();
   }
 

@@ -142,7 +142,6 @@ class AuthProvider with ChangeNotifier {
           _needCaptcha = false;
           _currentUsername = username;
           _isOfflineMode = true;
-          notifyListeners();
           return null; // Automatically enter offline mode
         }
       }
@@ -159,21 +158,20 @@ class AuthProvider with ChangeNotifier {
 
         // Save preferences
         final prefs = await SharedPreferences.getInstance();
-        await prefs.setBool('remember_password', _rememberPassword);
-        await prefs.setBool('auto_login', _autoLogin);
-        if (_rememberPassword) {
-          await prefs.setString('username', username);
-          await _secureStorage.write(key: _securePasswordKey, value: password);
-          await prefs.remove('password');
-          _savedUsername = username;
-        } else {
-          await prefs.remove('username');
-          await prefs.remove('password');
-          await _secureStorage.delete(key: _securePasswordKey);
-          _savedUsername = "";
-        }
-
-        notifyListeners();
+        await Future.wait([
+          prefs.setBool('remember_password', _rememberPassword),
+          prefs.setBool('auto_login', _autoLogin),
+          if (_rememberPassword) ...[
+            prefs.setString('username', username),
+            _secureStorage.write(key: _securePasswordKey, value: password),
+            prefs.remove('password'),
+          ] else ...[
+            prefs.remove('username'),
+            prefs.remove('password'),
+            _secureStorage.delete(key: _securePasswordKey),
+          ],
+        ]);
+        _savedUsername = _rememberPassword ? username : "";
         return null; // No error
       }
 
@@ -189,14 +187,12 @@ class AuthProvider with ChangeNotifier {
           final prefs = await SharedPreferences.getInstance();
           final hasCache = OfflineCacheKeys.hasOfflineCache(prefs, username);
           if (!hasCache) {
-            notifyListeners();
             return "当前无法从教务系统获取有效数据，且未检测到本地离线缓存，请联网成功登录一次后再试";
           }
           _isLoggedIn = true;
           _needCaptcha = false;
           _currentUsername = username;
           _isOfflineMode = true;
-          notifyListeners();
           return null; // Treat as success
         }
       }
@@ -208,7 +204,6 @@ class AuthProvider with ChangeNotifier {
       } else {
         _needCaptcha = false;
       }
-      notifyListeners();
       return result['message'];
     } finally {
       _finishLoginLoading(sequence);
@@ -289,24 +284,7 @@ class AuthProvider with ChangeNotifier {
 
   Future<bool> _canEnterOfflineMode(
       String username, String password) async {
-    if (await _matchesRememberedCredentials(username, password)) {
-      return true;
-    }
-
-    if (_autoLogin && _savedUsername == username) {
-      var autoLoginPassword = await getSavedPasswordForPrefill();
-      final matched =
-          autoLoginPassword.isNotEmpty && autoLoginPassword == password;
-      autoLoginPassword = "";
-      return matched;
-    }
-
-    return false;
-  }
-
-  Future<bool> _matchesRememberedCredentials(
-      String username, String password) async {
-    if (!_rememberPassword || _savedUsername != username) {
+    if ((!_rememberPassword && !_autoLogin) || _savedUsername != username) {
       return false;
     }
     var savedPassword = await getSavedPasswordForPrefill();

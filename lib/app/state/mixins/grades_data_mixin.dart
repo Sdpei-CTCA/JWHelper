@@ -6,13 +6,32 @@ extension GradesDataMixin on DataProvider {
   bool get gradesLoaded => _gradesLoaded;
 
   List<String> get semesterList {
-    if (_grades.isEmpty) return [];
-    return _grades.map((e) => e.semester).toSet().toList()
+    final cached = _cachedSemesterList;
+    if (cached != null) return cached;
+    if (_grades.isEmpty) {
+      _cachedSemesterList = const [];
+      return _cachedSemesterList!;
+    }
+    final list = _grades.map((e) => e.semester).toSet().toList()
       ..sort((a, b) => b.compareTo(a));
+    _cachedSemesterList = list;
+    return list;
   }
 
-  String get _gradesCacheKey => 'grades_cache_$_username';
-  String get _gradesCacheTimeKey => 'grades_cache_time_$_username';
+  String get _gradesCacheKey => OfflineCacheKeys.grades(_username);
+  String get _gradesCacheTimeKey => OfflineCacheKeys.gradesTime(_username);
+
+  /// 仅从本地缓存预热成绩，不触发任何网络请求。
+  Future<void> loadGradesFromCache() async {
+    if (_gradesLoaded || _username.isEmpty) return;
+    try {
+      final cached = await GradesLoaderUsecase.readCacheOnly(_username);
+      if (cached == null || _gradesLoaded) return;
+      _setGrades(cached);
+      _gradesLoaded = true;
+      notifyStateChanged();
+    } catch (_) {}
+  }
 
   Future<void> loadGrades({bool forceRefresh = false}) async {
     if (_gradesLoaded && !forceRefresh) return;
@@ -36,14 +55,13 @@ extension GradesDataMixin on DataProvider {
       if (result.evaluationRequired) {
         _evaluationRequired = true;
         if (result.grades.isNotEmpty) {
-          _grades = result.grades;
+          _setGrades(result.grades);
           _gradesLoaded = result.loaded;
         }
-        notifyStateChanged();
         return;
       }
 
-      _grades = result.grades;
+      _setGrades(result.grades);
       _gradesLoaded = result.loaded;
     } catch (e) {
       debugPrint("Error loading grades: $e");

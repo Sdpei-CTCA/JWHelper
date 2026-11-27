@@ -8,56 +8,39 @@ import 'package:JWHelper/features/attendance/presentation/campus_webview_screen.
 ///
 /// 主体是考勤网页版；首次使用（或清除账号后）先展示智慧山体账号绑定引导，
 /// 保存并校验通过后直接进入网页版。
-class AttendanceScreen extends StatefulWidget {
+class AttendanceScreen extends StatelessWidget {
   const AttendanceScreen({super.key});
 
   @override
-  State<AttendanceScreen> createState() => _AttendanceScreenState();
-}
-
-class _AttendanceScreenState extends State<AttendanceScreen> {
-  AttendanceProvider? _provider;
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    final provider = context.read<AttendanceProvider>();
-    if (!identical(provider, _provider)) {
-      _provider?.removeListener(_onProviderChanged);
-      _provider = provider..addListener(_onProviderChanged);
-    }
-  }
-
-  @override
-  void dispose() {
-    _provider?.removeListener(_onProviderChanged);
-    super.dispose();
-  }
-
-  /// 在设置里配置/清除账号后同步本页（表单视图 ↔ 网页版视图）。
-  void _onProviderChanged() {
-    if (mounted) setState(() {});
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final provider = context.watch<AttendanceProvider>();
+    final gate = context.select<AttendanceProvider, ({bool isLoaded, bool isConfigured})>(
+      (p) => (isLoaded: p.isLoaded, isConfigured: p.isConfigured),
+    );
 
     // 本地凭据还没读完时不能判断「未配置」，否则冷启动会先闪出绑定表单。
-    if (!provider.isLoaded) {
+    if (!gate.isLoaded) {
       return const Center(child: CircularProgressIndicator());
     }
 
-    if (!provider.isConfigured) {
-      return _buildAccountSetupView();
+    if (!gate.isConfigured) {
+      return const _AttendanceAccountSetupView();
     }
 
     return const CampusWebViewScreen();
   }
+}
 
-  /// 首次使用（或清除账号后）的引导视图。
-  Widget _buildAccountSetupView() {
+/// 首次使用（或清除账号后）的引导视图。
+class _AttendanceAccountSetupView extends StatelessWidget {
+  const _AttendanceAccountSetupView();
+
+  @override
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final savedUsername = context.select<AttendanceProvider, String>(
+      (p) => p.savedUsername,
+    );
+
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -65,7 +48,9 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
           elevation: 0,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
-            side: BorderSide(color: theme.colorScheme.primary.withValues(alpha: 0.35)),
+            side: BorderSide(
+              color: theme.colorScheme.primary.withValues(alpha: 0.35),
+            ),
           ),
           color: theme.colorScheme.primaryContainer.withValues(alpha: 0.35),
           child: Padding(
@@ -80,7 +65,10 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                     const Expanded(
                       child: Text(
                         '首次使用请配置智慧考勤账号',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                   ],
@@ -106,10 +94,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: AttendanceAccountForm(
-              initialUsername: context.read<AttendanceProvider>().savedUsername,
-              onSaved: (_) {
-                if (mounted) setState(() {});
-              },
+              initialUsername: savedUsername,
             ),
           ),
         ),

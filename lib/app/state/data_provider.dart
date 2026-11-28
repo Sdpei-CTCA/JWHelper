@@ -7,6 +7,7 @@ import 'package:JWHelper/features/schedule/data/schedule_service.dart';
 import 'package:JWHelper/features/progress/data/progress_service.dart';
 import 'package:JWHelper/features/exam/data/exam_service.dart';
 import 'package:JWHelper/features/grades/domain/grade.dart';
+import 'package:JWHelper/features/schedule/domain/schedule_conflict.dart';
 import 'package:JWHelper/features/schedule/domain/schedule_item.dart';
 import 'package:JWHelper/features/schedule/domain/schedule_editor.dart';
 import 'package:JWHelper/core/errors/exceptions.dart';
@@ -62,7 +63,7 @@ class DataProvider with ChangeNotifier {
   int _dataSessionToken = 0;
 
   void _setSchedule(List<ScheduleItem> next) {
-    _schedule = next;
+    _schedule = ScheduleConflict.mergeSameCourseItems(next);
     _cachedScheduleGroupedByDay = null;
   }
 

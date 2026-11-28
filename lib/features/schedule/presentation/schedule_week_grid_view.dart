@@ -159,6 +159,34 @@ class _WeekScheduleGridViewState extends State<_WeekScheduleGridView> {
     _showCourseDetails(context, picked);
   }
 
+  Future<void> _handleEditCellTap({
+    required BuildContext context,
+    required DataProvider dataProvider,
+    required List<ScheduleItem> group,
+    required ScheduleItem primary,
+    required int weekNumber,
+  }) async {
+    ScheduleItem target = primary;
+    if (group.length > 1) {
+      final picked = await _showConflictCoursePicker(
+        context,
+        group: group,
+        primary: primary,
+        subtitle: '选择要编辑或调课的课程',
+      );
+      if (picked == null || !context.mounted) return;
+      target = picked;
+    }
+    if (!context.mounted) return;
+    await _showCourseEditActions(
+      context,
+      dataProvider,
+      item: target,
+      week: weekNumber,
+      canAffectThisWeek: true,
+    );
+  }
+
   Widget _detailRow(IconData icon, String text) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -377,16 +405,19 @@ class _WeekScheduleGridViewState extends State<_WeekScheduleGridView> {
           },
         ),
         Expanded(
-          child: PageView.builder(
-            controller: _pageController,
-            itemCount: ScheduleItem.maxTeachingWeeks,
-            onPageChanged: (index) {
-              final newWeek = index + 1;
-              if (widget.selectedWeekNotifier.value != newWeek) {
-                widget.selectedWeekNotifier.value = newWeek;
-              }
-            },
-            itemBuilder: (context, pageIndex) {
+          child: GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onLongPress: widget.isEditing ? null : widget.onEnterEditMode,
+            child: PageView.builder(
+              controller: _pageController,
+              itemCount: ScheduleItem.maxTeachingWeeks,
+              onPageChanged: (index) {
+                final newWeek = index + 1;
+                if (widget.selectedWeekNotifier.value != newWeek) {
+                  widget.selectedWeekNotifier.value = newWeek;
+                }
+              },
+              itemBuilder: (context, pageIndex) {
               final weekNumber = pageIndex + 1;
               final weekSchedule = schedule
                   .where((item) => item.occursInWeek(weekNumber))
@@ -584,12 +615,12 @@ class _WeekScheduleGridViewState extends State<_WeekScheduleGridView> {
                                   children: [
                                     Positioned.fill(
                                       child: GestureDetector(
-                                        onTap: () => _showCourseEditActions(
-                                          context,
-                                          dataProvider,
-                                          item: primary,
-                                          week: weekNumber,
-                                          canAffectThisWeek: true,
+                                        onTap: () => _handleEditCellTap(
+                                          context: context,
+                                          dataProvider: dataProvider,
+                                          group: group,
+                                          primary: primary,
+                                          weekNumber: weekNumber,
                                         ),
                                         child: courseBox,
                                       ),
@@ -645,6 +676,7 @@ class _WeekScheduleGridViewState extends State<_WeekScheduleGridView> {
                 ),
               );
             },
+            ),
           ),
         ),
       ],

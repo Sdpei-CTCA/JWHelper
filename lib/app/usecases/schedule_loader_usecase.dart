@@ -8,6 +8,7 @@ import 'package:JWHelper/app/domain/schedule_term_state.dart';
 import 'package:JWHelper/app/usecases/cache_refresh_policy.dart';
 import 'package:JWHelper/core/errors/exceptions.dart';
 import 'package:JWHelper/features/schedule/data/schedule_service.dart';
+import 'package:JWHelper/features/schedule/domain/schedule_conflict.dart';
 import 'package:JWHelper/features/schedule/domain/schedule_item.dart';
 
 class ScheduleLoadResult {
@@ -134,7 +135,9 @@ class ScheduleLoaderUsecase {
       debugPrint('Restore schedule failed: $e');
       throw const ScheduleRestoreException('网络异常，恢复失败，已保留当前课表');
     }
-    final List<ScheduleItem> schedule = result['items'] as List<ScheduleItem>;
+    final List<ScheduleItem> schedule = ScheduleConflict.mergeSameCourseItems(
+      result['items'] as List<ScheduleItem>,
+    );
     final String? startDayStr = result['startDay'] as String?;
     if (schedule.isEmpty) {
       throw const ScheduleRestoreException('教务未返回课表数据，已保留当前课表');
@@ -205,7 +208,9 @@ class ScheduleLoaderUsecase {
 
     try {
       final result = await service.getSchedule();
-      final List<ScheduleItem> schedule = result['items'] as List<ScheduleItem>;
+      final List<ScheduleItem> schedule = ScheduleConflict.mergeSameCourseItems(
+      result['items'] as List<ScheduleItem>,
+    );
       final String? startDayStr = result['startDay'] as String?;
 
       if (schedule.isEmpty) {
@@ -304,10 +309,11 @@ class ScheduleLoaderUsecase {
     try {
       final decoded = jsonDecode(raw);
       if (decoded is! List) return null;
-      return decoded
+      final parsed = decoded
           .whereType<Map>()
           .map((e) => ScheduleItem.fromJson(Map<String, dynamic>.from(e)))
           .toList();
+      return ScheduleConflict.mergeSameCourseItems(parsed);
     } catch (e) {
       debugPrint('Error decoding schedule cache: $e');
       return null;

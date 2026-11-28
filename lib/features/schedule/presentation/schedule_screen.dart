@@ -429,71 +429,92 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
       return const Center(child: CircularProgressIndicator());
     }
 
-    if (status.termUnavailable && status.termHint != null) {
-      return RefreshIndicator(
-        onRefresh: () => refreshScheduleWithFeedback(
-          context,
-          Provider.of<DataProvider>(context, listen: false),
-        ),
-        child: ListView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          children: [
-            const SizedBox(height: 120),
-            Icon(Icons.event_busy_outlined,
-                size: 48, color: theme.colorScheme.outline),
-            const SizedBox(height: 16),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 32),
-              child: Text(
-                status.termHint!,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
-                  fontSize: 15,
-                  height: 1.5,
-                ),
+    return ValueListenableBuilder<bool>(
+      valueListenable: widget.editingNotifier,
+      builder: (context, isEditing, _) {
+        if (!isEditing && status.termUnavailable && status.termHint != null) {
+          return GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onLongPress: _enterEditMode,
+            child: RefreshIndicator(
+              onRefresh: () => refreshScheduleWithFeedback(
+                context,
+                Provider.of<DataProvider>(context, listen: false),
               ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return Column(
-      children: [
-        if (status.keptStale && status.keptStaleHint != null)
-          Material(
-            color: theme.colorScheme.tertiaryContainer.withValues(alpha: 0.92),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
                 children: [
-                  Icon(Icons.info_outline,
-                      size: 18, color: theme.colorScheme.onTertiaryContainer),
-                  const SizedBox(width: 8),
-                  Expanded(
+                  const SizedBox(height: 120),
+                  Icon(Icons.event_busy_outlined,
+                      size: 48, color: theme.colorScheme.outline),
+                  const SizedBox(height: 16),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 32),
                     child: Text(
-                      status.keptStaleHint!,
+                      status.termHint!,
+                      textAlign: TextAlign.center,
                       style: TextStyle(
-                        fontSize: 13,
-                        height: 1.4,
-                        color: theme.colorScheme.onTertiaryContainer,
+                        color:
+                            theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                        fontSize: 15,
+                        height: 1.5,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 32),
+                    child: Text(
+                      '长按空白处可进入编辑模式手动添加课程',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color:
+                            theme.colorScheme.onSurface.withValues(alpha: 0.45),
+                        fontSize: 12,
                       ),
                     ),
                   ),
                 ],
               ),
             ),
-          ),
-        Expanded(
-          child: Stack(
-            children: [
-              const _ScheduleWallpaperLayer(),
-              ValueListenableBuilder<bool>(
-                valueListenable: widget.editingNotifier,
-                builder: (context, isEditing, _) {
-                  return ValueListenableBuilder<bool>(
+          );
+        }
+
+        return Column(
+          children: [
+            if (status.keptStale && status.keptStaleHint != null)
+              Material(
+                color:
+                    theme.colorScheme.tertiaryContainer.withValues(alpha: 0.92),
+                child: Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(Icons.info_outline,
+                          size: 18,
+                          color: theme.colorScheme.onTertiaryContainer),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          status.keptStaleHint!,
+                          style: TextStyle(
+                            fontSize: 13,
+                            height: 1.4,
+                            color: theme.colorScheme.onTertiaryContainer,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            Expanded(
+              child: Stack(
+                children: [
+                  const _ScheduleWallpaperLayer(),
+                  ValueListenableBuilder<bool>(
                     valueListenable: widget.isGridViewNotifier,
                     builder: (context, isGrid, _) {
                       return AnimatedSwitcher(
@@ -529,13 +550,13 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                               ),
                       );
                     },
-                  );
-                },
+                  ),
+                ],
               ),
-            ],
-          ),
-        ),
-      ],
+            ),
+          ],
+        );
+      },
     );
   }
 }

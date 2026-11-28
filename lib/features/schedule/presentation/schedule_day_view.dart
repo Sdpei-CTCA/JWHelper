@@ -78,20 +78,32 @@ class _DayScheduleView extends StatelessWidget {
         .select<DataProvider, Map<int, List<ScheduleItem>>>(
             (d) => d.scheduleGroupedByDay);
     final currentWeek = context.select<DataProvider, int>((d) => d.currentWeek);
+    final effectiveWeek = currentWeek > 0 ? currentWeek : 1;
 
     final dayItems = groupedSchedule[dayIndex] ?? const [];
 
     if (!isEditing && dayItems.isEmpty) {
-      return RefreshIndicator(
-        onRefresh: () => refreshScheduleWithFeedback(context, dataProvider),
-        child: ListView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          children: const [
-            SizedBox(height: 100),
-            Center(
-              child: Text('今天没有课哦 ~', style: TextStyle(color: Colors.grey)),
-            ),
-          ],
+      return GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onLongPress: onEnterEditMode,
+        child: RefreshIndicator(
+          onRefresh: () => refreshScheduleWithFeedback(context, dataProvider),
+          child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            children: const [
+              SizedBox(height: 100),
+              Center(
+                child: Text('今天没有课哦 ~', style: TextStyle(color: Colors.grey)),
+              ),
+              SizedBox(height: 8),
+              Center(
+                child: Text(
+                  '长按空白处可编辑或添加课程',
+                  style: TextStyle(color: Colors.grey, fontSize: 12),
+                ),
+              ),
+            ],
+          ),
         ),
       );
     }
@@ -131,54 +143,58 @@ class _DayScheduleView extends StatelessWidget {
       }
     }
 
-    return RefreshIndicator(
-      onRefresh: () => refreshScheduleWithFeedback(context, dataProvider),
-      child: ListView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(16),
-        children: [
-          if (isEditing || morningWidgets.isNotEmpty) ...[
-            _buildSectionHeader(context, '上午'),
-            ...morningWidgets,
-            if (isEditing)
-              _buildAddButton(
-                context,
-                dataProvider,
-                dayItems,
-                currentWeek,
-                ClassSession.morning,
-                '添加上午课程',
-              ),
-            const SizedBox(height: 16),
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onLongPress: isEditing ? null : onEnterEditMode,
+      child: RefreshIndicator(
+        onRefresh: () => refreshScheduleWithFeedback(context, dataProvider),
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(16),
+          children: [
+            if (isEditing || morningWidgets.isNotEmpty) ...[
+              _buildSectionHeader(context, '上午'),
+              ...morningWidgets,
+              if (isEditing)
+                _buildAddButton(
+                  context,
+                  dataProvider,
+                  dayItems,
+                  effectiveWeek,
+                  ClassSession.morning,
+                  '添加上午课程',
+                ),
+              const SizedBox(height: 16),
+            ],
+            if (isEditing || afternoonWidgets.isNotEmpty) ...[
+              _buildSectionHeader(context, '下午'),
+              ...afternoonWidgets,
+              if (isEditing)
+                _buildAddButton(
+                  context,
+                  dataProvider,
+                  dayItems,
+                  effectiveWeek,
+                  ClassSession.afternoon,
+                  '添加下午课程',
+                ),
+              const SizedBox(height: 16),
+            ],
+            if (isEditing || eveningWidgets.isNotEmpty) ...[
+              _buildSectionHeader(context, '晚上'),
+              ...eveningWidgets,
+              if (isEditing)
+                _buildAddButton(
+                  context,
+                  dataProvider,
+                  dayItems,
+                  effectiveWeek,
+                  ClassSession.evening,
+                  '添加晚上课程',
+                ),
+            ],
           ],
-          if (isEditing || afternoonWidgets.isNotEmpty) ...[
-            _buildSectionHeader(context, '下午'),
-            ...afternoonWidgets,
-            if (isEditing)
-              _buildAddButton(
-                context,
-                dataProvider,
-                dayItems,
-                currentWeek,
-                ClassSession.afternoon,
-                '添加下午课程',
-              ),
-            const SizedBox(height: 16),
-          ],
-          if (isEditing || eveningWidgets.isNotEmpty) ...[
-            _buildSectionHeader(context, '晚上'),
-            ...eveningWidgets,
-            if (isEditing)
-              _buildAddButton(
-                context,
-                dataProvider,
-                dayItems,
-                currentWeek,
-                ClassSession.evening,
-                '添加晚上课程',
-              ),
-          ],
-        ],
+        ),
       ),
     );
   }

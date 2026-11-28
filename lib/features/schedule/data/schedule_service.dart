@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:dio/dio.dart';
 import 'package:JWHelper/core/constants/config.dart';
 import 'package:JWHelper/infrastructure/network/client.dart';
+import 'package:JWHelper/features/schedule/domain/schedule_conflict.dart';
 import 'package:JWHelper/features/schedule/domain/schedule_item.dart';
 import 'package:JWHelper/app/domain/schedule_term_state.dart';
 
@@ -258,6 +259,7 @@ class ScheduleService {
           ));
         }
       }
+      items = ScheduleConflict.mergeSameCourseItems(items);
       debugPrint("Parsed Items Count: ${items.length}");
       if (ScheduleTermState.isTermUnavailable(
         schedule: items,

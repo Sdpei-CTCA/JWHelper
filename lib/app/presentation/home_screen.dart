@@ -728,6 +728,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             '第${s.currentWeek}周',
           );
         }
+        if (s.isLocalMode) {
+          return _buildWeekSubtitle(context, true, '自定义课表');
+        }
         return const SizedBox.shrink();
       },
     );

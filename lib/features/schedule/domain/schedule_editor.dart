@@ -66,7 +66,7 @@ class ScheduleEditor {
       weeks: [toWeek],
     );
     result.add(moved);
-    return result;
+    return ScheduleConflict.mergeSameCourseItems(result);
   }
 
   static List<ScheduleItem> add(List<ScheduleItem> all, ScheduleItem item) {

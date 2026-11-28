@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:JWHelper/features/schedule/domain/schedule_conflict.dart';
 import 'package:JWHelper/features/schedule/domain/schedule_editor.dart';
 import 'package:JWHelper/features/schedule/domain/schedule_item.dart';
 
@@ -212,6 +213,90 @@ void main() {
         ),
         isFalse,
       );
+    });
+
+    test('moving merged multi-teacher course leaves nothing in original slot for that week',
+        () {
+      final rawItems = [
+        ScheduleItem(
+          name: '计算机基础与应用',
+          teacher: '张老师',
+          classroom: '1602',
+          dayIndex: 3,
+          startUnit: 6,
+          endUnit: 7,
+          weekStart: 1,
+          weekEnd: 16,
+        ),
+        ScheduleItem(
+          name: '计算机基础与应用',
+          teacher: '李老师',
+          classroom: '1602',
+          dayIndex: 3,
+          startUnit: 6,
+          endUnit: 7,
+          weekStart: 1,
+          weekEnd: 16,
+        ),
+      ];
+      final merged = ScheduleConflict.mergeSameCourseItems(rawItems);
+      expect(merged, hasLength(1));
+
+      final afterMove = ScheduleEditor.moveOccurrence(
+        merged,
+        merged.first,
+        fromWeek: 12,
+        toWeek: 12,
+        toDay: 3,
+        toStartUnit: 4,
+      );
+
+      final week12AtOldSlot = afterMove
+          .where((e) =>
+              e.dayIndex == 3 && e.startUnit == 6 && e.occursInWeek(12))
+          .toList();
+      expect(week12AtOldSlot, isEmpty);
+
+      final week12AtNewSlot = afterMove
+          .where((e) =>
+              e.dayIndex == 3 && e.startUnit == 4 && e.occursInWeek(12))
+          .toList();
+      expect(week12AtNewSlot, hasLength(1));
+      expect(week12AtNewSlot.first.teacher, '张老师、李老师');
+      expect(week12AtNewSlot.first.endUnit, 5);
+    });
+
+    test('moving an occurrence back to its original slot re-merges weeks', () {
+      final course = _course(
+        name: '管理学',
+        dayIndex: 2,
+        startUnit: 8,
+        endUnit: 9,
+        weekStart: 1,
+        weekEnd: 4,
+      );
+      final movedOut = ScheduleEditor.moveOccurrence(
+        [course],
+        course,
+        fromWeek: 2,
+        toWeek: 2,
+        toDay: 4,
+        toStartUnit: 1,
+      );
+      expect(movedOut, hasLength(2));
+
+      final movedPiece = movedOut.firstWhere((e) => e.dayIndex == 4);
+      final movedBack = ScheduleEditor.moveOccurrence(
+        movedOut,
+        movedPiece,
+        fromWeek: 2,
+        toWeek: 2,
+        toDay: 2,
+        toStartUnit: 8,
+      );
+
+      expect(movedBack, hasLength(1));
+      expect(movedBack.first.activeWeeks, [1, 2, 3, 4]);
     });
   });
 }

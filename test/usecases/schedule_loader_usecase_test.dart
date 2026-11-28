@@ -245,4 +245,56 @@ void main() {
     );
     expect(stillLocal.schedule.first.name, 'Cached Course');
   });
+
+  test('readCacheOnly and local mode execute auto-merge legacy duplicate teacher items',
+      () async {
+    final dup1 = ScheduleItem(
+      name: '计算机基础与应用',
+      teacher: '王老师',
+      classroom: '1602',
+      dayIndex: 3,
+      startUnit: 6,
+      endUnit: 7,
+      weekStart: 1,
+      weekEnd: 16,
+    );
+    final dup2 = ScheduleItem(
+      name: '计算机基础与应用',
+      teacher: '李老师',
+      classroom: '1602',
+      dayIndex: 3,
+      startUnit: 6,
+      endUnit: 7,
+      weekStart: 1,
+      weekEnd: 16,
+    );
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      'schedule_cache_$username',
+      jsonEncode([dup1.toJson(), dup2.toJson()]),
+    );
+    await prefs.setInt(
+      'schedule_cache_time_$username',
+      DateTime.now().millisecondsSinceEpoch,
+    );
+    await prefs.setString('schedule_start_day_$username', '2025-02-24');
+    await prefs.setBool('schedule_local_mode_$username', true);
+
+    final cacheOnly = await ScheduleLoaderUsecase.readCacheOnly(username);
+    expect(cacheOnly, isNotNull);
+    expect(cacheOnly!.schedule, hasLength(1));
+    expect(cacheOnly.schedule.first.teacher, '王老师、李老师');
+
+    final service = FakeScheduleService([]);
+    final executed = await ScheduleLoaderUsecase.execute(
+      service: service,
+      username: username,
+      forceRefresh: true,
+    );
+    expect(service.callCount, 0);
+    expect(executed.localMode, isTrue);
+    expect(executed.schedule, hasLength(1));
+    expect(executed.schedule.first.teacher, '王老师、李老师');
+  });
 }
